@@ -1,3 +1,5 @@
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](INCEPTION.en.md)
+
 Ciao Claude,
 voglio sviluppare con te un progetto per un gioco di simulazione di evoluzione di organismi proto-batterici.
 Deve essere scientificamente accurato

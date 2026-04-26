@@ -1,3 +1,5 @@
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](README.en.md)
+
 # Arkea
 
 Simulazione MMO persistente di evoluzione di organismi proto-batterici. Il giocatore progetta un *Arkeon* (struttura cellulare + genoma) e lo allena in un ecosistema condiviso che evolve 24/7 server-side. Pubblico target: biologi, microbiologi, genetisti, biologi molecolari.
@@ -19,4 +21,4 @@ In `.claude/agents/`: cinque agent specializzati (Elixir/OTP, Ecto/Postgres, bio
 
 ## Licenza
 
-Da definire.
+[GNU General Public License v3.0](LICENSE) (GPL-3.0).

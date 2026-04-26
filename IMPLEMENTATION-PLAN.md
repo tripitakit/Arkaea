@@ -1,3 +1,5 @@
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](IMPLEMENTATION-PLAN.en.md)
+
 # Arkea — Piano di implementazione (alto livello)
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md), [INCEPTION.md](INCEPTION.md)

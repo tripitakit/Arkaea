@@ -1,3 +1,5 @@
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](DESIGN_STRESS-TEST.en.md)
+
 # Arkea — Stress test del design "a tavolino"
 
 **Riferimenti**: [DESIGN.md](DESIGN.md) (Blocchi 1–14), [INCEPTION.md](INCEPTION.md)
