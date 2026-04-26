@@ -1,0 +1,16 @@
+# External tooling unrelated to Arkea
+.codex
+.codex-skills/
+
+# Erlang crash dumps anywhere in the repo
+erl_crash.dump
+
+# Editor scratch
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
