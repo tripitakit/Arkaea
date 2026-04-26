@@ -10,7 +10,6 @@ Simulazione MMO persistente di evoluzione di organismi proto-batterici. Il gioca
 
 ## Documenti
 
-- [INCEPTION.md](INCEPTION.md) — la richiesta originale che ha dato avvio al progetto
 - [DESIGN.md](DESIGN.md) — documento di design completo, 15 blocchi (architettura, modello biologico, ambiente, popolazione, motore, inventario metabolico, sistema generativo dei domini, pressioni selettive, quorum sensing, topologia network, tempo, micro/macroscala, anti-griefing, stack, caso d'uso integrale)
 - [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md) — walk-through "Cronache di un estuario contestato" che valida la coerenza del design attraversando tutti i 15 blocchi
 - [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) — scelta architetturale (Active Record + audit log strutturato + tick pure-functional), analisi dell'alternativa Event Sourcing scartata, roadmap di 12 fasi incrementali, disciplina di sviluppo

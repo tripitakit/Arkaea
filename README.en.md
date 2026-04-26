@@ -10,7 +10,6 @@ Persistent MMO simulation of proto-bacterial organism evolution. The player desi
 
 ## Documents
 
-- [INCEPTION.en.md](INCEPTION.en.md) — the original request that launched the project
 - [DESIGN.en.md](DESIGN.en.md) — complete design document, 15 blocks (architecture, biological model, environment, population, engine, metabolic inventory, generative domain system, selective pressures, quorum sensing, network topology, time, micro/macroscale, anti-griefing, stack, integral use case)
 - [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md) — walk-through "Chronicles of a contested estuary" that validates design coherence by traversing all 15 blocks
 - [IMPLEMENTATION-PLAN.en.md](IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick), analysis of the discarded Event Sourcing alternative, roadmap of 12 incremental phases, development discipline

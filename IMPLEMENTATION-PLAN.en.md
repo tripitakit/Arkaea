@@ -2,7 +2,7 @@
 
 # Arkea — Implementation plan (high level)
 
-**References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md), [INCEPTION.en.md](INCEPTION.en.md)
+**References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md)
 **Date**: 2026-04-26
 **Status**: consolidated architectural choice; defined phase roadmap; ready for Phase 0.
 

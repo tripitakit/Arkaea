@@ -2,7 +2,7 @@
 
 # Arkea — Piano di implementazione (alto livello)
 
-**Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md), [INCEPTION.md](INCEPTION.md)
+**Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
 **Stato**: scelta architetturale consolidata; roadmap di fasi definita; pronto per Fase 0.
 

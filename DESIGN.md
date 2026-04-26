@@ -4,7 +4,7 @@
 
 ## Contesto
 
-**Arkea** è un gioco/simulazione di evoluzione di organismi proto-batterici (gli *Arkeon*), nato dal documento [INCEPTION.md](/home/patrick/projects/playground/Arkea/INCEPTION.md). L'obiettivo del progetto è creare un'esperienza che sia:
+**Arkea** è un gioco/simulazione di evoluzione di organismi proto-batterici (gli *Arkeon*). L'obiettivo del progetto è creare un'esperienza che sia:
 
 - **Scientificamente accurata**, rivolta a un pubblico di biologi, microbiologi, genetisti e biologi molecolari
 - Una **web app con UI 2D WebGL**

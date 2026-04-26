@@ -2,7 +2,7 @@
 
 # Arkea — Stress test del design "a tavolino"
 
-**Riferimenti**: [DESIGN.md](DESIGN.md) (Blocchi 1–14), [INCEPTION.md](INCEPTION.md)
+**Riferimenti**: [DESIGN.md](DESIGN.md) (Blocchi 1–14)
 **Data del walk-through**: 2026-04-26
 **Scopo**: validare la coerenza interna del design integrale prima della fase implementativa, attraversando in uno scenario continuo tutti i 14 blocchi del documento di design.
 

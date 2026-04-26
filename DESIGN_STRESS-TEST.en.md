@@ -2,7 +2,7 @@
 
 # Arkea — Tabletop design stress test
 
-**References**: [DESIGN.en.md](DESIGN.en.md) (Blocks 1–14), [INCEPTION.en.md](INCEPTION.en.md)
+**References**: [DESIGN.en.md](DESIGN.en.md) (Blocks 1–14)
 **Walk-through date**: 2026-04-26
 **Purpose**: validate the internal coherence of the integral design before the implementation phase, traversing in a continuous scenario all 14 blocks of the design document.
 
