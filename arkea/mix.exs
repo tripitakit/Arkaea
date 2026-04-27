@@ -70,6 +70,7 @@ defmodule Arkea.MixProject do
       # Arkea additions (IMPLEMENTATION-PLAN §5/§6)
       {:oban, "~> 2.18"},
       {:stream_data, "~> 1.1", only: :test},
+      {:typed_struct, "~> 0.3"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]

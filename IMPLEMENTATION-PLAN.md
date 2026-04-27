@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: scelta architetturale consolidata; roadmap di fasi definita; pronto per Fase 0.
+**Stato**: Fase 0 ✅ completata · Fase 1 🔄 in corso (vedi §1bis).
 
 ---
 
@@ -19,6 +19,141 @@ Il design (15 blocchi consolidati in DESIGN.md, validato dallo stress test di DE
 - **Scope prototipo**: 5–10 biotopi, cap 100 lignaggi/biotopo, 1–4 player
 
 Questo documento definisce **come** costruire il sistema: la scelta architetturale principale (con analisi delle alternative considerate), la roadmap di fasi incrementali, e la disciplina di sviluppo da seguire.
+
+---
+
+## 1bis. Stato dell'implementazione
+
+> Aggiornato: 2026-04-27. EN translation di questa sezione: ⏳ pending sync (`bilingual-docs-maintainer`).
+
+### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
+
+- ✅ Phoenix 1.8.5 scaffold in `arkea/` (`--no-mailer --no-gettext --binary-id`)
+- ✅ `.tool-versions` locale: Erlang 28.1.1 + Elixir 1.19.3-otp-28
+- ✅ Dipendenze del piano: Oban 2.18, StreamData 1.1, Dialyxir 1.4, Credo 1.7
+- ✅ Aggiunta `typed_struct 0.3` (per i type-safe struct di Fase 1)
+- ✅ `.credo.exs` (default config) + `priv/plts/.gitkeep` (PLT path)
+- ✅ DB di sviluppo `arkea_dev` (Postgres 14 locale)
+- ✅ `config/dev.exs` legge `PORT` da env (default 4000)
+- ✅ `mix format`/`credo --strict`/`test`/`compile --warnings-as-errors`: tutto verde
+- ✅ Server verificato: `PORT=4010 mix phx.server` → HTTP 200, title "Arkea · Phoenix Framework"
+- ✅ GitHub Actions CI (`.github/workflows/ci.yml`): format/credo/test/dialyzer + cache
+- ✅ `.gitignore` top-level per tooling esterno
+
+### Fase 1 — Modello dati core 🔄 in chiusura (manca solo coherence review + commit)
+
+**Decisioni di design** (proposta `elixir-otp-architect`, decise in conversazione 2026-04-26):
+
+- Naming: inglese nel codice; namespace gerarchico `Arkea.Genome.*` + `Arkea.Ecology.*` + `Arkea.Persistence.*`
+- Struct: TypedStruct (compile-time `@type t()` + Dialyzer-friendly)
+- Codone = intero `0..19`; alfabeto = atom analoghi 20 amminoacidi (`:ala`, `:arg`, …, `:val`)
+- **Pesi codoni**: log-normal con seed fisso (frozen in `Codon` per riproducibilità)
+- 11 tipi di dominio come enum atom in `Domain.Type`
+- Mapping `from_type_tag/1`: `rem(sum_of_3_codons, 11)` (uniforme su input random)
+- Delta del lignaggio = lista tipata di 5 sub-struct di mutazione
+- Soglia consolidamento `clade_ref_id`: 50 mutazioni (Fase 4)
+- `genome: Genome.t() | nil` nel Lineage (per delta-encoding di Fase 4 senza breaking change)
+- `phase_name` come atom; `lineage_ids` in Phase come `MapSet`
+- Top-level `Arkea.Genome` = modulo+struct (pattern di `MapSet`, `Range`, `Date`)
+- Helper `Arkea.UUID` come single point of indirection per UUID v4 (delegato a `Ecto.UUID`)
+
+**Semplificazioni esplicite per Fase 1** (riprese in Fase 3):
+
+- Gene parser: nessun promoter/regulatory block (nil), parameter_codons fisso a 20 codoni → ogni dominio = 23 codoni, gene = multipli di 23
+- Domain.params: solo `%{raw_sum: float}` (Phase 3 raffinerà con chiavi tipo-specifiche)
+- Mutation modules: solo struct + `valid?/1`; `apply/2` arriva in Fase 4
+
+#### Modello dati core in-memory (struct + funzioni pure)
+
+| Modulo | File | Stato |
+|---|---|---|
+| `Arkea.UUID` | `lib/arkea/uuid.ex` | ✅ |
+| `Arkea.Genome.Codon` | `lib/arkea/genome/codon.ex` | ✅ |
+| `Arkea.Genome.Domain.Type` | `lib/arkea/genome/domain/type.ex` | ✅ |
+| `Arkea.Genome.Domain` | `lib/arkea/genome/domain.ex` | ✅ |
+| `Arkea.Genome.Gene` | `lib/arkea/genome/gene.ex` | ✅ |
+| `Arkea.Genome` | `lib/arkea/genome.ex` | ✅ |
+| `Arkea.Genome.Mutation` (union) | `lib/arkea/genome/mutation.ex` | ✅ |
+| `Arkea.Genome.Mutation.Substitution` | `lib/arkea/genome/mutation/substitution.ex` | ✅ |
+| `Arkea.Genome.Mutation.Indel` | `lib/arkea/genome/mutation/indel.ex` | ✅ |
+| `Arkea.Genome.Mutation.Duplication` | `lib/arkea/genome/mutation/duplication.ex` | ✅ |
+| `Arkea.Genome.Mutation.Inversion` | `lib/arkea/genome/mutation/inversion.ex` | ✅ |
+| `Arkea.Genome.Mutation.Translocation` | `lib/arkea/genome/mutation/translocation.ex` | ✅ |
+| `Arkea.Ecology.Lineage` | `lib/arkea/ecology/lineage.ex` | ✅ |
+| `Arkea.Ecology.Phase` | `lib/arkea/ecology/phase.ex` | ✅ |
+| `Arkea.Ecology.Biotope` | `lib/arkea/ecology/biotope.ex` | ✅ (8 archetipi + `default_phases/1`) |
+
+#### Schema Ecto base (Phase 1 minimale; CRUD wrapper rinviati a Fase 10)
+
+Namespace `Arkea.Persistence.*` per non confondere con le struct in-memory `Arkea.Ecology.*`. Implementati da `ecto-postgres-modeler` (2026-04-27):
+
+| Schema | File | Migration |
+|---|---|---|
+| `Arkea.Persistence.Player` | `lib/arkea/persistence/player.ex` | `20260427072227_create_players.exs` |
+| `Arkea.Persistence.Biotope` | `lib/arkea/persistence/biotope.ex` | `20260427072317_create_biotopes.exs` |
+| `Arkea.Persistence.Phase` | `lib/arkea/persistence/phase.ex` | `20260427072318_create_phases.exs` |
+| `Arkea.Persistence.Lineage` | `lib/arkea/persistence/lineage.ex` | `20260427072319_create_lineages.exs` |
+| `Arkea.Persistence.AuditLog` | `lib/arkea/persistence/audit_log.ex` | `20260427072320_create_audit_log.exs` |
+| `Arkea.Persistence.MobileElement` | `lib/arkea/persistence/mobile_element.ex` | `20260427072321_create_mobile_elements.exs` |
+
+Decisioni della persistenza:
+- `binary_id` PK ovunque (coerente con `--binary-id` di Phoenix)
+- Genome / delta_genome / mobile element genes serializzati come `bytea` via `:erlang.term_to_binary/1`
+- `abundance_by_phase` come jsonb (chiavi atom serializzate come stringhe; conversione lato Elixir)
+- FK strategy: `:delete_all` per child senza significato senza parent (phase senza biotope, lineage senza biotope); `:nilify_all` per parent_id di lineage e owner_player_id di biotope (un wild biotope sopravvive al rimosso owner)
+- Audit log con `event_type`, `actor_player_id`, `target_biotope_id`, `target_lineage_id`, `payload` jsonb, `occurred_at_tick` (Blocco 13 origin tracking)
+- Mobile elements con `origin_lineage_id` + `origin_biotope_id` per anti-griefing detection
+- Esclusioni esplicite (rinviate a Fase 9–10): `phylogenetic_history`, `interventions_log`, `snapshots`, TimescaleDB, citext
+
+#### Test suite
+
+- **Module `Arkea.Generators`** in `test/support/generators.ex` — 25 generatori StreamData (codon, codon_list, type_tag, parameter_codons, domain, gene, genome, lineage, lineage_pair, abundances, growth_deltas, phase, biotope, 5 mutation generators, ecc.)
+- **Property tests** in `test/arkea/genome/`, `test/arkea/ecology/` — 91 properties × 100–200 runs ciascuna
+- **Plain unit tests** in `test/arkea/` — 76 unit per il dominio in-memory + 50 per la persistenza
+- **Persistence smoke tests** in `test/arkea/persistence/` — verifica round-trip insert/get per ognuno dei 6 schema, vincoli base, unique constraint
+- **Suite finale**: `mix test` → **91 properties, 126 tests, 0 failures** (1 test fix puntuale: `phase_test.exs` adottava una chiave errata per leggere errors_on di unique_constraint composito)
+
+Invarianti coperti (§6.2):
+- ✅ Conservation (`gene_count == length(all_genes)`, `add_plasmid` mass conservation, `integrate_prophage` mass conservation)
+- ✅ Tree monotonicity (child_tick > parent_tick, raise su violazione)
+- ✅ Lineage abundance non-negative (clamp a 0 dopo qualsiasi `apply_growth/2`)
+- ✅ Phase dilution monotonica (∀ pool: conc dopo ≤ conc prima)
+- ✅ Genoma well-formed (round-trip `from_domains`/`from_codons`)
+- ✅ MapSet lineage_ids consistency (add/remove round-trip, deduplicazione)
+- ✅ Domain type determinism + uniformity (1000 sample, tutti 11 tipi presenti)
+- ✅ valid?/validate agreement su tutti i moduli
+- ✅ Biotope archetype → zone consistente, phase count 2..3
+- ⏳ Determinism del tick (Fase 4: tick engine)
+- ⏳ Pruning correctness (Fase 4)
+- ⏳ Phase distribution sums to 1 (Fase 5)
+
+#### Cross-check qualità (agent reviews)
+
+- ✅ **Biological realism review** (`biological-realism-reviewer`, 2026-04-27): pronto per sign-off. 3 docstring tightened post-review:
+  1. `Lineage.abundance_by_phase` → "abundance index / cell-equivalent count" (non "absolute count of cells", per non implicare densità batteriche reali 6–9 ordini di grandezza superiori al cap simulato)
+  2. `Genome.plasmids/prophages` → TODO espliciti per Fase 6: copy_number, inc_group, lysogenic state
+  3. `Gene` Phase 1 simplifications → docstring del range codoni 23..207 chiarita
+
+  Non emersi blocker; tutte le decisioni (alfabeto come aa-like, pesi log-normal, mapping uniform, fixed-length Phase 1) sono giustificate per pubblico esperto.
+- ⏳ **Design coherence review** (`design-coherence-reviewer`): da invocare prima del commit.
+
+**Suite verificata** (2026-04-27, post-Ecto schemas + post-bio review):
+- `mix format --check-formatted`: ✅ pulito
+- `mix credo --strict`: ✅ 291 mods/funs, 0 issue
+- `mix compile --warnings-as-errors`: ✅
+- `mix ecto.migrate`: ✅ 6 migrazioni applicate
+- `mix test`: ✅ **91 properties, 126 tests, 0 failures**
+
+**Step rimanenti per chiudere Fase 1**:
+
+1. ⏳ Cross-check coerenza design via agent `design-coherence-reviewer`
+2. ⏳ Commit + push Fase 1
+
+**Open issues / da rivedere prima di consolidare**:
+
+- I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
+- Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
+- Sync EN della §1bis (`bilingual-docs-maintainer`) rinviato — la sezione cresce velocemente in fase implementativa, conviene fare un singolo sync alla chiusura di Fase 1.
 
 ---
 
@@ -151,6 +286,8 @@ end
 ## 5. Roadmap implementativa
 
 12 fasi incrementali. Ogni fase lascia un sistema funzionante e dimostrabile, anche se incompleto. L'ordine massimizza il **feedback evolutivo precoce**: già in Fase 4 si vedono i primi fenomeni emergenti.
+
+> Per lo stato di esecuzione dettagliato delle fasi, vedi §1bis. La tabella seguente è la pianificazione canonica.
 
 | Fase | Deliverable | Criterio di successo | Blocchi DESIGN coperti |
 |---|---|---|---|
