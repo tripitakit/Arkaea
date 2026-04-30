@@ -1,8 +1,10 @@
 defmodule ArkeaWeb.PageControllerTest do
   use ArkeaWeb.ConnCase
 
-  test "GET /", %{conn: conn} do
+  # The root route now renders SimLive (replaced PageController in Phase 5 UI).
+  # We verify that the LiveView shell is served and contains the simulation title.
+  test "GET / renders SimLive", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    assert html_response(conn, 200) =~ "Arkea Simulation"
   end
 end

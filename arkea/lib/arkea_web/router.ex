@@ -17,7 +17,7 @@ defmodule ArkeaWeb.Router do
   scope "/", ArkeaWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", SimLive
   end
 
   # Other scopes may use custom stacks.

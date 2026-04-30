@@ -60,12 +60,17 @@ defmodule Arkea.Sim.Biotope.ServerTest do
     Genome.new([gene])
   end
 
-  # Zero-delta genome: single :catalytic_site domain (type_tag [0,0,1]) with
+  # Zero-delta genome: a :catalytic_site domain (type_tag [0,0,1]) with
   # all-zero parameter_codons → kcat = 0.0 → base_growth_rate = 0.0 → delta = 0.
-  # Use this when the test requires step_expression to produce no growth.
+  # Paired with a :repair_fidelity domain (type_tag sum rem 11 = 10 → [0,1,9])
+  # with all-max parameter_codons (value 19) → repair_efficiency ≈ 1.0 → mutation
+  # probability ≈ 0.0. This makes the test deterministic: no mutations fire.
   defp zero_delta_genome do
-    domain = Domain.new([0, 0, 1], List.duplicate(0, 20))
-    gene = Gene.from_domains([domain])
+    catalytic = Domain.new([0, 0, 1], List.duplicate(0, 20))
+    # type_tag [0,1,9]: sum = 10, rem(10,11) = 10 → :repair_fidelity
+    # parameter_codons all 19: raw_sum high → norm ≈ 1.0 → efficiency ≈ 1.0
+    high_fidelity = Domain.new([0, 1, 9], List.duplicate(19, 20))
+    gene = Gene.from_domains([catalytic, high_fidelity])
     Genome.new([gene])
   end
 

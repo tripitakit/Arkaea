@@ -85,3 +85,10 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
+
+# Fast tick interval for development: 2 seconds instead of the production
+# default of 5 minutes (300_000 ms). This makes evolutionary dynamics visible
+# in the browser within seconds during local observation.
+# The test environment keeps the 600_000 ms value set in test.exs so that
+# supervised WorldClock timers do not fire during the test suite.
+config :arkea, :tick_interval_ms, 2_000

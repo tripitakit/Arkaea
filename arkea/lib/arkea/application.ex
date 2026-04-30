@@ -5,6 +5,10 @@ defmodule Arkea.Application do
 
   use Application
 
+  alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
+  alias Arkea.Sim.SeedScenario
+  alias Arkea.Sim.WorldClock
+
   @impl true
   def start(_type, _args) do
     children = [
@@ -15,8 +19,13 @@ defmodule Arkea.Application do
       # Sim process tree — order matters here (Registry before consumers,
       # WorldClock before Biotope.Supervisor so PubSub topic exists first).
       {Registry, keys: :unique, name: Arkea.Sim.Registry},
-      Arkea.Sim.WorldClock,
-      Arkea.Sim.Biotope.Supervisor,
+      WorldClock,
+      BiotopeSupervisor,
+      # Seed the default scenario once at startup without blocking the
+      # supervisor. The Task is fire-and-forget: if the biotope is already
+      # running (e.g. after a hot-code reload) SeedScenario returns
+      # {:error, :already_running} which the Task discards silently.
+      {Task, fn -> SeedScenario.start_default() end},
       # Start to serve requests, typically the last entry
       ArkeaWeb.Endpoint
     ]
