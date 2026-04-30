@@ -68,8 +68,10 @@ defmodule Arkea.Sim.Tick do
   """
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Ecology.Phase
   alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
 
@@ -100,39 +102,73 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 1 — Metabolic balance (stub for Phase 5).
+  Step 1 — Metabolic balance: Michaelis-Menten uptake from phase pools (Phase 5).
 
-  Will implement proto-FBA and the 13-metabolite pool updates from Block 6.
-  For Phase 2, returns state unchanged.
+  For each phase, computes the total substrate uptake across all resident
+  lineages using `Arkea.Sim.Metabolism.compute_uptake/3`. The consumed amounts
+  are subtracted from `Phase.metabolite_pool` and the per-lineage ATP yield
+  index is accumulated in `BiotopeState.atp_yield_by_lineage`.
+
+  ## Pipeline per phase
+
+  1. For each lineage with `abundance > 0` in this phase and a non-nil genome:
+     - Derive `substrate_affinities` from the phenotype (atom-keyed, Phase 5).
+     - Compute per-lineage uptake via `Metabolism.compute_uptake/3`.
+     - Accumulate uptake per metabolite (total consumed from pool by all lineages).
+     - Accumulate `atp_yield = Metabolism.atp_yield(uptake)` per lineage.
+  2. Reduce the pool: `new_conc = max(conc - total_consumed, 0.0)`.
+
+  ## Discipline
+
+  Pure. No I/O. `atp_yield_by_lineage` is reset at the start of each call,
+  so callers always see exactly the yields produced by this tick's chemistry.
   """
   @spec step_metabolism(BiotopeState.t()) :: BiotopeState.t()
-  def step_metabolism(%BiotopeState{} = state), do: state
+  def step_metabolism(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    phenotypes =
+      Map.new(lineages, fn l ->
+        ph = if l.genome != nil, do: Phenotype.from_genome(l.genome), else: nil
+        {l.id, ph}
+      end)
+
+    {new_phases, atp_yields} =
+      Enum.reduce(phases, {[], %{}}, fn phase, {acc_phases, acc_yields} ->
+        {updated_phase, phase_yields} = process_phase(phase, lineages, phenotypes)
+        merged = Map.merge(acc_yields, phase_yields, fn _k, a, b -> a + b end)
+        {acc_phases ++ [updated_phase], merged}
+      end)
+
+    %{state | phases: new_phases, atp_yield_by_lineage: atp_yields}
+  end
 
   @doc """
-  Step 2 — Gene expression: derive growth deltas from genome-encoded phenotypes.
+  Step 2 — Gene expression: derive growth deltas from ATP yield (Phase 5).
 
-  Iterates every lineage in the biotope state, computes an `Arkea.Sim.Phenotype`
-  from its genome, and writes a `%{phase_name => integer()}` delta map into
-  `growth_delta_by_lineage`. The updated map is consumed by `step_cell_events/1`
-  in the same tick.
+  Reads `atp_yield_by_lineage` populated by `step_metabolism/1` in the same
+  tick and converts each lineage's metabolic power into integer growth deltas.
 
-  ## Growth model (Phase 3)
+  ## Growth model (Phase 5)
 
-  For each phase present in the lineage's `abundance_by_phase`:
+  For each lineage with a non-nil genome:
 
-      delta = round(base_growth_rate * 100) - round(energy_cost * 10)
+      sigma = 0.5 + phenotype.dna_binding_affinity          # 0.5..1.5
+      net   = (atp_yield - phenotype.energy_cost * 5.0) * sigma
+      delta = round(net) |> max(-200) |> min(500)
 
-  This linear model is intentionally simple. Phase 5 will replace it with a
-  Michaelis-Menten kinetic model driven by the full metabolite pool.
-
-  Deltas are clamped to `-100..500` to bound burst growth and extinction
-  pressure within a single tick.
+  - `atp_yield` — dimensionless ATP index from `step_metabolism/1`. Zero when
+    no substrate is available or the lineage lacks substrate-binding domains.
+    Zero yield with non-zero energy cost → negative delta → lineage shrinks.
+    This is the fundamental selection pressure: no substrate, no growth.
+  - `energy_cost * 5.0` — scales the `0.0..5.0` cost field to the same order
+    of magnitude as typical atp_yield values (0..50).
+  - `dna_binding_affinity` as σ-factor scalar — Phase 5 simplification.
+    A lineage with no `:dna_binding` domains gets sigma = 0.5 (half-speed).
+    Full σ-factor binding-site logic is deferred to Phase 7.
+  - Delta clamped to `-200..500` to bound extinction and burst growth.
 
   ## Lineages with `genome: nil`
 
-  Delta-encoded lineages (Phase 4+) have `genome: nil`. For Phase 3 these
-  are passed through without overwriting their existing delta entry — a
-  conservative no-op that preserves whatever value was set externally.
+  Preserved unchanged (delta-encoded descendants keep their prior delta).
 
   ## Invariants
 
@@ -141,7 +177,13 @@ defmodule Arkea.Sim.Tick do
   - Does not modify `lineages` — only updates `growth_delta_by_lineage`.
   """
   @spec step_expression(BiotopeState.t()) :: BiotopeState.t()
-  def step_expression(%BiotopeState{lineages: lineages, phases: phases} = state) do
+  def step_expression(
+        %BiotopeState{
+          lineages: lineages,
+          phases: phases,
+          atp_yield_by_lineage: yields
+        } = state
+      ) do
     phase_names = Enum.map(phases, & &1.name)
 
     new_deltas =
@@ -149,7 +191,8 @@ defmodule Arkea.Sim.Tick do
         deltas =
           if lineage.genome != nil do
             phenotype = Phenotype.from_genome(lineage.genome)
-            compute_growth_deltas(phenotype, phase_names)
+            atp = Map.get(yields, lineage.id, 0.0)
+            compute_growth_deltas_v5(phenotype, atp, phase_names)
           else
             Map.get(state.growth_delta_by_lineage, lineage.id, %{})
           end
@@ -199,27 +242,37 @@ defmodule Arkea.Sim.Tick do
   def step_hgt(%BiotopeState{} = state), do: state
 
   @doc """
-  Step 5 — Environmental effects: dilution of lineage abundances.
+  Step 5 — Environmental effects: dilution of lineage abundances and phase pools.
+
+  Phase 5 additions (beyond Phase 2 lineage dilution):
+
+  1. **Phase pool dilution**: calls `Phase.dilute/1` on every phase, which
+     applies the phase's `dilution_rate` to `metabolite_pool`, `signal_pool`,
+     and `phage_pool`. This models the chemostat washout of dissolved substrates.
+
+  2. **Metabolite inflow**: after dilution, adds `state.metabolite_inflow` to
+     each phase's `metabolite_pool`. Inflow models continuous replenishment
+     (fresh medium entering the chemostat). An empty `metabolite_inflow` map
+     (the default) is a no-op.
+
+  ## Lineage dilution (unchanged from Phase 2)
 
   For each lineage, multiplies each `abundance_by_phase[phase_name]` entry by
-  `(1.0 - rate)`. The rate is looked up from the matching `Phase` in
-  `state.phases` by name, falling back to `state.dilution_rate`.
+  `(1.0 - rate)`. The result is `floor`ed and clamped to `max(_, 0)` to
+  preserve the `non_neg_integer()` type contract.
 
-  The float product is `floor`ed to preserve the `non_neg_integer()` type
-  contract of `abundance_by_phase`. The result is also clamped to `max(_, 0)`
-  for safety against any floating-point underflow edge case.
-
-  **Invariant**: every per-phase abundance after this step is ≤ the value
-  before, i.e. dilution is strictly non-increasing (monotonicity).
-
-  Phase 5 will also dilute `Phase.metabolite_pool`, `signal_pool`, and
-  `phage_pool` (currently isolated inside `Phase.dilute/1`).
+  **Invariant**: lineage abundances after this step are ≤ their values before
+  (monotonic decrease from dilution). Phase metabolite concentrations are also
+  ≤ pre-dilution values before inflow is applied.
   """
   @spec step_environment(BiotopeState.t()) :: BiotopeState.t()
-  def step_environment(%BiotopeState{lineages: lineages, phases: phases} = state) do
+  def step_environment(
+        %BiotopeState{lineages: lineages, phases: phases, metabolite_inflow: inflow} = state
+      ) do
     phase_rates = build_phase_rates(phases, state.dilution_rate)
 
-    diluted =
+    # Dilute lineage abundances (unchanged from Phase 2)
+    diluted_lineages =
       Enum.map(lineages, fn lineage ->
         new_abundances =
           Map.new(lineage.abundance_by_phase, fn {phase_name, count} ->
@@ -231,7 +284,11 @@ defmodule Arkea.Sim.Tick do
         %{lineage | abundance_by_phase: new_abundances, fitness_cache: nil}
       end)
 
-    %{state | lineages: diluted}
+    # Phase 5: dilute phase pools, then replenish via inflow
+    diluted_phases = Enum.map(phases, &Phase.dilute/1)
+    replenished_phases = apply_inflow(diluted_phases, inflow)
+
+    %{state | lineages: diluted_lineages, phases: replenished_phases}
   end
 
   @doc """
@@ -320,20 +377,75 @@ defmodule Arkea.Sim.Tick do
     end)
   end
 
-  # Compute per-phase growth deltas from a phenotype.
+  # Phase 5 growth model: ATP-driven deltas with σ-factor scalar.
   #
-  # Linear model (Phase 3):
-  #   delta = round(base_growth_rate * 100) - round(energy_cost * 10)
+  # sigma = 0.5 + dna_binding_affinity  (0.5..1.5)
+  # net   = (atp_yield - energy_cost * 5.0) * sigma
+  # delta = round(net) clamped to -200..500
   #
-  # Clamped to -100..500. The same delta applies to every phase because Phase 3
-  # does not yet differentiate growth by environmental conditions — that is
-  # Phase 5 (Michaelis-Menten, metabolite pools per phase).
-  defp compute_growth_deltas(%Phenotype{} = phenotype, phase_names) do
-    raw_delta =
-      round(phenotype.base_growth_rate * 100) - round(phenotype.energy_cost * 10)
-
-    delta = raw_delta |> max(-100) |> min(500)
+  # When atp_yield == 0.0 (no substrate), net is negative proportional to
+  # energy_cost — the lineage shrinks under metabolic burden without gain.
+  # This is the core selection mechanism: specialised metabolisers outcompete
+  # generalists in their preferred environment.
+  defp compute_growth_deltas_v5(%Phenotype{} = phenotype, atp_yield, phase_names) do
+    sigma = 0.5 + phenotype.dna_binding_affinity
+    net = (atp_yield - phenotype.energy_cost * 5.0) * sigma
+    delta = round(net) |> max(-200) |> min(500)
     Map.new(phase_names, fn name -> {name, delta} end)
+  end
+
+  # Process one phase: compute per-lineage uptake, reduce the metabolite pool,
+  # and accumulate ATP yields per lineage.
+  # Returns {updated_phase, %{lineage_id => atp_yield_float}}.
+  defp process_phase(%Phase{} = phase, lineages, phenotypes) do
+    {total_consumed, phase_yields} =
+      Enum.reduce(lineages, {%{}, %{}}, fn lineage, acc ->
+        accumulate_lineage_uptake(lineage, phase, phenotypes, acc)
+      end)
+
+    new_pool =
+      Map.merge(phase.metabolite_pool, total_consumed, fn _k, conc, consumed ->
+        max(conc - consumed, 0.0)
+      end)
+
+    {%{phase | metabolite_pool: new_pool}, phase_yields}
+  end
+
+  # Accumulate one lineage's metabolite uptake and ATP yield into the running
+  # totals for a phase. Returns {updated_total_consumed, updated_phase_yields}.
+  defp accumulate_lineage_uptake(lineage, phase, phenotypes, {acc_consumed, acc_yields}) do
+    abundance = Map.get(lineage.abundance_by_phase, phase.name, 0)
+    phenotype = Map.get(phenotypes, lineage.id)
+
+    if abundance > 0 and phenotype != nil and map_size(phenotype.substrate_affinities) > 0 do
+      uptake =
+        Metabolism.compute_uptake(
+          phenotype.substrate_affinities,
+          phase.metabolite_pool,
+          abundance
+        )
+
+      atp = Metabolism.atp_yield(uptake)
+      new_consumed = Map.merge(acc_consumed, uptake, fn _k, total, more -> total + more end)
+      new_yields = Map.update(acc_yields, lineage.id, atp, fn prev -> prev + atp end)
+      {new_consumed, new_yields}
+    else
+      {acc_consumed, acc_yields}
+    end
+  end
+
+  # Apply metabolite inflow to all phases after dilution.
+  # Inflow keys that are absent from a phase's pool are added from zero.
+  # No-op when inflow is the empty map.
+  defp apply_inflow(phases, inflow) when map_size(inflow) == 0, do: phases
+
+  defp apply_inflow(phases, inflow) do
+    Enum.map(phases, fn phase ->
+      new_pool =
+        Map.merge(phase.metabolite_pool, inflow, fn _k, conc, delta -> conc + delta end)
+
+      %{phase | metabolite_pool: new_pool}
+    end)
   end
 
   # Return the RNG state, initialising from the biotope id if nil.

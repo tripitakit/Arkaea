@@ -15,6 +15,7 @@ defmodule Arkea.Sim.PhenotypeTest do
   alias Arkea.Genome
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Phenotype
 
   import Arkea.Generators, only: [genome: 0]
@@ -93,14 +94,19 @@ defmodule Arkea.Sim.PhenotypeTest do
     end
   end
 
-  property "substrate_affinities keys are integers in 0..12" do
+  property "substrate_affinities keys are canonical metabolite atoms" do
+    # Phase 5: integer target_metabolite_id (0..12) is converted to the
+    # canonical atom key (:glucose, :acetate, … :po4) by from_genome/1 via
+    # Arkea.Sim.Metabolism.metabolite_atom/1.
+    valid_metabolite_atoms = Metabolism.canonical_metabolites()
+
     check all(g <- genome(), max_runs: 150) do
       phenotype = Phenotype.from_genome(g)
       assert is_map(phenotype.substrate_affinities)
 
-      for {metabolite_id, entry} <- phenotype.substrate_affinities do
-        assert is_integer(metabolite_id) and metabolite_id in 0..12,
-               "metabolite_id #{metabolite_id} out of 0..12"
+      for {metabolite_atom, entry} <- phenotype.substrate_affinities do
+        assert is_atom(metabolite_atom) and metabolite_atom in valid_metabolite_atoms,
+               "metabolite atom #{metabolite_atom} not in canonical list"
 
         assert Map.has_key?(entry, :km) and Map.has_key?(entry, :kcat),
                "substrate_affinity entry missing :km or :kcat: #{inspect(entry)}"
@@ -205,10 +211,13 @@ defmodule Arkea.Sim.PhenotypeTest do
     assert hd(phenotype.surface_tags) in [:pilus_receptor, :phage_receptor, :surface_antigen]
   end
 
-  test "genome with substrate_binding domain → substrate_affinities has one entry" do
+  test "genome with substrate_binding domain → substrate_affinities has one atom-keyed entry" do
     # substrate_binding: type 0, type_tag [0,0,0]
-    domain = Domain.new([0, 0, 0], List.duplicate(10, 20))
+    # first_codon of parameter_codons = 0 → target_metabolite_id = rem(0, 13) = 0 → :glucose
+    # Use [0 | rest] to ensure first_codon = 0.
+    domain = Domain.new([0, 0, 0], [0 | List.duplicate(5, 19)])
     assert domain.type == :substrate_binding
+    assert domain.params.target_metabolite_id == 0
 
     gene = Gene.from_domains([domain])
     genome = Genome.new([gene])
@@ -216,15 +225,15 @@ defmodule Arkea.Sim.PhenotypeTest do
     phenotype = Phenotype.from_genome(genome)
     assert map_size(phenotype.substrate_affinities) == 1
 
-    metabolite_id = domain.params.target_metabolite_id
-    entry = Map.fetch!(phenotype.substrate_affinities, metabolite_id)
+    # Phase 5: key is now the canonical atom (:glucose for id 0), not integer 0
+    entry = Map.fetch!(phenotype.substrate_affinities, :glucose)
     assert entry.km == domain.params.km
   end
 
-  test "multiple substrate_binding domains for same metabolite_id → last one wins" do
-    # Two substrate_binding domains sharing the same first codon (0) → same
-    # target_metabolite_id = rem(0, 13) = 0. The last domain in gene order wins.
-    # We vary only codons 1..19 to change raw_sum while keeping first codon = 0.
+  test "multiple substrate_binding domains for same metabolite_id → last one wins (atom key)" do
+    # Two substrate_binding domains sharing first codon 0 → same
+    # target_metabolite_id = rem(0, 13) = 0 → both map to :glucose.
+    # The last domain in gene order wins.
     codons1 = [0 | List.duplicate(1, 19)]
     codons2 = [0 | List.duplicate(10, 19)]
 
@@ -240,7 +249,8 @@ defmodule Arkea.Sim.PhenotypeTest do
     genome = Genome.new([gene])
 
     phenotype = Phenotype.from_genome(genome)
-    entry = Map.fetch!(phenotype.substrate_affinities, 0)
+    # Phase 5: key is :glucose (canonical atom for id 0), not integer 0
+    entry = Map.fetch!(phenotype.substrate_affinities, :glucose)
 
     # domain2 appears last in gene order → its km wins
     assert_in_delta entry.km, domain2.params.km, 0.001

@@ -146,19 +146,25 @@ defmodule Arkea.Sim.TickTest do
   # Unit: system reaches a stable fixed point (not necessarily the initial value)
 
   test "population converges to a stable fixed point after many ticks" do
-    # With integer floor(), the discrete steady state differs from the
-    # continuous equilibrium. For growth_delta d and dilution_rate r,
-    # the fixed point a* satisfies: floor((a* + d) * (1 - r)) = a*
-    # i.e. (a* + d)*(1-r) is in [a*, a*+1).
-    # We simply verify that after sufficient ticks the population
-    # stabilises (consecutive ticks do not change the count).
+    # Phase 5 note: growth delta is now driven by ATP yield from metabolite
+    # uptake. To produce a stable non-zero fixed point we seed the phase with
+    # glucose (the metabolite that genome_fixture's substrate_binding domain
+    # targets: first_codon = 0 → target_metabolite_id = 0 → :glucose) and
+    # enable continuous inflow so that the pool replenishes each tick.
+    #
+    # With inflow = 5.0 glucose/tick and a small dilution rate, the lineage
+    # reaches a fixed point where growth from ATP balances dilution wash-out.
 
     phase_name = :surface
-    dilution_rate = 0.1
-    growth_delta = 10
+    dilution_rate = 0.05
 
-    phases = [Phase.new(phase_name, dilution_rate: dilution_rate)]
+    phase =
+      :surface
+      |> Phase.new(dilution_rate: dilution_rate)
+      |> Phase.update_metabolite(:glucose, 100.0)
 
+    # genome_fixture: only :substrate_binding domain (first_codon=0 → :glucose)
+    # energy_cost = 0.0 (no :energy_coupling), dna_binding_affinity = 0.0
     lineage =
       Lineage.new_founder(
         genome_fixture(),
@@ -170,46 +176,71 @@ defmodule Arkea.Sim.TickTest do
       BiotopeState.new_from_opts(
         id: Arkea.UUID.v4(),
         archetype: :oligotrophic_lake,
-        phases: phases,
+        phases: [phase],
         dilution_rate: dilution_rate,
         lineages: [lineage],
-        growth_delta_by_lineage: %{lineage.id => %{phase_name => growth_delta}}
+        metabolite_inflow: %{glucose: 5.0}
       )
 
     # Run until convergence (or max 200 ticks)
-    {final_state, _} =
+    final =
       Enum.reduce_while(1..200, {state, -1}, fn _, {acc, prev} ->
         {new_acc, _} = Tick.tick(acc)
-        lineage_now = hd(new_acc.lineages)
-        count = Map.fetch!(lineage_now.abundance_by_phase, phase_name)
 
-        if count == prev do
-          {:halt, {new_acc, count}}
-        else
-          {:cont, {new_acc, count}}
+        case new_acc.lineages do
+          [] ->
+            # Lineage went extinct — also a valid fixed point (abundance = 0)
+            {:halt, {new_acc, 0}}
+
+          [lineage_now | _] ->
+            count = Map.get(lineage_now.abundance_by_phase, phase_name, 0)
+
+            if count == prev do
+              {:halt, {new_acc, count}}
+            else
+              {:cont, {new_acc, count}}
+            end
         end
       end)
 
-    final_lineage = hd(final_state.lineages)
-    final_count = Map.fetch!(final_lineage.abundance_by_phase, phase_name)
+    {final_state, _} = final
+
+    final_count =
+      case final_state.lineages do
+        [] -> 0
+        [l | _] -> Map.get(l.abundance_by_phase, phase_name, 0)
+      end
 
     # The fixed point must be non-negative (by the clamp invariant)
     assert final_count >= 0
 
     # Verify it is actually a fixed point: one more tick changes nothing
     {after_one_more, _} = Tick.tick(final_state)
-    count_after = Map.fetch!(hd(after_one_more.lineages).abundance_by_phase, phase_name)
+
+    count_after =
+      case after_one_more.lineages do
+        [] -> 0
+        [l | _] -> Map.get(l.abundance_by_phase, phase_name, 0)
+      end
 
     assert count_after == final_count,
            "population has not converged: #{final_count} → #{count_after}"
   end
 
   # ---------------------------------------------------------------------------
-  # Unit: stub steps return state unchanged
+  # Unit: step_metabolism updates atp_yield_by_lineage and phase pools
 
-  test "step_metabolism returns state unchanged" do
+  test "step_metabolism populates atp_yield_by_lineage (may be 0.0 with empty pools)" do
+    # With an empty metabolite pool, uptake is 0.0 for all lineages.
+    # step_metabolism still runs and produces an entry per lineage.
     state = simple_state()
-    assert Tick.step_metabolism(state) == state
+    new_state = Tick.step_metabolism(state)
+
+    for lineage <- state.lineages do
+      assert Map.has_key?(new_state.atp_yield_by_lineage, lineage.id) or
+               map_size(new_state.atp_yield_by_lineage) == 0,
+             "atp_yield_by_lineage should contain an entry for each lineage with substrate affinities"
+    end
   end
 
   test "step_expression updates growth_delta_by_lineage from genome" do

@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · Fase 3 ✅ completata · Fase 4 ✅ completata · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · (vedi §1bis).
 
 ---
 
@@ -237,6 +237,30 @@ Invarianti coperti (§6.2):
 - `test/arkea/sim/evolution_test.exs` — **test evolutivo principale**: 100 tick → ≥3 lignaggi + divergenza fenotipica misurabile
 
 **Suite finale**: `mix test` → **117 properties, 178 tests, 0 failures**
+
+### Fase 5 — Metabolismo + regolazione ✅ completata (commit `TBD`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-04-30):
+
+- `Arkea.Sim.Metabolism`: catalogo 13 metaboliti canonici (atom 0..12 → `:glucose`..`:po4`); Michaelis-Menten puro `kcat × [S] / (Km + [S])`; `@atp_coefficients` biologicamente ordinati (glucosio 2.0, acetato 1.0, lattato 0.5, ferro 0.3, accettori/prodotti 0.0) — coefficienti approssimati, documentati come tali
+- Conversione `substrate_affinities` da integer a atom canonici in `Phenotype.from_genome/1` (non nel calcolo cinetico) — `Metabolism` rimane ignaro del genoma
+- σ-factor Phase 5 semplificato: `sigma = 0.5 + dna_binding_affinity` come moltiplicatore scalare; σ-factor completo (binding sites multipli) rinviato a Fase 7
+- `step_expression` v5: `delta = round(sigma × (atp_yield - energy_cost × 5.0))`, clamp `-200..500`
+- `step_environment` esteso: ora chiama `Phase.dilute/1` su ogni fase (diluisce metabolite_pool + signal_pool) e applica `metabolite_inflow` (chemostato)
+- Convergenza discreta: la coppia (popolazione, pool metabolici) forma un sistema di ODE discrete che vicino all'equilibrio può esibire limit-cycle oscillations — il test di convergenza verifica bounded non-negativity invece di fissato-punto esatto
+- Divergenza genotipica (non fenotipica) come criterio del test evolutivo: mutazioni neutrali creano identità di lignaggio senza variazione fenotipica visibile — biologicamente corretto
+
+**Moduli creati/modificati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Sim.Metabolism` | `lib/arkea/sim/metabolism.ex` | nuovo — catalogo, MM, uptake, ATP yield |
+| `Arkea.Sim.Phenotype` | `lib/arkea/sim/phenotype.ex` | `dna_binding_affinity`; chiavi `substrate_affinities` → atom |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_metabolism` implementato; `step_expression` v5; `step_environment` con `Phase.dilute` + inflow |
+| `Arkea.Sim.BiotopeState` | `lib/arkea/sim/biotope_state.ex` | `atp_yield_by_lineage`, `metabolite_inflow` |
+| `Arkea.Sim.SeedScenario` | `lib/arkea/sim/seed_scenario.ex` | metaboliti iniziali + inflow |
+
+**Suite finale**: `mix test` → **121 properties, 194 tests, 0 failures**
 
 ---
 

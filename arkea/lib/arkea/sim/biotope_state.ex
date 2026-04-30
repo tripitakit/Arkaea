@@ -31,6 +31,15 @@ defmodule Arkea.Sim.BiotopeState do
     Derived from the mean of phase dilution_rates at `new/2` time.
   - `rng_seed` — reserved for deterministic RNG in Phase 4+ (mutation, HGT
     stochasticity). Stored as `nil` in Phase 2 (no stochastic steps yet).
+  - `atp_yield_by_lineage` — map `lineage_id => float()` accumulated by
+    `step_metabolism/1` from Michaelis-Menten kinetics across all phases.
+    Read by `step_expression/1` in the same tick to derive growth deltas.
+    Populated in Phase 5; empty map `%{}` in earlier phases.
+  - `metabolite_inflow` — map `metabolite_atom => float()` specifying the
+    per-tick replenishment added to every phase's metabolite_pool after
+    dilution in `step_environment/1`. Models a chemostat: continuous inflow
+    of fresh substrate keeps the biotope from starving. Empty `%{}` by
+    default (no inflow).
 
   ## Invariants
 
@@ -66,6 +75,8 @@ defmodule Arkea.Sim.BiotopeState do
     field :tick_count, non_neg_integer(), default: 0
     field :dilution_rate, float()
     field :rng_seed, term(), default: nil
+    field :atp_yield_by_lineage, %{binary() => float()}, default: %{}
+    field :metabolite_inflow, %{atom() => float()}, default: %{}
   end
 
   @doc """
@@ -129,7 +140,9 @@ defmodule Arkea.Sim.BiotopeState do
       lineages: Keyword.get(opts, :lineages, []),
       growth_delta_by_lineage: Keyword.get(opts, :growth_delta_by_lineage, %{}),
       tick_count: Keyword.get(opts, :tick_count, 0),
-      rng_seed: Keyword.get(opts, :rng_seed, nil)
+      rng_seed: Keyword.get(opts, :rng_seed, nil),
+      atp_yield_by_lineage: Keyword.get(opts, :atp_yield_by_lineage, %{}),
+      metabolite_inflow: Keyword.get(opts, :metabolite_inflow, %{})
     }
   end
 

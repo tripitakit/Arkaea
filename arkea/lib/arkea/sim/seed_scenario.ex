@@ -32,6 +32,7 @@ defmodule Arkea.Sim.SeedScenario do
 
   alias Arkea.Ecology.Biotope
   alias Arkea.Ecology.Lineage
+  alias Arkea.Ecology.Phase
   alias Arkea.Genome
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
@@ -82,12 +83,23 @@ defmodule Arkea.Sim.SeedScenario do
     end
   end
 
+  # Phase 5 metabolite inflow: continuous replenishment per tick (chemostat).
+  # Values are dimensionless concentration units consistent with the initial
+  # pool values set by `initialize_metabolites/1`.
+  @metabolite_inflow %{
+    glucose: 5.0,
+    oxygen: 3.0,
+    nh3: 1.0,
+    po4: 0.5
+  }
+
   defp build_biotope_state do
     # Build the eutrophic_pond biotope to get its canonical phases.
     # We cannot use Biotope.new/3 directly because it generates a random UUID;
     # instead we use BiotopeState.new_from_opts/1 with the fixed id and the
     # default phases from Biotope, bypassing the Biotope struct requirement.
-    phases = Biotope.default_phases(:eutrophic_pond)
+    base_phases = Biotope.default_phases(:eutrophic_pond)
+    phases = Enum.map(base_phases, &initialize_metabolites/1)
     seed_lineage = build_seed_lineage()
 
     BiotopeState.new_from_opts(
@@ -95,8 +107,21 @@ defmodule Arkea.Sim.SeedScenario do
       archetype: :eutrophic_pond,
       phases: phases,
       dilution_rate: mean_dilution(phases),
-      lineages: [seed_lineage]
+      lineages: [seed_lineage],
+      metabolite_inflow: @metabolite_inflow
     )
+  end
+
+  # Initialize Phase 5 metabolite concentrations using Phase.update_metabolite/3.
+  # Starting concentrations (dimensionless units, same scale as inflow):
+  #   glucose 100.0, oxygen 50.0, nh3 20.0, po4 10.0, co2 10.0
+  defp initialize_metabolites(%Phase{} = phase) do
+    phase
+    |> Phase.update_metabolite(:glucose, 100.0)
+    |> Phase.update_metabolite(:oxygen, 50.0)
+    |> Phase.update_metabolite(:nh3, 20.0)
+    |> Phase.update_metabolite(:po4, 10.0)
+    |> Phase.update_metabolite(:co2, 10.0)
   end
 
   defp build_seed_lineage do

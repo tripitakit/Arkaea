@@ -173,7 +173,7 @@ defmodule ArkeaWeb.SimLive do
               <th class="text-left px-3 py-2">Abundance</th>
               <th class="text-right px-3 py-2 w-20">Growth</th>
               <th class="text-right px-3 py-2 w-20">Repair</th>
-              <th class="text-right px-3 py-2 w-16">Born</th>
+              <th class="text-right px-3 py-2 w-16">Tick born</th>
             </tr>
           </thead>
           <tbody>
