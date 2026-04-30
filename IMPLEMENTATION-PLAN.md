@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · Fase 3 ✅ completata · (vedi §1bis).
+**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · Fase 3 ✅ completata · Fase 4 ✅ completata · (vedi §1bis).
 
 ---
 
@@ -208,6 +208,35 @@ Invarianti coperti (§6.2):
 | `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_expression/1` implementato |
 
 **Suite finale**: `mix test` → **115 properties, 156 tests, 0 failures**
+
+### Fase 4 — Mutazione + selezione + lignaggi ✅ completata (commit `TBD`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-04-30):
+
+- `Mutation.Applicator.apply/2` opera a **granularità di dominio** (23 codoni) per preservare l'invariante Phase 1 grammar: tutte le mutazioni generano geni con lunghezza multiplo di 23; indel inserisce/elimina esattamente 23 codoni; translocation sposta esattamente 23 codoni
+- `Mutator.generate/2` usa `:rand.uniform_s/2` (API stateless, pura); seed initializzato da `init_seed(biotope_id)` via `:erlang.phash2/1` + algoritmo `:exsss`
+- Pesi mutazione: substitution 70%, indel 15%, dup 8%, inv 5%, transloc 2% (da DESIGN.md Blocco 5)
+- `mutation_probability = clamp(µ × abundance / 50.0, 0.0, 0.95)` con `µ = 0.01 × (1 - repair_efficiency)`
+- `step_cell_events` esteso: spawn_mutants genera al massimo 1 figlio per lineage per tick; conservazione abbondanza (parent - 1 per ogni child)
+- `step_pruning` implementato: (1) rimuove lineage con abundance 0, (2) cap a 100 (configurabile via `Application.get_env(:arkea, :lineage_cap, 100)`)
+- `derive_events` emette `:lineage_born` e `:lineage_extinct`
+- Gene mutato mantiene l'id originale (identità stabile attraverso mutazioni)
+
+**Moduli creati/modificati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Genome.Mutation.Applicator` | `lib/arkea/genome/mutation/applicator.ex` | nuovo — `apply/2` per tutti e 5 i tipi |
+| `Arkea.Sim.Mutator` | `lib/arkea/sim/mutator.ex` | nuovo — generatore stocastico puro |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_cell_events` + `step_pruning` + `derive_events` implementati |
+| `Arkea.Sim.BiotopeState` | `lib/arkea/sim/biotope_state.ex` | `new/3` inizializza `rng_seed` via `Mutator.init_seed/1` |
+
+**Test suite** (nuovi):
+- `test/arkea/genome/mutation_applicator_test.exs` — applicazione corretta per tutti e 5 i tipi
+- `test/arkea/sim/mutator_test.exs` — property tests su valid?, pesi, probability formula
+- `test/arkea/sim/evolution_test.exs` — **test evolutivo principale**: 100 tick → ≥3 lignaggi + divergenza fenotipica misurabile
+
+**Suite finale**: `mix test` → **117 properties, 178 tests, 0 failures**
 
 ---
 
