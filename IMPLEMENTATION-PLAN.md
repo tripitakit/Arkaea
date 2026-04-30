@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ completata · Fase 1 🔄 in corso (vedi §1bis).
+**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · (vedi §1bis).
 
 ---
 
@@ -40,7 +40,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 - ✅ GitHub Actions CI (`.github/workflows/ci.yml`): format/credo/test/dialyzer + cache
 - ✅ `.gitignore` top-level per tooling esterno
 
-### Fase 1 — Modello dati core 🔄 in chiusura (manca solo coherence review + commit)
+### Fase 1 — Modello dati core ✅ completata (commit `142b4aa`)
 
 **Decisioni di design** (proposta `elixir-otp-architect`, decise in conversazione 2026-04-26):
 
@@ -158,7 +158,34 @@ Invarianti coperti (§6.2):
 
 - I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
 - Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
-- Sync EN della §1bis (`bilingual-docs-maintainer`) rinviato — la sezione cresce velocemente in fase implementativa, conviene fare un singolo sync alla chiusura di Fase 1.
+- Sync EN della §1bis (`bilingual-docs-maintainer`) rinviato — la sezione cresce velocemente in fase implementativa, conviene fare un singolo sync al completamento di un blocco stabile (es. fine Fase 3).
+
+### Fase 2 — Tick engine minimale ✅ completata (commit `TBD`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-04-30):
+
+- `growth_delta_by_lineage` vive su `BiotopeState` come `%{lineage_id => %{phase_name => integer()}}`, non su `Lineage` — i delta non sono proprietà genetiche ma parametri di simulazione calcolati da `step_expression` (Fase 5)
+- `BiotopeState` usa lista per i lineage (lookup con `Enum.find`); Fase 4 introduce mappa per performance quando serve
+- `WorldClock` configurabile via `config :arkea, :tick_interval_ms` (test.exs: 600_000 ms per evitare timer spurii)
+- `Biotope.Server` registrato su `Arkea.Sim.Registry` con chiave `{:biotope, id}`; nei test si usa `GenServer.start_link` con atom name per `async: true` senza conflitti
+- `manual_tick/1` su `Biotope.Server` come entry point sincrono per i test (bypass PubSub path)
+
+**Moduli creati** (`Arkea.Sim.*`):
+
+| Modulo | File | Tipo |
+|---|---|---|
+| `Arkea.Sim.BiotopeState` | `lib/arkea/sim/biotope_state.ex` | struct pura (TypedStruct) |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | funzione pura `tick/1` + 6 sub-step |
+| `Arkea.Sim.WorldClock` | `lib/arkea/sim/world_clock.ex` | GenServer (tick ogni 5 min) |
+| `Arkea.Sim.Biotope.Supervisor` | `lib/arkea/sim/biotope/supervisor.ex` | DynamicSupervisor |
+| `Arkea.Sim.Biotope.Server` | `lib/arkea/sim/biotope/server.ex` | GenServer (stato per biotopo) |
+
+**Test suite** (nuovi):
+
+- `test/arkea/sim/tick_test.exs` — 6 property tests + 7 unit test (non-negativity, dilution monotonicity, determinism, equilibrium)
+- `test/arkea/sim/biotope_server_test.exs` — 8 integration test
+
+**Suite finale**: `mix test` → **97 properties, 141 tests, 0 failures**
 
 ---
 

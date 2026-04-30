@@ -19,6 +19,7 @@ defmodule Arkea.Generators do
   use ExUnitProperties
 
   alias Arkea.Ecology.Biotope
+  alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome
   alias Arkea.Genome.Domain
@@ -29,6 +30,7 @@ defmodule Arkea.Generators do
   alias Arkea.Genome.Mutation.Inversion
   alias Arkea.Genome.Mutation.Substitution
   alias Arkea.Genome.Mutation.Translocation
+  alias Arkea.Sim.BiotopeState
 
   # ---------------------------------------------------------------------------
   # Codon generators
@@ -360,6 +362,49 @@ defmodule Arkea.Generators do
   end
 
   # ---------------------------------------------------------------------------
+  # BiotopeState generator
+
+  @doc """
+  Generate a `BiotopeState.t()` with 1..3 seed lineages.
+
+  The phases are taken from `Biotope.default_phases/1` for a random archetype.
+  Each lineage has abundances keyed on the phase names of those phases, so that
+  growth and dilution steps find matching keys.
+
+  An optional `growth_rate` parameter (default 0) sets the integer per-tick
+  abundance increment applied uniformly to all lineages across all phases.
+  This allows property tests to control net growth exactly.
+
+  ## Options
+
+    * `:growth_rate` — integer (may be negative), default `0`.
+
+  """
+  def biotope_state(opts \\ []) do
+    growth_rate = Keyword.get(opts, :growth_rate, 0)
+
+    StreamData.bind(StreamData.member_of(Biotope.archetypes()), fn archetype ->
+      StreamData.bind(float_in(-1000.0, 1000.0), fn x ->
+        StreamData.bind(float_in(-1000.0, 1000.0), fn y ->
+          biotope = Biotope.new(archetype, {x, y})
+          phase_names = Enum.map(biotope.phases, & &1.name)
+
+          StreamData.bind(StreamData.integer(1..3), fn n ->
+            StreamData.bind(
+              StreamData.list_of(lineage_for_phases(phase_names), length: n),
+              fn lineages ->
+                growth_deltas = build_growth_deltas(lineages, phase_names, growth_rate)
+                state = BiotopeState.new(biotope, lineages, growth_deltas)
+                StreamData.constant(state)
+              end
+            )
+          end)
+        end)
+      end)
+    end)
+  end
+
+  # ---------------------------------------------------------------------------
   # Mutation generators
 
   @doc "Generate a valid Substitution mutation."
@@ -484,5 +529,26 @@ defmodule Arkea.Generators do
   """
   def domain_type do
     StreamData.member_of(Type.all())
+  end
+
+  # Generate a lineage whose abundance_by_phase keys are exactly `phase_names`.
+  # This ensures growth and dilution steps find matching keys.
+  defp lineage_for_phases(phase_names) do
+    StreamData.bind(genome(), fn g ->
+      StreamData.bind(
+        StreamData.list_of(StreamData.integer(0..100_000), length: length(phase_names)),
+        fn counts ->
+          abundances = Enum.zip(phase_names, counts) |> Map.new()
+          StreamData.constant(Lineage.new_founder(g, abundances, 0))
+        end
+      )
+    end)
+  end
+
+  # Build a growth_delta_by_lineage map: each lineage gets the same integer
+  # delta for every phase in phase_names.
+  defp build_growth_deltas(lineages, phase_names, growth_rate) do
+    delta_for_phase = Map.new(phase_names, fn name -> {name, growth_rate} end)
+    Map.new(lineages, fn l -> {l.id, delta_for_phase} end)
   end
 end

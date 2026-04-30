@@ -20,6 +20,12 @@ config :arkea, ArkeaWeb.Endpoint,
   secret_key_base: "RjEhD2sVW0ryC0Yy1iCMNMkoqjIRp4IdAw6xJqI4mMJba5qDqdLNwEJDR62mFAiU",
   server: false
 
+# WorldClock tick interval in ms. Set to a large value in tests so that the
+# supervised WorldClock process does not fire during the test suite. Biotope.Server
+# integration tests drive ticks via `manual_tick` (GenServer.call :manual_tick)
+# and subscribe to PubSub directly when testing the clock-driven path.
+config :arkea, :tick_interval_ms, 600_000
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

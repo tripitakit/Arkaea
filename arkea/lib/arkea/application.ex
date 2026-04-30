@@ -12,14 +12,17 @@ defmodule Arkea.Application do
       Arkea.Repo,
       {DNSCluster, query: Application.get_env(:arkea, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Arkea.PubSub},
-      # Start a worker by calling: Arkea.Worker.start_link(arg)
-      # {Arkea.Worker, arg},
+      # Sim process tree — order matters here (Registry before consumers,
+      # WorldClock before Biotope.Supervisor so PubSub topic exists first).
+      {Registry, keys: :unique, name: Arkea.Sim.Registry},
+      Arkea.Sim.WorldClock,
+      Arkea.Sim.Biotope.Supervisor,
       # Start to serve requests, typically the last entry
       ArkeaWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
+    # :one_for_one — each child is independent. A crashing Biotope.Server or
+    # WorldClock does not affect sibling processes (DESIGN.md §14 rationale).
     opts = [strategy: :one_for_one, name: Arkea.Supervisor]
     Supervisor.start_link(children, opts)
   end
