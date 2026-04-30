@@ -135,7 +135,12 @@ Invarianti coperti (§6.2):
   3. `Gene` Phase 1 simplifications → docstring del range codoni 23..207 chiarita
 
   Non emersi blocker; tutte le decisioni (alfabeto come aa-like, pesi log-normal, mapping uniform, fixed-length Phase 1) sono giustificate per pubblico esperto.
-- ⏳ **Design coherence review** (`design-coherence-reviewer`): da invocare prima del commit.
+- ✅ **Design coherence review** (`design-coherence-reviewer`, 2026-04-30): nessuna violazione critica. Finding da ricordare:
+  1. `audit_log` ha `occurred_at` (wall-clock) oltre a `occurred_at_tick` — campo intenzionale per query analytics, non documentato nel piano. Tabella append-only: nessun `timestamps/0` e nessun `inserted_at`.
+  2. `acid_mine_drainage` è mappato a `:hydrothermal_zone` — semplificazione Fase 1; rivalutare topologia zone in Fase 8.
+  3. Policy costruttori: costruttori "trusted" (input già validato) usano raise; costruttori "untrusted" (da input esterno) usano `{:ok, _} | {:error, _}` — da documentare come policy esplicita.
+  4. `clade_ref_id` soglia 50 mutazioni non è ancora ancorata come costante in DESIGN.md Blocco 4 — da aggiungere prima di Fase 4.
+  5. `:atp` e `:nadh` nei generatori di test sostituiti con `:co2` e `:h2s` (corrispondenti ai 13 metaboliti canonici di Blocco 6; ATP è valuta interna esclusa dall'inventario ambientale).
 
 **Suite verificata** (2026-04-27, post-Ecto schemas + post-bio review):
 - `mix format --check-formatted`: ✅ pulito
@@ -146,7 +151,7 @@ Invarianti coperti (§6.2):
 
 **Step rimanenti per chiudere Fase 1**:
 
-1. ⏳ Cross-check coerenza design via agent `design-coherence-reviewer`
+1. ✅ Cross-check coerenza design via agent `design-coherence-reviewer`
 2. ⏳ Commit + push Fase 1
 
 **Open issues / da rivedere prima di consolidare**:

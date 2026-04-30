@@ -320,7 +320,7 @@ defmodule Arkea.Generators do
   Used to test dilution properties more meaningfully.
   """
   def phase_with_pools do
-    metabolite_names = [:glucose, :acetate, :lactate, :atp, :nadh, :oxygen]
+    metabolite_names = [:glucose, :acetate, :lactate, :co2, :h2s, :oxygen]
     signal_names = [:c4_hsl, :c12_hsl, :ai2, :indole]
 
     StreamData.bind(phase(), fn p ->
