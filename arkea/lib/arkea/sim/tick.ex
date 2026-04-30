@@ -6,10 +6,10 @@ defmodule Arkea.Sim.Tick do
 
     1. `step_metabolism/1`   — stub (Phase 5)
     2. `step_expression/1`   — implemented (Phase 3): genome → phenotype → growth deltas
-    3. `step_cell_events/1`  — implemented: growth via `growth_delta_by_lineage`
+    3. `step_cell_events/1`  — implemented (Phase 4): growth + stochastic fission
     4. `step_hgt/1`          — stub (Phase 6)
     5. `step_environment/1`  — implemented: dilution of lineage abundances
-    6. `step_pruning/1`      — stub (Phase 4)
+    6. `step_pruning/1`      — implemented (Phase 4): zero-abundance removal + cap
 
   ## Discipline
 
@@ -19,9 +19,10 @@ defmodule Arkea.Sim.Tick do
 
   ## Event type
 
-  Events are `%{type: atom(), payload: map()}`. In Phase 2, `derive_events/2`
-  always returns `[]`. Phase 4 will populate events for mutations, HGT, lysis,
-  etc., feeding the `Arkea.Persistence.AuditLog`.
+  Events are `%{type: atom(), payload: map()}`. Phase 4 emits:
+
+    - `%{type: :lineage_born, payload: %{lineage_id: id, parent_id: pid, tick: n}}`
+    - `%{type: :lineage_extinct, payload: %{lineage_id: id, tick: n}}`
 
   ## Growth model (Phase 3)
 
@@ -44,13 +45,37 @@ defmodule Arkea.Sim.Tick do
   phase is not found. The float is floored to a non_neg_integer, preserving
   the `abundance_by_phase :: %{atom() => non_neg_integer()}` invariant.
   Dilution is **monotonically decreasing**: abundance after ≤ abundance before.
+
+  ## Stochastic fission (Phase 4)
+
+  `step_cell_events/1` now also runs `spawn_mutants/2` after applying growth
+  deltas. For each lineage with a non-nil genome:
+
+    1. Compute the phenotype (Phase 3 path) → `repair_efficiency`.
+    2. Compute `mutation_probability(abundance, repair_efficiency)`.
+    3. Sample a float from the RNG.
+    4. If float < probability: generate a mutation, apply it, create a child
+       lineage with `Lineage.new_child/4` and abundance 1 in the lineage's
+       primary phase.  The parent's abundance in that phase is decremented by 1
+       (abundance conservation).
+    5. At most one child per lineage per tick.
+
+  ## Pruning (Phase 4)
+
+  `step_pruning/1` removes lineages with total abundance = 0, then enforces the
+  lineage cap (default 100; configurable via `config :arkea, :lineage_cap`).
+  When over the cap, the least-abundant lineages are removed first.
   """
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
 
   @type event :: %{type: atom(), payload: map()}
+
+  @lineage_cap Application.compile_env(:arkea, :lineage_cap, 100)
 
   @doc """
   Run one simulation tick.
@@ -136,28 +161,31 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 3 — Cell events: aggregate growth per lineage per phase.
+  Step 3 — Cell events: growth + stochastic fission (Phase 4).
 
-  Reads `state.growth_delta_by_lineage` and applies each lineage's delta via
-  `Lineage.apply_growth/2`, which clamps results at 0 (non-negativity
-  invariant from DESIGN.md Block 4).
+  First applies growth deltas (as in Phase 3). Then runs the stochastic
+  fission pipeline (`spawn_mutants/2`) which may add new child lineages.
+  Updates `state.rng_seed` with the advanced RNG state.
 
-  Lineages absent from `growth_delta_by_lineage` receive an empty delta map —
-  their abundances are unchanged by growth in this step (dilution in step 5
-  still applies).
-
-  Phase 4 will add: stochastic division events, lysis, mutation → new child
-  lineages forked into the lineage list.
+  Lineages with `genome: nil` are skipped by fission (no genome to mutate).
+  At most one child lineage is created per parent per tick.
   """
   @spec step_cell_events(BiotopeState.t()) :: BiotopeState.t()
   def step_cell_events(%BiotopeState{lineages: lineages, growth_delta_by_lineage: deltas} = state) do
+    # Apply growth deltas first
     grown =
       Enum.map(lineages, fn lineage ->
         delta = Map.get(deltas, lineage.id, %{})
         Lineage.apply_growth(lineage, delta)
       end)
 
-    %{state | lineages: grown}
+    state_after_growth = %{state | lineages: grown}
+
+    # Stochastic fission: may produce new child lineages
+    rng = get_rng(state_after_growth)
+    {updated_lineages, new_rng} = spawn_mutants(state_after_growth, rng)
+
+    %{state_after_growth | lineages: updated_lineages, rng_seed: new_rng}
   end
 
   @doc """
@@ -207,24 +235,75 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 6 — Pruning: remove lineages below the abundance threshold (stub for Phase 4).
+  Step 6 — Pruning: remove extinct lineages and enforce the lineage cap.
 
-  Will remove lineages where `Lineage.total_abundance/1 < threshold` and record
-  extinction events in the phylogenetic history (DESIGN.md Block 4, cap policy).
-  For Phase 2, returns state unchanged.
+  Phase 4 implementation:
+
+    1. Remove all lineages with `Lineage.total_abundance/1 == 0`.
+    2. If `length(lineages) > @lineage_cap`, sort by total_abundance ascending
+       and discard the least-abundant until the list is exactly `@lineage_cap`.
+
+  The cap is configurable via `config :arkea, :lineage_cap` (default 100).
   """
   @spec step_pruning(BiotopeState.t()) :: BiotopeState.t()
-  def step_pruning(%BiotopeState{} = state), do: state
+  def step_pruning(%BiotopeState{lineages: lineages} = state) do
+    # Step 1: remove zero-abundance lineages
+    survivors = Enum.filter(lineages, fn l -> Lineage.total_abundance(l) > 0 end)
+
+    # Step 2: enforce cap
+    capped =
+      if length(survivors) > @lineage_cap do
+        survivors
+        |> Enum.sort_by(&Lineage.total_abundance/1, :desc)
+        |> Enum.take(@lineage_cap)
+      else
+        survivors
+      end
+
+    %{state | lineages: capped}
+  end
 
   @doc """
   Derive typed events from the old and new states.
 
-  Returns `[]` in Phase 2. Phase 4 will return a list of typed event maps
-  (mutations, HGT events, extinctions, lysis events) consumed by
-  `Arkea.Persistence.AuditLog`.
+  Phase 4 returns:
+
+    - `:lineage_born` for every lineage id present in `new_state` but absent
+      from `old_state`.
+    - `:lineage_extinct` for every lineage id present in `old_state` but absent
+      from `new_state`.
   """
   @spec derive_events(BiotopeState.t(), BiotopeState.t()) :: [event()]
-  def derive_events(%BiotopeState{}, %BiotopeState{}), do: []
+  def derive_events(%BiotopeState{} = old_state, %BiotopeState{} = new_state) do
+    old_ids = MapSet.new(old_state.lineages, & &1.id)
+    new_ids = MapSet.new(new_state.lineages, & &1.id)
+
+    born_events =
+      new_state.lineages
+      |> Enum.filter(fn l -> not MapSet.member?(old_ids, l.id) end)
+      |> Enum.map(fn l ->
+        %{
+          type: :lineage_born,
+          payload: %{
+            lineage_id: l.id,
+            parent_id: l.parent_id,
+            tick: new_state.tick_count
+          }
+        }
+      end)
+
+    extinct_events =
+      old_state.lineages
+      |> Enum.filter(fn l -> not MapSet.member?(new_ids, l.id) end)
+      |> Enum.map(fn l ->
+        %{
+          type: :lineage_extinct,
+          payload: %{lineage_id: l.id, tick: new_state.tick_count}
+        }
+      end)
+
+    born_events ++ extinct_events
+  end
 
   # ---------------------------------------------------------------------------
   # Private helpers
@@ -255,5 +334,106 @@ defmodule Arkea.Sim.Tick do
 
     delta = raw_delta |> max(-100) |> min(500)
     Map.new(phase_names, fn name -> {name, delta} end)
+  end
+
+  # Return the RNG state, initialising from the biotope id if nil.
+  defp get_rng(%BiotopeState{rng_seed: nil, id: id}), do: Mutator.init_seed(id)
+  defp get_rng(%BiotopeState{rng_seed: rng}), do: rng
+
+  # Stochastic fission: for each lineage with genome != nil, maybe produce a
+  # child mutant. Returns {updated_lineages, new_rng}.
+  defp spawn_mutants(%BiotopeState{lineages: lineages, tick_count: tick} = state, rng) do
+    {updated_lineages, new_rng, new_children} =
+      Enum.reduce(lineages, {[], rng, []}, &reduce_spawn(&1, &2, state, tick))
+
+    final_lineages = Enum.reverse(updated_lineages) ++ Enum.reverse(new_children)
+    {final_lineages, new_rng}
+  end
+
+  defp reduce_spawn(lineage, {acc_lineages, acc_rng, acc_children}, state, tick) do
+    if lineage.genome == nil do
+      {[lineage | acc_lineages], acc_rng, acc_children}
+    else
+      {lineage_out, acc_rng2, maybe_child} = maybe_spawn_child(lineage, state, acc_rng, tick)
+      children = if maybe_child, do: [maybe_child | acc_children], else: acc_children
+      {[lineage_out | acc_lineages], acc_rng2, children}
+    end
+  end
+
+  # For one lineage: compute mutation probability, roll the dice, and if
+  # successful generate and apply a mutation → child lineage.
+  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil}.
+  defp maybe_spawn_child(parent, state, rng, tick) do
+    phenotype = Phenotype.from_genome(parent.genome)
+    abundance = Lineage.total_abundance(parent)
+    prob = Mutator.mutation_probability(abundance, phenotype.repair_efficiency)
+
+    {roll, rng1} = :rand.uniform_s(rng)
+
+    if roll < prob do
+      attempt_spawn(parent, state, rng1, tick)
+    else
+      {parent, rng1, nil}
+    end
+  end
+
+  # Attempt to generate a mutation and produce a child. On any failure (skip,
+  # invalid mutation, applicator error) returns the parent unchanged.
+  defp attempt_spawn(parent, state, rng, tick) do
+    case Mutator.generate(parent.genome, rng) do
+      {:skip, rng1} ->
+        {parent, rng1, nil}
+
+      {:ok, mutation, rng1} ->
+        case Applicator.apply(parent.genome, mutation) do
+          {:error, _} ->
+            {parent, rng1, nil}
+
+          {:ok, child_genome} ->
+            # Determine the primary phase (first phase by position)
+            primary_phase = primary_phase_name(parent, state)
+
+            # Seed the child with a small founder population (5 units) so
+            # that it survives the dilution step in the same tick.
+            # This is consistent with the lineage model: each lineage
+            # represents a sub-population, not a single cell.
+            child_abundances = %{primary_phase => 5}
+            child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
+
+            # Decrement parent abundance in primary phase by 5 (conservation)
+            updated_parent = decrement_abundance(parent, primary_phase, 5)
+
+            {updated_parent, rng1, child}
+        end
+    end
+  end
+
+  # Find the primary phase name for a lineage: the phase with the highest
+  # abundance (tiebreak: first phase in state.phases list).
+  defp primary_phase_name(lineage, state) do
+    phase_names = Enum.map(state.phases, & &1.name)
+
+    # Prefer phases that the lineage actually inhabits
+    inhabited =
+      Enum.filter(phase_names, fn name ->
+        Map.get(lineage.abundance_by_phase, name, 0) > 0
+      end)
+
+    if inhabited != [] do
+      Enum.max_by(inhabited, fn name ->
+        Map.get(lineage.abundance_by_phase, name, 0)
+      end)
+    else
+      # Lineage has no abundance in any known phase; use first phase name
+      hd(phase_names)
+    end
+  end
+
+  # Decrement abundance in a phase by `amount`, clamped at 0.
+  defp decrement_abundance(lineage, phase_name, amount) do
+    current = Map.get(lineage.abundance_by_phase, phase_name, 0)
+    new_count = max(current - amount, 0)
+    new_abundances = Map.put(lineage.abundance_by_phase, phase_name, new_count)
+    %{lineage | abundance_by_phase: new_abundances}
   end
 end

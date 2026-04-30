@@ -52,6 +52,7 @@ defmodule Arkea.Sim.BiotopeState do
   alias Arkea.Ecology.Biotope
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
+  alias Arkea.Sim.Mutator
 
   @type archetype :: Biotope.archetype()
   @type growth_deltas :: %{binary() => %{atom() => integer()}}
@@ -93,7 +94,7 @@ defmodule Arkea.Sim.BiotopeState do
       growth_delta_by_lineage: growth_deltas,
       tick_count: 0,
       dilution_rate: mean_dilution_rate(biotope.phases),
-      rng_seed: nil
+      rng_seed: Mutator.init_seed(biotope.id)
     }
   end
 
