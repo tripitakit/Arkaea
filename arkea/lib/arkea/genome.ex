@@ -80,6 +80,22 @@ defmodule Arkea.Genome do
     c ++ List.flatten(p) ++ List.flatten(pr)
   end
 
+  @doc """
+  Concatenation of all `Domain.t()` structs across every gene in the genome.
+
+  Traverses chromosome, plasmids, and prophages in order (same as `all_genes/1`).
+  Each gene's `domains` list is flattened in gene order.
+
+  Used by `Arkea.Sim.Phenotype.from_genome/1` to aggregate functional domains
+  into the emergent phenotype without coupling Phenotype to Gene internals.
+  """
+  @spec all_domains(t()) :: [Arkea.Genome.Domain.t()]
+  def all_domains(%__MODULE__{} = genome) do
+    genome
+    |> all_genes()
+    |> Enum.flat_map(& &1.domains)
+  end
+
   @doc "Cached total gene count (O(1))."
   @spec gene_count(t()) :: non_neg_integer()
   def gene_count(%__MODULE__{gene_count: n}), do: n

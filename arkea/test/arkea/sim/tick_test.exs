@@ -1,4 +1,8 @@
 defmodule Arkea.Sim.TickTest do
+  # credo:disable-for-this-file Credo.Check.Refactor.Nesting
+  # `gen all do ... end` blocks and StreamData.bind compose by nesting;
+  # the canonical StreamData pattern legitimately exceeds Credo's depth here.
+
   use ExUnit.Case, async: true
   use ExUnitProperties
 
@@ -10,7 +14,9 @@ defmodule Arkea.Sim.TickTest do
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Tick
 
-  import Arkea.Generators, only: [biotope_state: 0, biotope_state: 1]
+  import Arkea.Generators, only: [biotope_state: 0]
+
+  alias Arkea.Sim.Phenotype
 
   @moduletag :sim
 
@@ -30,10 +36,20 @@ defmodule Arkea.Sim.TickTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Property: dilution-only monotonicity (growth_rate == 0)
+  # Property: dilution-only monotonicity (zero-kcat genome → delta = 0)
+  #
+  # Phase 3: step_expression now derives growth_delta_by_lineage from the
+  # genome. To test dilution-only monotonicity we use a genome that produces
+  # delta = 0: a single catalytic_site domain with all-zero parameter_codons
+  # gives kcat = 0.0, hence base_growth_rate = 0.0 and delta = 0.
+  #
+  # The biotope_state(growth_rate: 0) generator still seeds
+  # growth_delta_by_lineage to 0, but step_expression overwrites it with
+  # genome-derived values. By using a deterministically zero-kcat genome we
+  # ensure the overwrite also produces delta = 0.
 
-  property "abundance never increases when growth_delta is 0" do
-    check all(state <- biotope_state(growth_rate: 0)) do
+  property "abundance never increases when genome produces zero growth delta" do
+    check all(state <- biotope_state_zero_delta()) do
       {new_state, _events} = Tick.tick(state)
 
       for old_lineage <- state.lineages do
@@ -45,7 +61,7 @@ defmodule Arkea.Sim.TickTest do
 
           assert new_count <= old_count,
                  "abundance increased from #{old_count} to #{new_count} in " <>
-                   "phase #{phase_name} of lineage #{old_lineage.id} with zero growth"
+                   "phase #{phase_name} of lineage #{old_lineage.id} with zero-growth genome"
         end
       end
     end
@@ -183,9 +199,21 @@ defmodule Arkea.Sim.TickTest do
     assert Tick.step_metabolism(state) == state
   end
 
-  test "step_expression returns state unchanged" do
-    state = simple_state()
-    assert Tick.step_expression(state) == state
+  test "step_expression updates growth_delta_by_lineage from genome" do
+    # Phase 3: step_expression derives growth deltas from the genome.
+    # A zero-kcat genome produces delta = 0 for every phase.
+    state = zero_delta_state()
+    new_state = Tick.step_expression(state)
+
+    # growth_delta_by_lineage is now populated by step_expression
+    lineage = hd(state.lineages)
+    deltas = Map.fetch!(new_state.growth_delta_by_lineage, lineage.id)
+    assert is_map(deltas)
+
+    for {_phase, delta} <- deltas do
+      assert delta == 0,
+             "expected delta = 0 for zero-kcat genome, got #{delta}"
+    end
   end
 
   test "step_hgt returns state unchanged" do
@@ -260,7 +288,70 @@ defmodule Arkea.Sim.TickTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Phase 3 unit tests: step_expression → Phenotype → growth deltas
+
+  test "step_expression produces non-nil deltas for all lineages with genome" do
+    state = simple_state()
+    new_state = Tick.step_expression(state)
+
+    for lineage <- state.lineages do
+      assert Map.has_key?(new_state.growth_delta_by_lineage, lineage.id),
+             "lineage #{lineage.id} has no entry in growth_delta_by_lineage"
+
+      deltas = Map.fetch!(new_state.growth_delta_by_lineage, lineage.id)
+      assert is_map(deltas)
+    end
+  end
+
+  test "genome with catalytic_site kcat ≈ 1.0 yields higher base_growth_rate than genome with none" do
+    # A catalytic domain with all-max parameter_codons (value 19) has:
+    # raw_sum ≈ 530, norm ≈ 1.0, kcat = 10.0 — but clamped to 1.0 as base_growth_rate.
+    # A genome with only substrate_binding domains has base_growth_rate = 0.1 (default).
+    #
+    # Type index 1 = :catalytic_site → type_tag sum rem 11 = 1 → [0, 0, 1]
+    # Type index 0 = :substrate_binding → type_tag [0, 0, 0]
+
+    catalytic_domain = Domain.new([0, 0, 1], List.duplicate(19, 20))
+    catalytic_gene = Gene.from_domains([catalytic_domain])
+    genome_with_catalytic = Genome.new([catalytic_gene])
+    phenotype_with_catalytic = Phenotype.from_genome(genome_with_catalytic)
+
+    no_catalytic_domain = Domain.new([0, 0, 0], List.duplicate(0, 20))
+    no_catalytic_gene = Gene.from_domains([no_catalytic_domain])
+    genome_no_catalytic = Genome.new([no_catalytic_gene])
+    phenotype_no_catalytic = Phenotype.from_genome(genome_no_catalytic)
+
+    assert phenotype_with_catalytic.base_growth_rate >
+             phenotype_no_catalytic.base_growth_rate,
+           "genome with catalytic_site should have higher base_growth_rate than one without"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Property: step_expression produces non-nil deltas for all lineages
+
+  property "step_expression produces deltas for all lineages with non-nil genome" do
+    check all(state <- biotope_state()) do
+      new_state = Tick.step_expression(state)
+
+      for lineage <- state.lineages, lineage.genome != nil do
+        assert Map.has_key?(new_state.growth_delta_by_lineage, lineage.id),
+               "lineage #{lineage.id} has no entry in growth_delta_by_lineage"
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Private helpers
+
+  # A genome whose only domain is :catalytic_site with all-zero parameter_codons.
+  # raw_sum = 0.0, norm = 0.0, kcat = 0.0 → base_growth_rate = 0.0, delta = 0.
+  # Used to test pure-dilution monotonicity (no growth from the genome side).
+  defp zero_kcat_genome do
+    # type_tag [0,0,1] → sum=1 → rem(1,11)=1 → :catalytic_site (index 1)
+    domain = Domain.new([0, 0, 1], List.duplicate(0, 20))
+    gene = Gene.from_domains([domain])
+    Genome.new([gene])
+  end
 
   defp genome_fixture do
     domain = Domain.new([0, 0, 0], List.duplicate(0, 20))
@@ -285,5 +376,61 @@ defmodule Arkea.Sim.TickTest do
       dilution_rate: 0.05,
       lineages: [lineage]
     )
+  end
+
+  defp zero_delta_state do
+    phase = Phase.new(:surface)
+    genome = zero_kcat_genome()
+
+    lineage =
+      Lineage.new_founder(
+        genome,
+        %{surface: 100},
+        0
+      )
+
+    BiotopeState.new_from_opts(
+      id: Arkea.UUID.v4(),
+      archetype: :oligotrophic_lake,
+      phases: [phase],
+      dilution_rate: 0.05,
+      lineages: [lineage]
+    )
+  end
+
+  # StreamData generator: BiotopeState where every lineage carries the
+  # zero-kcat genome → step_expression produces delta = 0 for every phase.
+  # This lets us test pure-dilution monotonicity under Phase 3 step_expression.
+  defp biotope_state_zero_delta do
+    alias Arkea.Ecology.Biotope
+
+    StreamData.bind(StreamData.member_of(Biotope.archetypes()), fn archetype ->
+      StreamData.bind(Arkea.Generators.float_in(-1000.0, 1000.0), fn x ->
+        StreamData.bind(Arkea.Generators.float_in(-1000.0, 1000.0), fn y ->
+          biotope = Biotope.new(archetype, {x, y})
+          phase_names = Enum.map(biotope.phases, & &1.name)
+          genome = zero_kcat_genome()
+
+          StreamData.bind(StreamData.integer(1..3), fn n ->
+            StreamData.bind(
+              StreamData.list_of(
+                StreamData.bind(
+                  StreamData.list_of(StreamData.integer(0..100_000), length: length(phase_names)),
+                  fn counts ->
+                    abundances = Enum.zip(phase_names, counts) |> Map.new()
+                    StreamData.constant(Lineage.new_founder(genome, abundances, 0))
+                  end
+                ),
+                length: n
+              ),
+              fn lineages ->
+                state = BiotopeState.new(biotope, lineages)
+                StreamData.constant(state)
+              end
+            )
+          end)
+        end)
+      end)
+    end)
   end
 end

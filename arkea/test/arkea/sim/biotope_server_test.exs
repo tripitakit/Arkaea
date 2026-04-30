@@ -51,8 +51,20 @@ defmodule Arkea.Sim.Biotope.ServerTest do
   # ---------------------------------------------------------------------------
   # Fixtures
 
+  # Standard genome fixture: type :substrate_binding (type_tag sum 0 rem 11 = 0).
+  # Under Phase 3 step_expression: base_growth_rate = 0.1 (default, no catalytic
+  # domains), energy_cost = 0.0 → delta = round(0.1*100) - 0 = 10.
   defp genome_fixture do
     domain = Domain.new([0, 0, 0], List.duplicate(0, 20))
+    gene = Gene.from_domains([domain])
+    Genome.new([gene])
+  end
+
+  # Zero-delta genome: single :catalytic_site domain (type_tag [0,0,1]) with
+  # all-zero parameter_codons → kcat = 0.0 → base_growth_rate = 0.0 → delta = 0.
+  # Use this when the test requires step_expression to produce no growth.
+  defp zero_delta_genome do
+    domain = Domain.new([0, 0, 1], List.duplicate(0, 20))
     gene = Gene.from_domains([domain])
     Genome.new([gene])
   end
@@ -121,14 +133,36 @@ defmodule Arkea.Sim.Biotope.ServerTest do
 
   # ---------------------------------------------------------------------------
   # Integration: equilibrium test
-  # With growth_delta = 0 and dilution_rate = 0, abundance must be exactly invariant.
-  # (The continuous-model balance growth_delta/dilution_rate is a fixed point only in
-  # floating-point arithmetic; integer floor makes the discrete fixed point lower.
-  # The cleanest verifiable invariant for "zero net growth" in integers is d=r=0.)
+  # With a zero-kcat genome and dilution_rate = 0, abundance must be exactly
+  # invariant: step_expression derives delta = 0 (kcat = 0.0 → base_growth_rate
+  # = 0.0 → round(0.0*100) - round(0.0*10) = 0), and dilution also produces
+  # no change (rate = 0.0).
+  #
+  # Note: with Phase 3 step_expression active, the genome determines the growth
+  # delta — externally-set growth_delta_by_lineage is overwritten every tick.
+  # The zero-kcat genome fixture guarantees a genome-derived delta of exactly 0.
 
-  test "abundance is exactly invariant when growth_delta = 0 and dilution_rate = 0" do
+  test "abundance is exactly invariant with zero-kcat genome and zero dilution_rate" do
     initial_abundance = 500
-    state = build_state(:surface, initial_abundance, 0, 0.0)
+    phase_name = :surface
+    phase = Phase.new(phase_name, dilution_rate: 0.0)
+
+    lineage =
+      Lineage.new_founder(
+        zero_delta_genome(),
+        %{phase_name => initial_abundance},
+        0
+      )
+
+    state =
+      BiotopeState.new_from_opts(
+        id: Arkea.UUID.v4(),
+        archetype: :oligotrophic_lake,
+        phases: [phase],
+        dilution_rate: 0.0,
+        lineages: [lineage]
+      )
+
     {pid, _name} = start_server(state)
 
     Enum.each(1..10, fn _ -> GenServer.call(pid, :manual_tick) end)

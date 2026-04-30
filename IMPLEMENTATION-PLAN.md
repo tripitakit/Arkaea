@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · (vedi §1bis).
+**Stato**: Fase 0 ✅ completata · Fase 1 ✅ completata · Fase 2 ✅ completata · Fase 3 ✅ completata · (vedi §1bis).
 
 ---
 
@@ -186,6 +186,28 @@ Invarianti coperti (§6.2):
 - `test/arkea/sim/biotope_server_test.exs` — 8 integration test
 
 **Suite finale**: `mix test` → **97 properties, 141 tests, 0 failures**
+
+### Fase 3 — Sistema generativo dei domini ✅ completata (commit `TBD`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-04-30):
+
+- `Domain.compute_params/1` ora fa dispatch sul tipo e aggiunge chiavi tipo-specifiche (`:km`, `:kcat`, `:reaction_class`, `:tag_class`, ecc.) mantenendo `:raw_sum` per tutti i tipi
+- Normalizzazione lineare `min(raw_sum / 500.0, 1.0)`: preserva proporzionalità genotipo→fenotipo necessaria per selezione graduale; `tanh` scartato per distorsione non-lineare
+- `Arkea.Genome.all_domains/1` aggiunto per traversare chromosome + plasmids + prophages
+- `Arkea.Sim.Phenotype.from_genome/1`: unica passata su tutti i domini → 7 campi fenotipici aggregati
+- Modello lineare Phase 3: `delta = round(base_growth_rate * 100) - round(energy_cost * 10)`, clamp `-100..500`; Michaelis-Menten rinviato a Fase 5
+- Lineage con `genome: nil` (delta-encoding Fase 4+): `step_expression` preserva il delta preesistente senza sovrascrivere
+
+**Moduli modificati/creati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Genome.Domain` | `lib/arkea/genome/domain.ex` | `compute_params/1` type-dispatch; `valid?/1`/`validate/1` aggiornati per chiavi tipo-specifiche |
+| `Arkea.Genome` | `lib/arkea/genome.ex` | `all_domains/1` aggiunto |
+| `Arkea.Sim.Phenotype` | `lib/arkea/sim/phenotype.ex` | nuovo modulo puro |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_expression/1` implementato |
+
+**Suite finale**: `mix test` → **115 properties, 156 tests, 0 failures**
 
 ---
 
