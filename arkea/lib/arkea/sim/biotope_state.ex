@@ -10,6 +10,11 @@ defmodule Arkea.Sim.BiotopeState do
 
   - `id` — UUID v4, stable for the lifetime of the biotope process.
   - `archetype` — one of the 8 archetypes (DESIGN.md Block 10).
+  - `x`, `y` — planar coordinates used by the Phase 8 topology graph.
+  - `zone` — coarse environmental region used to bias migration within clusters.
+  - `owner_player_id` — `nil` for wild biotopes, or the owning player UUID.
+  - `neighbor_ids` — directed outgoing edges in the topology graph. Symmetric
+    connections are represented by reciprocal membership.
   - `phases` — list of `Arkea.Ecology.Phase.t()`. The phase `dilution_rate`
     is authoritative; `dilution_rate` on this struct is a biotope-wide fallback
     used when a phase entry is missing from `growth_delta_by_phase` or for
@@ -69,6 +74,11 @@ defmodule Arkea.Sim.BiotopeState do
   typedstruct enforce: true do
     field :id, binary()
     field :archetype, archetype()
+    field :x, float(), default: 0.0
+    field :y, float(), default: 0.0
+    field :zone, atom(), default: :unassigned
+    field :owner_player_id, binary() | nil, default: nil
+    field :neighbor_ids, [binary()], default: []
     field :phases, [Phase.t()]
     field :lineages, [Lineage.t()]
     field :growth_delta_by_lineage, growth_deltas(), default: %{}
@@ -100,6 +110,11 @@ defmodule Arkea.Sim.BiotopeState do
     %__MODULE__{
       id: biotope.id,
       archetype: biotope.archetype,
+      x: biotope.x,
+      y: biotope.y,
+      zone: biotope.zone,
+      owner_player_id: biotope.owner_player_id,
+      neighbor_ids: biotope.neighbor_ids,
       phases: biotope.phases,
       lineages: lineages,
       growth_delta_by_lineage: growth_deltas,
@@ -135,6 +150,11 @@ defmodule Arkea.Sim.BiotopeState do
     %__MODULE__{
       id: Keyword.fetch!(opts, :id),
       archetype: Keyword.fetch!(opts, :archetype),
+      x: Keyword.get(opts, :x, 0.0),
+      y: Keyword.get(opts, :y, 0.0),
+      zone: Keyword.get(opts, :zone, :unassigned),
+      owner_player_id: Keyword.get(opts, :owner_player_id),
+      neighbor_ids: Keyword.get(opts, :neighbor_ids, []),
       phases: Keyword.fetch!(opts, :phases),
       dilution_rate: Keyword.fetch!(opts, :dilution_rate),
       lineages: Keyword.get(opts, :lineages, []),

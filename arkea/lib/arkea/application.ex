@@ -6,6 +6,7 @@ defmodule Arkea.Application do
   use Application
 
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
+  alias Arkea.Sim.Migration.Coordinator, as: MigrationCoordinator
   alias Arkea.Sim.SeedScenario
   alias Arkea.Sim.WorldClock
 
@@ -21,6 +22,7 @@ defmodule Arkea.Application do
       {Registry, keys: :unique, name: Arkea.Sim.Registry},
       WorldClock,
       BiotopeSupervisor,
+      MigrationCoordinator,
       # Seed the default scenario once at startup without blocking the
       # supervisor. The Task is fire-and-forget: if the biotope is already
       # running (e.g. after a hot-code reload) SeedScenario returns

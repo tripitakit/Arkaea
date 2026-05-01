@@ -10,15 +10,18 @@ defmodule Arkea.Sim.SeedScenario do
 
   ## Seed genome composition
 
-  The seed genome encodes three functional domains (DESIGN.md Block 7):
+  The seed genome encodes four functional domains (DESIGN.md Block 7):
 
-    - `:catalytic_site` — moderate kcat (growth potential)
+    - `:substrate_binding` — targets glucose (low Km ≈ 5, high affinity)
+    - `:catalytic_site` — moderate kcat; also seeds the QS signal pool
     - `:repair_fidelity` — low efficiency (high mutation rate, drives diversity)
-    - `:energy_coupling` — moderate atp_cost (sustainable growth)
+    - `:energy_coupling` — low atp_cost (sustainable at chemostat inflow)
 
-  This combination produces a lineage that grows steadily, mutates frequently,
-  and generates visible phenotypic diversity within a few dozen ticks at the
-  2-second dev tick interval.
+  Phase 5 requires a `:substrate_binding` domain for any metabolite uptake;
+  without it `atp_yield = 0.0` every tick and the lineage starves.  The low
+  energy cost ensures positive growth even when glucose is scarce (pool ≈
+  inflow / dilution_rate).  High mutation rate generates visible phenotypic
+  diversity within a few dozen ticks at the 2-second dev tick interval.
 
   ## Idempotency
 
@@ -87,10 +90,10 @@ defmodule Arkea.Sim.SeedScenario do
   # Values are dimensionless concentration units consistent with the initial
   # pool values set by `initialize_metabolites/1`.
   @metabolite_inflow %{
-    glucose: 5.0,
-    oxygen: 3.0,
-    nh3: 1.0,
-    po4: 0.5
+    glucose: 10.0,
+    oxygen: 5.0,
+    nh3: 2.0,
+    po4: 1.0
   }
 
   defp build_biotope_state do
@@ -113,15 +116,17 @@ defmodule Arkea.Sim.SeedScenario do
   end
 
   # Initialize Phase 5 metabolite concentrations using Phase.update_metabolite/3.
-  # Starting concentrations (dimensionless units, same scale as inflow):
-  #   glucose 100.0, oxygen 50.0, nh3 20.0, po4 10.0, co2 10.0
+  # Starting concentrations approximate the chemostat steady state without
+  # consumers: glucose ≈ inflow/dilution_rate = 10/0.04 = 250.  We seed at
+  # 20.0 (below equilibrium) so the lineage sees scarcity from tick 1 and
+  # the initial burst is limited.  Other substrates are seeded proportionally.
   defp initialize_metabolites(%Phase{} = phase) do
     phase
-    |> Phase.update_metabolite(:glucose, 100.0)
-    |> Phase.update_metabolite(:oxygen, 50.0)
-    |> Phase.update_metabolite(:nh3, 20.0)
-    |> Phase.update_metabolite(:po4, 10.0)
-    |> Phase.update_metabolite(:co2, 10.0)
+    |> Phase.update_metabolite(:glucose, 20.0)
+    |> Phase.update_metabolite(:oxygen, 10.0)
+    |> Phase.update_metabolite(:nh3, 4.0)
+    |> Phase.update_metabolite(:po4, 2.0)
+    |> Phase.update_metabolite(:co2, 5.0)
   end
 
   defp build_seed_lineage do
@@ -137,19 +142,27 @@ defmodule Arkea.Sim.SeedScenario do
   end
 
   defp build_seed_genome do
+    # substrate_binding: type_tag sum rem 11 == 0  → [0, 0, 0]
+    # first codon = 0  → target_metabolite_id = rem(0, 13) = 0 → :glucose
+    # remaining codons at 2  → weighted_sum ≈ 24, norm ≈ 0.049, km ≈ 4.9
+    # (low Km = high affinity; kcat defaults to 1.0 in Phenotype aggregation)
+    substrate = Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
+
     # catalytic_site: type_tag sum rem 11 == 1  → [0, 0, 1]
-    # parameter_codons: 20 codons at value 10 (moderate kcat)
+    # parameter_codons: 20 codons at value 10 (moderate kcat ≈ 5.0)
     catalytic = Domain.new([0, 0, 1], List.duplicate(10, 20))
 
     # repair_fidelity: type_tag sum rem 11 == 10 → [0, 1, 9]
-    # parameter_codons: 20 codons at value 2 (low efficiency = high mutability)
+    # parameter_codons: 20 codons at value 2 (efficiency ≈ 0.05 = high mutability)
     repair = Domain.new([0, 1, 9], List.duplicate(2, 20))
 
     # energy_coupling: type_tag sum rem 11 == 4  → [0, 1, 3]
-    # parameter_codons: 20 codons at value 8 (moderate atp_cost)
-    energy = Domain.new([0, 1, 3], List.duplicate(8, 20))
+    # parameter_codons: 20 codons at value 5 → weighted_sum ≈ 87, atp_cost ≈ 0.87
+    # Low cost sustains positive delta even when glucose pool = inflow (≈10 units).
+    # Break-even: atp_yield > atp_cost × 5.0 = 4.35; inflow gives atp_yield ≈ 20.
+    energy = Domain.new([0, 1, 3], List.duplicate(5, 20))
 
-    gene = Gene.from_domains([catalytic, repair, energy])
+    gene = Gene.from_domains([substrate, catalytic, repair, energy])
     Genome.new([gene])
   end
 

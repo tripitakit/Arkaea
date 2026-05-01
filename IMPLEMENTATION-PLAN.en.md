@@ -4,7 +4,7 @@
 
 **References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md)
 **Date**: 2026-04-26
-**Status**: consolidated architectural choice; defined phase roadmap; ready for Phase 0.
+**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · (see §1bis).
 
 ---
 
@@ -22,6 +22,55 @@ This document defines **how** to build the system: the main architectural choice
 
 ---
 
+## 1bis. Implementation status
+
+> Updated: 2026-05-01.
+
+Completed phases on `master` as of 2026-05-01:
+- Phase 0: Bootstrap Phoenix scaffold (commit `86a3ef2`)
+- Phase 1: Core data model + Ecto schemas + property tests (commit `142b4aa`)
+- Phase 2: Dilution + environment step
+- Phase 3: Gene expression + phenotype
+- Phase 4: Stochastic fission + pruning
+- Phase 5: Michaelis-Menten metabolism
+- Phase 6: HGT + mobile elements — conjugation, prophage induction, plasmid cost (commit `7491a3f`)
+- Phase 7: Quorum sensing & signaling (commit `a9adab8`)
+- Phase 8: Migration + biotope network topology (commit `TBD`)
+
+### Phase 8 — Migration + network topology ✅ completed (commit `TBD`)
+
+**Design decisions** (`elixir-otp-architect`, 2026-05-01):
+
+- **Global post-tick barrier**: migration does not live inside `Arkea.Sim.Tick`; `Arkea.Sim.Migration.Coordinator` subscribes to `"world:tick"`, waits until every participating biotope reaches the same `tick_count`, then computes the pure plan via `Arkea.Sim.Migration.plan/2` and applies transfers through `Biotope.Server.apply_migration/3`
+- **Topology on `BiotopeState`**: `x`, `y`, `zone`, `owner_player_id`, and `neighbor_ids` were added so the coordinator can derive the graph directly from runtime state without external shared state
+- **Multi-level transfers**: flows along edges cover lineages (integer cell-equivalent counts), metabolites (float), signals (float), and free phages (integer); lineages migrate phase-to-phase, while environmental pools follow the same edge graph with dedicated scaling
+- **Connectivity formula**: `edge_weight = 1 / (1 + euclidean_distance)`; `biotope_compatibility` is the mean of best phase compatibilities; `phase_compatibility` weights temperature, pH, and osmolarity differences with a bonus when phase names match (`surface -> surface`, etc.)
+- **Emergent mobility by phase/phenotype**: each phase has a base `phase_mobility`; phenotype modulates it with penalty `n_transmembrane × 0.12` and bonus `structural_stability × 0.10`, final clamp `0.05..1.0`
+- **Runtime configuration**: default `base_flow = 0.12`; separate scaling for pools `metabolite = 0.45`, `signal = 0.70`, `phage = 0.30`; coordinator barrier with `migration_settle_delay_ms = 10` and `migration_max_retries = 25`, all overrideable via `Application.get_env/3`
+- **Audit/broadcast for Phase 8**: applying a transfer on `Biotope.Server` emits `%{type: :migration, payload: ...}` and reuses the existing `{:biotope_tick, new_state, events}` broadcast observed by the UI
+
+**Modules created/modified**:
+
+| Module | File | Change |
+|---|---|---|
+| `Arkea.Sim.Migration` | `lib/arkea/sim/migration.ex` | new — pure planner, edge/phase compatibility, transfer application |
+| `Arkea.Sim.Migration.Coordinator` | `lib/arkea/sim/migration/coordinator.ex` | new — global post-tick barrier + apply orchestration |
+| `Arkea.Sim.Biotope.Server` | `lib/arkea/sim/biotope/server.ex` | `apply_migration/3`, `:migration` event, reused broadcast helper |
+| `Arkea.Sim.BiotopeState` | `lib/arkea/sim/biotope_state.ex` | runtime topology coordinates (`x`, `y`, `zone`, `owner_player_id`, `neighbor_ids`) |
+| `Arkea.Application` | `lib/arkea/application.ex` | added `MigrationCoordinator` child to the supervision tree |
+
+**Test suite** (new):
+- `test/arkea/sim/migration_test.exs` — 1 property + 2 tests: total abundance conservation on reciprocal plans, preference for environmentally compatible phases, coherent transfer of metabolites/signals/phages along the same edge
+- `test/arkea/sim/migration/coordinator_test.exs` — integration test on a 5-biotope chain: one-hop-per-tick diffusion and conservation of total mass
+
+**Architectural notes**:
+- `Migration.Coordinator.run_migration/1` exists only for tests that use `manual_tick/1`; the real runtime path remains PubSub-driven on `"world:tick"`
+- Delivered Phase 8 covers topology + migration. Player-facing **claim/colonization** rules remain out of scope until lineages carry explicit provenance for home biotope / owner
+
+**Final suite**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
+
+---
+
 ## 2. Main architectural choice
 
 ### 2.1 Decision
@@ -31,7 +80,7 @@ This document defines **how** to build the system: the main architectural choice
 **Model**:
 - One `Biotope.Server` GenServer per biotope. State (lineages, phases, metabolites, signals, free phages) lives **in the process's memory**, in Elixir structs.
 - The tick is a **pure function** `tick(state) -> {new_state, events}`, applied sequentially by the GenServer. Internally parallelizable per phase via `Task.async_stream` when profiling justifies it.
-- **Inter-biotope migration** is orchestrated by the `Migration.Coordinator` after each tick: fan-out via `Phoenix.PubSub`.
+- **Inter-biotope migration** is orchestrated by the `Migration.Coordinator` after each global tick: `Phoenix.PubSub` barrier on `world:tick`, fetch of current states, pure transfer planning, and per-biotope apply.
 - **Persistence** is a periodic snapshot via Oban worker (every 10 ticks = 50 real minutes, from Block 11).
 
 ### 2.2 The two structural caveats
@@ -135,14 +184,22 @@ def tick(%BiotopeState{} = state) do
   {new_state, events}
 end
 
-# GenServer — side-effects orchestration
+# Biotope.Server — local side-effects orchestration
 def handle_info(:tick, state) do
   {new_state, events} = Tick.tick(state)
   AuditLog.persist(events)
   PubSub.broadcast(Topic.biotope(state.id), {:tick, new_state, events})
-  Migration.notify_neighbors(new_state)
   Snapshot.maybe_persist(new_state)
   {:noreply, new_state}
+end
+
+# Migration.Coordinator — global post-tick barrier
+def handle_info({:tick, n}, state) do
+  participating_states()
+  |> wait_until(&(&1.tick_count == n))
+  |> Migration.plan()
+  |> apply_plan(n)
+  {:noreply, state}
 end
 ```
 

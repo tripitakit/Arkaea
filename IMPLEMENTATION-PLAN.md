@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · (vedi §1bis).
 
 ---
 
@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-04-27. EN translation di questa sezione: ⏳ pending sync (`bilingual-docs-maintainer`).
+> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 8.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -158,7 +158,7 @@ Invarianti coperti (§6.2):
 
 - I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
 - Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
-- Sync EN della §1bis (`bilingual-docs-maintainer`) rinviato — la sezione cresce velocemente in fase implementativa, conviene fare un singolo sync al completamento di un blocco stabile (es. fine Fase 3).
+- Sync EN della §1bis completato fino alla Fase 8; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
 
 ### Fase 2 — Tick engine minimale ✅ completata (commit `TBD`)
 
@@ -323,6 +323,38 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix test` → **123 properties, 204 tests, 0 failures**
 
+### Fase 8 — Migrazione + topologia di network ✅ completata (commit `TBD`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-05-01):
+
+- **Barriera globale post-tick**: la migrazione non vive in `Arkea.Sim.Tick`; `Arkea.Sim.Migration.Coordinator` si sottoscrive a `"world:tick"`, aspetta che tutti i biotopi partecipanti raggiungano lo stesso `tick_count`, poi calcola il piano puro via `Arkea.Sim.Migration.plan/2` e applica i transfer via `Biotope.Server.apply_migration/3`
+- **Topologia su `BiotopeState`**: aggiunti `x`, `y`, `zone`, `owner_player_id`, `neighbor_ids` così il coordinatore può derivare il grafo direttamente dallo stato runtime senza stato condiviso esterno
+- **Transfer multi-livello**: i flussi lungo gli archi coprono lignaggi (interi, cell-equivalent count), metaboliti (float), segnali (float) e fagi liberi (interi); i lignaggi migrano `phase-to-phase`, i pool ambientali seguono lo stesso edge graph con scaling dedicato
+- **Formula di connettività**: `edge_weight = 1 / (1 + distanza_euclidea)`; `biotope_compatibility` = media delle migliori compatibilità di fase; `phase_compatibility` pesa differenze di temperatura, pH e osmolarità con bonus quando il nome di fase coincide (`surface -> surface`, ecc.)
+- **Mobilità emergente per fase/fenotipo**: ogni fase ha una `phase_mobility` di base; il fenotipo la modula con penalità `n_transmembrane × 0.12` e bonus `structural_stability × 0.10`, clamp finale `0.05..1.0`
+- **Configurazione runtime**: `base_flow = 0.12` di default; scaling separato per pool `metabolite = 0.45`, `signal = 0.70`, `phage = 0.30`; barriera del coordinatore con `migration_settle_delay_ms = 10` e `migration_max_retries = 25`, tutti overrideabili via `Application.get_env/3`
+- **Audit/broadcast del passo 8**: l'applicazione di un transfer su `Biotope.Server` emette un evento `%{type: :migration, payload: ...}` e riusa il broadcast `{:biotope_tick, new_state, events}` già osservato dalla UI
+
+**Moduli creati/modificati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Sim.Migration` | `lib/arkea/sim/migration.ex` | nuovo — planner puro, compatibilità edge/fase, applicazione transfer |
+| `Arkea.Sim.Migration.Coordinator` | `lib/arkea/sim/migration/coordinator.ex` | nuovo — barriera globale post-tick + orchestrazione apply |
+| `Arkea.Sim.Biotope.Server` | `lib/arkea/sim/biotope/server.ex` | `apply_migration/3`, evento `:migration`, helper broadcast riusato |
+| `Arkea.Sim.BiotopeState` | `lib/arkea/sim/biotope_state.ex` | coordinate/topologia runtime (`x`, `y`, `zone`, `owner_player_id`, `neighbor_ids`) |
+| `Arkea.Application` | `lib/arkea/application.ex` | aggiunto child `MigrationCoordinator` al supervision tree |
+
+**Test suite** (nuovi):
+- `test/arkea/sim/migration_test.exs` — 1 property + 2 test: conservazione abbondanza totale su piano reciproco, preferenza per fasi ambientalmente compatibili, trasferimento coerente di metaboliti/segnali/fagi lungo lo stesso arco
+- `test/arkea/sim/migration/coordinator_test.exs` — integration test su chain di 5 biotopi: diffusione un hop per tick e conservazione della massa totale
+
+**Note architetturali**:
+- `Migration.Coordinator.run_migration/1` esiste solo per i test che usano `manual_tick/1`; il path runtime reale resta PubSub-driven su `"world:tick"`
+- La Fase 8 consegnata copre topologia + migrazione. Le regole di **claim/colonizzazione player-facing** restano fuori perimetro finché i lignaggi non portano provenance esplicita del biotopo home / owner
+
+**Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
+
 ---
 
 ## 2. Scelta architetturale principale
@@ -334,7 +366,7 @@ Invarianti coperti (§6.2):
 **Modello**:
 - Un `Biotope.Server` GenServer per biotopo. Lo stato (lignaggi, fasi, metaboliti, segnali, fagi liberi) vive **in memoria del processo**, in struct Elixir.
 - Il tick è una **funzione pura** `tick(state) -> {new_state, events}`, applicata sequenzialmente dal GenServer. Internamente parallelizzabile per fase via `Task.async_stream` quando il profiling lo giustifica.
-- La **migrazione** inter-biotopo è orchestrata dal `Migration.Coordinator` dopo ogni tick: fan-out via `Phoenix.PubSub`.
+- La **migrazione** inter-biotopo è orchestrata dal `Migration.Coordinator` dopo ogni tick globale: barriera via `Phoenix.PubSub` sul `world:tick`, fetch degli stati correnti, calcolo puro del piano di transfer e apply per-biotope.
 - La **persistenza** è snapshot periodico via worker Oban (ogni 10 tick = 50 minuti reali, da Blocco 11).
 
 ### 2.2 I due caveat strutturali
@@ -438,14 +470,22 @@ def tick(%BiotopeState{} = state) do
   {new_state, events}
 end
 
-# GenServer — orchestrazione side-effects
+# Biotope.Server — orchestrazione side-effects locali
 def handle_info(:tick, state) do
   {new_state, events} = Tick.tick(state)
   AuditLog.persist(events)
   PubSub.broadcast(Topic.biotope(state.id), {:tick, new_state, events})
-  Migration.notify_neighbors(new_state)
   Snapshot.maybe_persist(new_state)
   {:noreply, new_state}
+end
+
+# Migration.Coordinator — barriera globale post-tick
+def handle_info({:tick, n}, state) do
+  participating_states()
+  |> wait_until(&(&1.tick_count == n))
+  |> Migration.plan()
+  |> apply_plan(n)
+  {:noreply, state}
 end
 ```
 

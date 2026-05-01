@@ -56,6 +56,7 @@ defmodule Arkea.Sim.Biotope.Server do
   require Logger
 
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Migration
   alias Arkea.Sim.Tick
 
   # ---------------------------------------------------------------------------
@@ -101,6 +102,19 @@ defmodule Arkea.Sim.Biotope.Server do
     GenServer.call(via(id), :manual_tick)
   end
 
+  @doc """
+  Apply a Phase 8 migration transfer produced by `Migration.Coordinator`.
+
+  The transfer must target the biotope's current tick; stale transfers are
+  rejected to preserve the ordering `local tick -> coordinated migration`.
+  """
+  @spec apply_migration(binary(), Migration.transfer(), non_neg_integer()) ::
+          :ok | {:error, atom()}
+  def apply_migration(id, transfer, tick)
+      when is_binary(id) and is_map(transfer) and is_integer(tick) and tick >= 0 do
+    GenServer.call(via(id), {:apply_migration, transfer, tick})
+  end
+
   # ---------------------------------------------------------------------------
   # GenServer callbacks
 
@@ -128,6 +142,30 @@ defmodule Arkea.Sim.Biotope.Server do
   end
 
   @impl GenServer
+  def handle_call({:apply_migration, transfer, expected_tick}, _from, state) do
+    cond do
+      expected_tick != state.tick_count ->
+        {:reply, {:error, :stale_tick}, state}
+
+      Migration.empty_transfer?(transfer) ->
+        {:reply, :ok, state}
+
+      true ->
+        new_state = Migration.apply_transfer(state, transfer)
+
+        events = [
+          %{
+            type: :migration,
+            payload: Map.put(Migration.transfer_summary(transfer), :tick, expected_tick)
+          }
+        ]
+
+        broadcast_biotope_update(state.id, new_state, events)
+        {:reply, :ok, new_state}
+    end
+  end
+
+  @impl GenServer
   def handle_info({:tick, _n}, state) do
     new_state = do_tick(state)
     {:noreply, new_state}
@@ -149,14 +187,12 @@ defmodule Arkea.Sim.Biotope.Server do
 
   defp do_tick(state) do
     {new_state, events} = Tick.tick(state)
-
-    Phoenix.PubSub.broadcast(
-      Arkea.PubSub,
-      "biotope:#{state.id}",
-      {:biotope_tick, new_state, events}
-    )
-
+    broadcast_biotope_update(state.id, new_state, events)
     new_state
+  end
+
+  defp broadcast_biotope_update(id, new_state, events) do
+    Phoenix.PubSub.broadcast(Arkea.PubSub, "biotope:#{id}", {:biotope_tick, new_state, events})
   end
 
   defp via(id) do

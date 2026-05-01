@@ -95,8 +95,8 @@ defmodule ArkeaWeb.SimLive do
             <.lineage_table sim_state={@sim_state} phenotype_cache={@phenotype_cache} />
           </div>
           <div class="w-[35%] flex flex-col gap-4">
-            <.event_log_panel event_log={@event_log} />
             <.metabolite_panel sim_state={@sim_state} />
+            <.event_log_panel event_log={@event_log} />
           </div>
         </div>
       <% end %>
