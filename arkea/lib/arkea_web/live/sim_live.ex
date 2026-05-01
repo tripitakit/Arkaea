@@ -862,38 +862,23 @@ defmodule ArkeaWeb.SimLive do
     value |> Atom.to_string() |> humanize_string()
   end
 
+  @phase_colors %{
+    surface: "#f59e0b",
+    water_column: "#22d3ee",
+    sediment: "#c2410c",
+    biofilm: "#84cc16",
+    soil: "#65a30d",
+    pore_water: "#14b8a6",
+    air: "#f8fafc",
+    host: "#fb7185"
+  }
+
+  @fallback_colors ["#38bdf8", "#fb7185", "#f97316", "#a3e635", "#facc15"]
+
   defp phase_color(phase_name) do
-    case phase_name do
-      :surface ->
-        "#f59e0b"
-
-      :water_column ->
-        "#22d3ee"
-
-      :sediment ->
-        "#c2410c"
-
-      :biofilm ->
-        "#84cc16"
-
-      :soil ->
-        "#65a30d"
-
-      :pore_water ->
-        "#14b8a6"
-
-      :air ->
-        "#f8fafc"
-
-      :host ->
-        "#fb7185"
-
-      _ ->
-        Enum.at(
-          ["#38bdf8", "#fb7185", "#f97316", "#a3e635", "#facc15"],
-          rem(:erlang.phash2(phase_name), 5)
-        )
-    end
+    Map.get_lazy(@phase_colors, phase_name, fn ->
+      Enum.at(@fallback_colors, rem(:erlang.phash2(phase_name), length(@fallback_colors)))
+    end)
   end
 
   defp phenotype_cluster(nil), do: "cryptic"

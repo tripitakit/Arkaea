@@ -25,6 +25,13 @@ config :arkea, ArkeaWeb.Endpoint,
 # integration tests drive ticks via `manual_tick` (GenServer.call :manual_tick)
 # and subscribe to PubSub directly when testing the clock-driven path.
 config :arkea, :tick_interval_ms, 600_000
+config :arkea, :persistence_enabled, false
+
+config :arkea, Arkea.Oban,
+  repo: Arkea.Repo,
+  plugins: false,
+  queues: [snapshots: 5],
+  testing: :manual
 
 # Print only warnings and errors during test
 config :logger, level: :warning

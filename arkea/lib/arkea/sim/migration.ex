@@ -169,29 +169,51 @@ defmodule Arkea.Sim.Migration do
       phenotype = if lineage.genome != nil, do: Phenotype.from_genome(lineage.genome), else: nil
 
       Enum.reduce(lineage.abundance_by_phase, acc, fn {phase_name, abundance}, inner_acc ->
-        source_phase = phase_by_name(source_state, phase_name)
-
-        cond do
-          abundance <= 0 or source_phase == nil ->
-            inner_acc
-
-          neighbors == [] ->
-            inner_acc
-
-          true ->
-            move_lineage_from_phase(
-              source_state,
-              source_phase,
-              lineage,
-              abundance,
-              phenotype,
-              neighbors,
-              base_flow,
-              inner_acc
-            )
-        end
+        plan_phase_transfer(
+          source_state,
+          lineage,
+          phenotype,
+          neighbors,
+          base_flow,
+          inner_acc,
+          phase_name,
+          abundance
+        )
       end)
     end)
+  end
+
+  defp plan_phase_transfer(
+         source_state,
+         lineage,
+         phenotype,
+         neighbors,
+         base_flow,
+         acc,
+         phase_name,
+         abundance
+       ) do
+    source_phase = phase_by_name(source_state, phase_name)
+
+    cond do
+      abundance <= 0 or source_phase == nil ->
+        acc
+
+      neighbors == [] ->
+        acc
+
+      true ->
+        move_lineage_from_phase(
+          source_state,
+          source_phase,
+          lineage,
+          abundance,
+          phenotype,
+          neighbors,
+          base_flow,
+          acc
+        )
+    end
   end
 
   defp move_lineage_from_phase(
@@ -220,26 +242,35 @@ defmodule Arkea.Sim.Migration do
       if total_budget <= 0 do
         acc
       else
-        allocations =
-          allocate_integer_by_weights(total_budget, Enum.map(positive_scores, &elem(&1, 1)))
-
-        Enum.zip(positive_scores, allocations)
-        |> Enum.reduce(acc, fn
-          {{destination, _score}, count_to_neighbor}, transfer_acc when count_to_neighbor > 0 ->
-            distribute_lineage_to_destination(
-              source_phase,
-              source_state.id,
-              destination,
-              lineage,
-              count_to_neighbor,
-              transfer_acc
-            )
-
-          _, transfer_acc ->
-            transfer_acc
-        end)
+        distribute_by_scores(
+          acc,
+          positive_scores,
+          total_budget,
+          source_phase,
+          source_state.id,
+          lineage
+        )
       end
     end
+  end
+
+  defp distribute_by_scores(acc, positive_scores, total_budget, source_phase, source_id, lineage) do
+    allocations =
+      allocate_integer_by_weights(total_budget, Enum.map(positive_scores, &elem(&1, 1)))
+
+    positive_scores
+    |> Enum.zip(allocations)
+    |> Enum.filter(fn {_, count} -> count > 0 end)
+    |> Enum.reduce(acc, fn {{destination, _score}, count}, transfer_acc ->
+      distribute_lineage_to_destination(
+        source_phase,
+        source_id,
+        destination,
+        lineage,
+        count,
+        transfer_acc
+      )
+    end)
   end
 
   defp distribute_lineage_to_destination(
@@ -315,26 +346,18 @@ defmodule Arkea.Sim.Migration do
 
   defp move_phase_pool(acc, source_id, source_phase, scores, pool, scale, kind) do
     Enum.reduce(pool, acc, fn {key, amount}, transfer_acc ->
-      if zero_amount?(amount) do
-        transfer_acc
-      else
-        total_budget = scale_budget(amount, scale)
-
-        if zero_amount?(total_budget) do
-          transfer_acc
-        else
-          distribute_pool_budget(
-            transfer_acc,
-            source_id,
-            source_phase,
-            scores,
-            key,
-            total_budget,
-            kind
-          )
-        end
-      end
+      move_pool_key(transfer_acc, source_id, source_phase, scores, kind, key, amount, scale)
     end)
+  end
+
+  defp move_pool_key(acc, source_id, source_phase, scores, kind, key, amount, scale) do
+    total_budget = scale_budget(amount, scale)
+
+    if zero_amount?(amount) or zero_amount?(total_budget) do
+      acc
+    else
+      distribute_pool_budget(acc, source_id, source_phase, scores, key, total_budget, kind)
+    end
   end
 
   defp distribute_pool_budget(
@@ -494,27 +517,24 @@ defmodule Arkea.Sim.Migration do
     update_in(acc, [biotope_id], fn transfer ->
       transfer
       |> ensure_transfer()
-      |> then(fn ensured ->
-        updated_deltas =
-          Map.update(
-            ensured.lineage_deltas,
-            lineage_id,
-            %{phase_name => delta},
-            fn phase_deltas ->
-              Map.update(phase_deltas, phase_name, delta, &(&1 + delta))
-            end
-          )
-
-        templates =
-          if delta > 0 do
-            Map.put_new(ensured.lineage_templates, lineage_id, template)
-          else
-            ensured.lineage_templates
-          end
-
-        %{ensured | lineage_deltas: updated_deltas, lineage_templates: templates}
-      end)
+      |> apply_lineage_delta(lineage_id, phase_name, delta, template)
     end)
+  end
+
+  defp apply_lineage_delta(ensured, lineage_id, phase_name, delta, template) do
+    updated_deltas =
+      Map.update(ensured.lineage_deltas, lineage_id, %{phase_name => delta}, fn phase_deltas ->
+        Map.update(phase_deltas, phase_name, delta, &(&1 + delta))
+      end)
+
+    templates =
+      if delta > 0 do
+        Map.put_new(ensured.lineage_templates, lineage_id, template)
+      else
+        ensured.lineage_templates
+      end
+
+    %{ensured | lineage_deltas: updated_deltas, lineage_templates: templates}
   end
 
   defp put_lineage_delta(acc, _biotope_id, _lineage_id, _phase_name, _delta, _template), do: acc
@@ -665,10 +685,7 @@ defmodule Arkea.Sim.Migration do
     if positive_sum <= 0.0 do
       List.duplicate(0, length(weights))
     else
-      raw =
-        Enum.map(weights, fn weight ->
-          if weight <= 0.0, do: 0.0, else: total * weight / positive_sum
-        end)
+      raw = Enum.map(weights, &(max(&1, 0.0) * total / positive_sum))
 
       floors = Enum.map(raw, &trunc/1)
       remainder = total - Enum.sum(floors)
@@ -692,29 +709,17 @@ defmodule Arkea.Sim.Migration do
     if positive_sum <= 0.0 do
       List.duplicate(0.0, length(weights))
     else
-      weights
-      |> Enum.with_index()
-      |> Enum.map(fn {weight, idx} ->
-        cond do
-          weight <= 0.0 ->
-            0.0
-
-          idx == length(weights) - 1 ->
-            allocated_so_far =
-              weights
-              |> Enum.take(idx)
-              |> Enum.map(fn previous_weight ->
-                if previous_weight <= 0.0, do: 0.0, else: total * previous_weight / positive_sum
-              end)
-              |> Enum.sum()
-
-            total - allocated_so_far
-
-          true ->
-            total * weight / positive_sum
-        end
-      end)
+      proportional = Enum.map(weights, &(max(&1, 0.0) * total / positive_sum))
+      correct_last_float(proportional, total)
     end
+  end
+
+  # Replace the last element with (total - sum_of_others) to eliminate float drift.
+  defp correct_last_float([], _total), do: []
+
+  defp correct_last_float(values, total) do
+    {init, _last} = Enum.split(values, length(values) - 1)
+    init ++ [total - Enum.sum(init)]
   end
 
   defp scale_budget(amount, scale) when is_integer(amount), do: min(amount, trunc(amount * scale))

@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · (vedi §1bis).
 
 ---
 
@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 9.
+> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 10.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -355,7 +355,7 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
 
-### Fase 9 — UI: LiveView + PixiJS Hook ✅ completata (working tree, commit pending)
+### Fase 9 — UI: LiveView + PixiJS Hook ✅ completata (commit `0c047c0`)
 
 **Decisioni di design** (`design-coherence-reviewer` + `elixir-otp-architect`, 2026-05-01):
 
@@ -387,6 +387,43 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
 
+### Fase 10 — Persistenza completa ✅ completata (working tree, commit pending)
+
+**Decisioni di design** (`ecto-postgres-modeler` + `elixir-otp-architect`, 2026-05-01):
+
+- **WAL a stato completo per transizione**: `Biotope.Server` persiste fuori dal tick puro una riga append-only in `biotope_wal_entries` dopo ogni tick locale e dopo ogni `apply_migration/3`; la riga contiene il `BiotopeState` serializzato come binary compresso, così il recovery non dipende dal replay di delta parziali
+- **Snapshot periodico via Oban**: ogni transizione con `tick_count rem 10 == 0` enqueuea `SnapshotWorker`, che copia il WAL sorgente in `biotope_snapshots`; l'upsert su `(biotope_id, tick_count)` consente a un eventuale transfer di migrazione nello stesso tick di sovrascrivere lo snapshot con lo stato più recente
+- **Recovery a due livelli**: `Arkea.Persistence.Recovery` sceglie tra latest WAL e latest snapshot, preferendo il WAL a parità di tick; al boot ripopola `Biotope.Supervisor` con tutti i biotopi persistiti e semina lo scenario di default solo se non esiste stato recuperabile
+- **Restart-safe child boot**: `Biotope.Server.start_link/1` passa da `Recovery.resolve_start_state/1`, quindi un crash del processo sotto `Biotope.Supervisor` riparte dallo stato persistito più recente invece che dal seed iniziale
+- **Audit tipizzato nella stessa transazione**: `Arkea.Persistence.AuditWriter` normalizza gli eventi runtime (`lineage_born`, `lineage_extinct`, `hgt_event`, `migration`) e li inserisce in `audit_log` nello stesso `Ecto.Multi` del WAL
+- **Gating esplicito nei test**: `config/test.exs` tiene `:persistence_enabled` disattivato di default per non forzare I/O DB sui test del tick puro; i test Phase 10 lo riattivano localmente e avviano `Arkea.Oban` in `testing: :manual`
+
+**Moduli/file creati o modificati**:
+
+| Modulo / file | Percorso | Cambiamento |
+|---|---|---|
+| `Arkea.Persistence` | `lib/arkea/persistence.ex` | flag runtime `enabled?/0` per abilitare/disabilitare la persistenza |
+| `Arkea.Oban` | `lib/arkea/oban.ex` | facade Oban applicativa |
+| `Arkea.Persistence.Serializer` | `lib/arkea/persistence/serializer.ex` | serializzazione sicura `BiotopeState <-> binary` |
+| `Arkea.Persistence.BiotopeWalEntry` | `lib/arkea/persistence/biotope_wal_entry.ex` | schema WAL append-only |
+| `Arkea.Persistence.BiotopeSnapshot` | `lib/arkea/persistence/biotope_snapshot.ex` | schema snapshot periodici |
+| `Arkea.Persistence.AuditWriter` | `lib/arkea/persistence/audit_writer.ex` | mapping eventi runtime → `audit_log` |
+| `Arkea.Persistence.Store` | `lib/arkea/persistence/store.ex` | `Ecto.Multi` transazionale: WAL + audit + enqueue snapshot |
+| `Arkea.Persistence.SnapshotWorker` | `lib/arkea/persistence/snapshot_worker.ex` | worker Oban che materializza snapshot dal WAL |
+| `Arkea.Persistence.Recovery` | `lib/arkea/persistence/recovery.ex` | restore al boot + helper `resolve_start_state/1` |
+| migration DB | `priv/repo/migrations/20260501113000_add_runtime_persistence.exs` | nuove tabelle `biotope_wal_entries`, `biotope_snapshots`, `oban_jobs` |
+| runtime/config | `lib/arkea/application.ex`, `lib/arkea/sim/biotope/server.ex`, `config/config.exs`, `config/test.exs` | wiring supervisor, persist post-tick, config Oban/persistence |
+
+**Test suite** (nuovi):
+- `test/arkea/persistence/runtime_persistence_test.exs` — 4 integration test: WAL + audit su `manual_tick/1`, enqueue/materializzazione snapshot al tick 10, restart di `Biotope.Server` dall'ultimo WAL, recovery child che ripristina i biotopi persistiti al boot
+
+**Note architetturali**:
+- Il WAL di Fase 10 è un **journal di stato completo**, non un event stream canonico: scelta deliberata per recovery semplice e robusto nel prototipo
+- Lo snapshot viene costruito **dal WAL già scritto**, non interrogando il processo live, così il worker resta idempotente e non dipende dall'esistenza del `Biotope.Server`
+- In caso di snapshot e migrazione nello stesso tick, il recovery continua a privilegiare il WAL; lo snapshot serve come checkpoint periodico e viene riallineato via upsert
+
+**Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 213 tests, 0 failures**
+
 ---
 
 ## 2. Scelta architetturale principale
@@ -399,7 +436,7 @@ Invarianti coperti (§6.2):
 - Un `Biotope.Server` GenServer per biotopo. Lo stato (lignaggi, fasi, metaboliti, segnali, fagi liberi) vive **in memoria del processo**, in struct Elixir.
 - Il tick è una **funzione pura** `tick(state) -> {new_state, events}`, applicata sequenzialmente dal GenServer. Internamente parallelizzabile per fase via `Task.async_stream` quando il profiling lo giustifica.
 - La **migrazione** inter-biotopo è orchestrata dal `Migration.Coordinator` dopo ogni tick globale: barriera via `Phoenix.PubSub` sul `world:tick`, fetch degli stati correnti, calcolo puro del piano di transfer e apply per-biotope.
-- La **persistenza** è snapshot periodico via worker Oban (ogni 10 tick = 50 minuti reali, da Blocco 11).
+- La **persistenza** è runtime persistence completa: WAL a stato completo per tick/migrazione + snapshot periodico via worker Oban (ogni 10 tick = 50 minuti reali) + recovery al boot.
 
 ### 2.2 I due caveat strutturali
 
@@ -479,9 +516,9 @@ Application Supervisor
 ├── Player.Supervisor (DynamicSupervisor)
 │   └── Player.Session × M
 ├── Phoenix.PubSub (broadcast eventi al client + coordinamento Biotope ↔ Migration)
-├── Persistence.Snapshot (Oban worker, ogni 10 tick: serializza state)
+├── Persistence.Snapshot (Oban worker, ogni 10 tick: copia il WAL sorgente in snapshot)
 ├── Persistence.AuditLog (insert su tabella eventi rilevanti, transazionale)
-└── Persistence.Recovery (al boot: ricostruisce stato dall'ultimo snapshot)
+└── Persistence.Recovery (al boot: ricostruisce stato da latest snapshot/WAL)
 ```
 
 ### 4.1 Forma del tick
@@ -505,9 +542,8 @@ end
 # Biotope.Server — orchestrazione side-effects locali
 def handle_info(:tick, state) do
   {new_state, events} = Tick.tick(state)
-  AuditLog.persist(events)
   PubSub.broadcast(Topic.biotope(state.id), {:tick, new_state, events})
-  Snapshot.maybe_persist(new_state)
+  Persistence.Store.persist_transition(new_state, events, :tick)
   {:noreply, new_state}
 end
 

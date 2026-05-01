@@ -4,7 +4,7 @@
 
 **References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md)
 **Date**: 2026-04-26
-**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · Phase 9 ✅ · (see §1bis).
+**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · Phase 9 ✅ · Phase 10 ✅ · (see §1bis).
 
 ---
 
@@ -24,7 +24,7 @@ This document defines **how** to build the system: the main architectural choice
 
 ## 1bis. Implementation status
 
-> Updated: 2026-05-01. Synchronized with the Italian source through Phase 9.
+> Updated: 2026-05-01. Synchronized with the Italian source through Phase 10.
 
 Completed phases on `master` as of 2026-05-01:
 - Phase 0: Bootstrap Phoenix scaffold (commit `86a3ef2`)
@@ -36,7 +36,8 @@ Completed phases on `master` as of 2026-05-01:
 - Phase 6: HGT + mobile elements — conjugation, prophage induction, plasmid cost (commit `7491a3f`)
 - Phase 7: Quorum sensing & signaling (commit `a9adab8`)
 - Phase 8: Migration + biotope network topology (commit `82e1d5f`)
-- Phase 9: UI: LiveView + PixiJS Hook (working tree, commit pending)
+- Phase 9: UI: LiveView + PixiJS Hook (commit `0c047c0`)
+- Phase 10: Complete persistence (working tree, commit pending)
 
 ### Phase 8 — Migration + network topology ✅ completed (commit `82e1d5f`)
 
@@ -70,7 +71,7 @@ Completed phases on `master` as of 2026-05-01:
 
 **Final suite**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
 
-### Phase 9 — UI: LiveView + PixiJS Hook ✅ completed (working tree, commit pending)
+### Phase 9 — UI: LiveView + PixiJS Hook ✅ completed (commit `0c047c0`)
 
 **Design decisions** (`design-coherence-reviewer` + `elixir-otp-architect`, 2026-05-01):
 
@@ -102,6 +103,43 @@ Completed phases on `master` as of 2026-05-01:
 
 **Final suite**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
 
+### Phase 10 — Complete persistence ✅ completed (working tree, commit pending)
+
+**Design decisions** (`ecto-postgres-modeler` + `elixir-otp-architect`, 2026-05-01):
+
+- **Full-state WAL per transition**: `Biotope.Server` persists an append-only row in `biotope_wal_entries` after each local tick and after each `apply_migration/3`; the row stores the compressed serialized `BiotopeState`, so recovery doesn't depend on replaying partial deltas
+- **Periodic snapshots via Oban**: every transition with `tick_count rem 10 == 0` enqueues `SnapshotWorker`, which copies the source WAL row into `biotope_snapshots`; upsert on `(biotope_id, tick_count)` allows a migration later in the same tick to overwrite the snapshot with the newest state
+- **Two-tier recovery**: `Arkea.Persistence.Recovery` chooses between latest WAL and latest snapshot, preferring WAL on equal ticks; at boot it repopulates `Biotope.Supervisor` with all persisted biotopes and seeds the default scenario only when no recoverable state exists
+- **Restart-safe child boot**: `Biotope.Server.start_link/1` now passes through `Recovery.resolve_start_state/1`, so a crashed process under `Biotope.Supervisor` restarts from the newest persisted state instead of the original seed
+- **Typed audit in the same transaction**: `Arkea.Persistence.AuditWriter` normalizes runtime events (`lineage_born`, `lineage_extinct`, `hgt_event`, `migration`) and inserts them into `audit_log` within the same `Ecto.Multi` as the WAL write
+- **Explicit test gating**: `config/test.exs` keeps `:persistence_enabled` disabled by default so pure tick tests don't incur DB I/O; Phase 10 tests re-enable it locally and start `Arkea.Oban` in `testing: :manual`
+
+**Modules/files created or modified**:
+
+| Module / file | Path | Change |
+|---|---|---|
+| `Arkea.Persistence` | `lib/arkea/persistence.ex` | runtime `enabled?/0` gate for persistence |
+| `Arkea.Oban` | `lib/arkea/oban.ex` | application Oban facade |
+| `Arkea.Persistence.Serializer` | `lib/arkea/persistence/serializer.ex` | safe `BiotopeState <-> binary` serialization |
+| `Arkea.Persistence.BiotopeWalEntry` | `lib/arkea/persistence/biotope_wal_entry.ex` | append-only WAL schema |
+| `Arkea.Persistence.BiotopeSnapshot` | `lib/arkea/persistence/biotope_snapshot.ex` | periodic snapshot schema |
+| `Arkea.Persistence.AuditWriter` | `lib/arkea/persistence/audit_writer.ex` | runtime event → `audit_log` mapping |
+| `Arkea.Persistence.Store` | `lib/arkea/persistence/store.ex` | transactional `Ecto.Multi`: WAL + audit + snapshot enqueue |
+| `Arkea.Persistence.SnapshotWorker` | `lib/arkea/persistence/snapshot_worker.ex` | Oban worker that materializes snapshots from WAL |
+| `Arkea.Persistence.Recovery` | `lib/arkea/persistence/recovery.ex` | boot restore + `resolve_start_state/1` helper |
+| DB migration | `priv/repo/migrations/20260501113000_add_runtime_persistence.exs` | new `biotope_wal_entries`, `biotope_snapshots`, `oban_jobs` tables |
+| runtime/config | `lib/arkea/application.ex`, `lib/arkea/sim/biotope/server.ex`, `config/config.exs`, `config/test.exs` | supervisor wiring, post-tick persistence, Oban/persistence config |
+
+**Test suite** (new):
+- `test/arkea/persistence/runtime_persistence_test.exs` — 4 integration tests: WAL + audit on `manual_tick/1`, snapshot enqueue/materialization at tick 10, `Biotope.Server` restart from latest WAL, recovery child restoring persisted biotopes at boot
+
+**Architectural notes**:
+- Phase 10 WAL is a **full-state journal**, not the canonical event stream: deliberate choice for simple, robust prototype recovery
+- The snapshot is built **from already-written WAL**, not by querying the live process, so the worker stays idempotent and doesn't depend on a running `Biotope.Server`
+- When a snapshot-worthy tick is followed by migration in the same tick, recovery still prefers WAL; the snapshot acts as a periodic checkpoint and is realigned through upsert
+
+**Final suite**: `mix format --check-formatted` + `mix test` → **124 properties, 213 tests, 0 failures**
+
 ---
 
 ## 2. Main architectural choice
@@ -114,7 +152,7 @@ Completed phases on `master` as of 2026-05-01:
 - One `Biotope.Server` GenServer per biotope. State (lineages, phases, metabolites, signals, free phages) lives **in the process's memory**, in Elixir structs.
 - The tick is a **pure function** `tick(state) -> {new_state, events}`, applied sequentially by the GenServer. Internally parallelizable per phase via `Task.async_stream` when profiling justifies it.
 - **Inter-biotope migration** is orchestrated by the `Migration.Coordinator` after each global tick: `Phoenix.PubSub` barrier on `world:tick`, fetch of current states, pure transfer planning, and per-biotope apply.
-- **Persistence** is a periodic snapshot via Oban worker (every 10 ticks = 50 real minutes, from Block 11).
+- **Persistence** is complete runtime persistence: full-state WAL for tick/migration transitions + periodic snapshots via Oban worker (every 10 ticks = 50 real minutes) + boot-time recovery.
 
 ### 2.2 The two structural caveats
 
@@ -194,9 +232,9 @@ Application Supervisor
 ├── Player.Supervisor (DynamicSupervisor)
 │   └── Player.Session × M
 ├── Phoenix.PubSub (broadcast events to client + Biotope ↔ Migration coordination)
-├── Persistence.Snapshot (Oban worker, every 10 ticks: serialize state)
+├── Persistence.Snapshot (Oban worker, every 10 ticks: copy source WAL into snapshot)
 ├── Persistence.AuditLog (insert on relevant events table, transactional)
-└── Persistence.Recovery (at boot: rebuilds state from latest snapshot)
+└── Persistence.Recovery (at boot: rebuild state from latest snapshot/WAL)
 ```
 
 ### 4.1 Tick shape
@@ -220,9 +258,8 @@ end
 # Biotope.Server — local side-effects orchestration
 def handle_info(:tick, state) do
   {new_state, events} = Tick.tick(state)
-  AuditLog.persist(events)
   PubSub.broadcast(Topic.biotope(state.id), {:tick, new_state, events})
-  Snapshot.maybe_persist(new_state)
+  Persistence.Store.persist_transition(new_state, events, :tick)
   {:noreply, new_state}
 end
 

@@ -55,6 +55,8 @@ defmodule Arkea.Sim.Biotope.Server do
 
   require Logger
 
+  alias Arkea.Persistence.Recovery
+  alias Arkea.Persistence.Store
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Migration
   alias Arkea.Sim.Tick
@@ -69,8 +71,9 @@ defmodule Arkea.Sim.Biotope.Server do
   """
   @spec start_link(BiotopeState.t()) :: GenServer.on_start()
   def start_link(%BiotopeState{} = initial_state) do
-    name = via(initial_state.id)
-    GenServer.start_link(__MODULE__, initial_state, name: name)
+    restored_state = Recovery.resolve_start_state(initial_state)
+    name = via(restored_state.id)
+    GenServer.start_link(__MODULE__, restored_state, name: name)
   end
 
   @doc """
@@ -160,7 +163,7 @@ defmodule Arkea.Sim.Biotope.Server do
           }
         ]
 
-        broadcast_biotope_update(state.id, new_state, events)
+        post_transition(state.id, new_state, events, :migration)
         {:reply, :ok, new_state}
     end
   end
@@ -187,8 +190,13 @@ defmodule Arkea.Sim.Biotope.Server do
 
   defp do_tick(state) do
     {new_state, events} = Tick.tick(state)
-    broadcast_biotope_update(state.id, new_state, events)
+    post_transition(state.id, new_state, events, :tick)
     new_state
+  end
+
+  defp post_transition(id, new_state, events, transition_kind) do
+    broadcast_biotope_update(id, new_state, events)
+    _ = Store.persist_transition(new_state, events, transition_kind)
   end
 
   defp broadcast_biotope_update(id, new_state, events) do
