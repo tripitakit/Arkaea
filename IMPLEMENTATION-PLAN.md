@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · (vedi §1bis).
 
 ---
 
@@ -261,6 +261,35 @@ Invarianti coperti (§6.2):
 | `Arkea.Sim.SeedScenario` | `lib/arkea/sim/seed_scenario.ex` | metaboliti iniziali + inflow |
 
 **Suite finale**: `mix test` → **121 properties, 194 tests, 0 failures**
+
+### Fase 6 — HGT + elementi mobili ✅ completata (commit `7491a3f`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-05-01):
+
+- Proxy per coniugazione gene-encoded (Phase 6 semplificazione): un plasmide è coniugativo se e solo se contiene almeno 1 dominio `:transmembrane_anchor` — proxy per `pili_like` di DESIGN.md Blocco 5; la verifica full domain-composition (`pili_like + relaxase_like + oriT_like`) è rinviata a Phase 8
+- Formula coniugazione: `p_conj = clamp(strength × 0.005 × N_donor × N_recip / max(N_total², 1), 0.0, 0.3)`, dove `strength` = count domini TM del plasmide (mass-action con moderazione biologica)
+- Creazione transconjugant: `Lineage.new_child(recipient, Genome.add_plasmid(recipient.genome, plasmid), %{phase_name => 1}, tick + 1)` — conservazione abbondanza (-1 dal ricevente originale)
+- Costo plasmide: `plasmid_burden = plasmid_gene_count × 0.3 ATP/tick` sottratto da `net_adjusted` in `compute_growth_deltas_v5` prima del round; modella il burden trascrizionale + replicazione di Blocco 5 come scalar additive
+- Induzione profago: `stress_factor = max(0, 1 - atp_yield / max(energy_cost × 5.0, 0.1))`, `p_induction = clamp(0.03 × stress_factor, 0, 0.1)` per cassetta; burst litico = perdita del 50% dell'abbondanza — stresso = 0 ATP → induction max, equivalente SOS qualitativo
+- Skip lignaggi `genome: nil` per HGT (sia come donatori che riceventi) — nessun genome completo da trasferire
+- Cap HGT per tick: `max(div(length(lineages), 4), 1)` nuovi figli per call a `HGT.step/4` — previene esplosione combinatoria del numero di lignaggi
+
+**Moduli creati/modificati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Sim.HGT` | `lib/arkea/sim/hgt.ex` | nuovo — `conjugative?/1`, `conjugation_strength/1`, `step/4`, `induction_step/4` |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_hgt/1` implementato (era stub); `compute_growth_deltas_v5/4` con genome + plasmid burden |
+
+**Test suite** (nuovi):
+- `test/arkea/sim/hgt_test.exs` — 5 test: diffusione plasmide coniugativo (2000 trial), non-diffusione plasmide non-coniugativo, burden riduce delta di crescita, property `conjugative? ↔ strength > 0`, induzione profago riduce abbondanza
+
+**Note architetturali**:
+- Il `type_tag` corretto per `:transmembrane_anchor` è `[0, 0, 2]` (indice 2 in `Domain.Type.all()`), non `[0, 0, 6]` come indicato nel brief iniziale — corretto dall'agente in fase di implementazione
+- `step_hgt/1` mantiene la disciplina pure-functional: legge e aggiorna `state.rng_seed` via `get_rng/1`, niente I/O
+- `credo:disable-for-this-file Credo.Check.Refactor.Nesting` nel test HGT: necessario per il pattern `gen all do ... end` di StreamData (nesting canonico della libreria)
+
+**Suite finale**: `mix test` → **122 properties, 198 tests, 0 failures**
 
 ---
 
