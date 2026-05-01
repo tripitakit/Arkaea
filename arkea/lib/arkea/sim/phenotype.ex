@@ -43,8 +43,15 @@ defmodule Arkea.Sim.Phenotype do
   - `dna_binding_affinity` — mean of `:binding_affinity` from all
     `:dna_binding` domains, clamped to `0.0..1.0`. Default `0.0`. Used in
     Phase 5 as a σ-factor scalar: `sigma = 0.5 + dna_binding_affinity`, in
-    `0.5..1.5`. This is a Phase 5 simplification — only the mean scalar is
-    used, not the full σ-factor binding-site logic (Phase 7).
+    `0.5..1.5`. Phase 7 extends this with a QS boost term.
+
+  - `qs_produces` — list of `{signal_key, kcat}` from all `:catalytic_site`
+    domains with `kcat > 0`. Used in Phase 7 `step_signaling/1` to add signals
+    to the phase signal pool. `signal_key` is the first 4 parameter codons
+    joined as `"c0,c1,c2,c3"`.
+
+  - `qs_receives` — list of `{signal_key, threshold}` from all `:ligand_sensor`
+    domains. Used in Phase 7 to compute the σ-factor QS boost for `step_expression/1`.
   """
 
   use TypedStruct
@@ -62,6 +69,8 @@ defmodule Arkea.Sim.Phenotype do
     field :structural_stability, float()
     field :n_transmembrane, non_neg_integer()
     field :dna_binding_affinity, float()
+    field :qs_produces, [{binary(), float()}], default: []
+    field :qs_receives, [{binary(), float()}], default: []
   end
 
   @doc """
@@ -101,12 +110,15 @@ defmodule Arkea.Sim.Phenotype do
       repair_efficiencies: [],
       stability_values: [],
       n_transmembrane: 0,
-      dna_binding_affinities: []
+      dna_binding_affinities: [],
+      qs_produces: [],
+      qs_receives: []
     }
   end
 
-  defp aggregate_domain(:catalytic_site, %{kcat: kcat}, acc) do
-    %{acc | kcat_values: [kcat | acc.kcat_values]}
+  defp aggregate_domain(:catalytic_site, %{kcat: kcat, signal_key: sig_key}, acc) do
+    entry = if kcat > 0, do: [{sig_key, kcat}], else: []
+    %{acc | kcat_values: [kcat | acc.kcat_values], qs_produces: entry ++ acc.qs_produces}
   end
 
   defp aggregate_domain(:substrate_binding, %{target_metabolite_id: mid, km: km} = p, acc) do
@@ -143,9 +155,12 @@ defmodule Arkea.Sim.Phenotype do
     %{acc | dna_binding_affinities: [affinity | acc.dna_binding_affinities]}
   end
 
-  # All other domain types (regulator_output, ligand_sensor, channel_pore)
+  defp aggregate_domain(:ligand_sensor, %{threshold: threshold, signal_key: sig_key}, acc) do
+    %{acc | qs_receives: [{sig_key, threshold} | acc.qs_receives]}
+  end
+
+  # All other domain types (regulator_output, channel_pore, etc.)
   # are parsed but not yet aggregated into the phenotype.
-  # Phase 7+ will use them for metabolic regulation and signal integration.
   defp aggregate_domain(_type, _params, acc), do: acc
 
   defp build_phenotype(acc) do
@@ -164,7 +179,9 @@ defmodule Arkea.Sim.Phenotype do
       repair_efficiency: mean_or_default(acc.repair_efficiencies, 0.5) |> clamp(0.0, 1.0),
       structural_stability: mean_or_default(acc.stability_values, 0.5) |> clamp(0.0, 1.0),
       n_transmembrane: acc.n_transmembrane,
-      dna_binding_affinity: mean_or_default(acc.dna_binding_affinities, 0.0) |> clamp(0.0, 1.0)
+      dna_binding_affinity: mean_or_default(acc.dna_binding_affinities, 0.0) |> clamp(0.0, 1.0),
+      qs_produces: acc.qs_produces,
+      qs_receives: acc.qs_receives
     }
   end
 

@@ -2,14 +2,15 @@ defmodule Arkea.Sim.Tick do
   @moduledoc """
   Pure tick function for `Arkea.Sim.BiotopeState` (IMPLEMENTATION-PLAN.md §4.1).
 
-  The pipeline mirrors the canonical 6-step order from DESIGN.md Block 11:
+  The pipeline after Phase 7 has 7 steps:
 
-    1. `step_metabolism/1`   — stub (Phase 5)
-    2. `step_expression/1`   — implemented (Phase 3): genome → phenotype → growth deltas
-    3. `step_cell_events/1`  — implemented (Phase 4): growth + stochastic fission
-    4. `step_hgt/1`          — stub (Phase 6)
-    5. `step_environment/1`  — implemented: dilution of lineage abundances
-    6. `step_pruning/1`      — implemented (Phase 4): zero-abundance removal + cap
+    1. `step_metabolism/1`   — Phase 5: Michaelis-Menten uptake from phase pools
+    2. `step_signaling/1`    — Phase 7: QS signal production into phase signal pools
+    3. `step_expression/1`   — Phase 3/7: genome → phenotype → growth deltas (+ QS boost)
+    4. `step_cell_events/1`  — Phase 4: growth + stochastic fission
+    5. `step_hgt/1`          — Phase 6: conjugation + prophage induction
+    6. `step_environment/1`  — Phase 2/5: dilution of lineage abundances and phase pools
+    7. `step_pruning/1`      — Phase 4: zero-abundance removal + cap
 
   ## Discipline
 
@@ -75,6 +76,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
+  alias Arkea.Sim.Signaling
 
   @type event :: %{type: atom(), payload: map()}
 
@@ -91,6 +93,7 @@ defmodule Arkea.Sim.Tick do
     new_state =
       state
       |> step_metabolism()
+      |> step_signaling()
       |> step_expression()
       |> step_cell_events()
       |> step_hgt()
@@ -143,18 +146,48 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 2 — Gene expression: derive growth deltas from ATP yield (Phase 5).
+  Step 2 — QS signal production (Phase 7).
+
+  For each phase, for each lineage with non-empty `qs_produces` and abundance > 0
+  in that phase, adds signal molecules to `phase.signal_pool`.
+
+  Production rule: for each `{sig_key, rate}` in `phenotype.qs_produces`:
+    `amount = rate * abundance / 100.0`
+    `signal_pool[sig_key] += amount`
+
+  Signals are not normalised here; they decay naturally in `step_environment/1`
+  via `Phase.dilute/1`. This step does not affect lineage abundances or growth
+  deltas — it only populates the signal pool so that `step_expression/1` can
+  read it.
+
+  Pure. No I/O.
+  """
+  @spec step_signaling(BiotopeState.t()) :: BiotopeState.t()
+  def step_signaling(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    phenotypes =
+      Map.new(lineages, fn l ->
+        ph = if l.genome != nil, do: Phenotype.from_genome(l.genome), else: nil
+        {l.id, ph}
+      end)
+
+    new_phases = Enum.map(phases, &emit_signals_into_phase(&1, lineages, phenotypes))
+    %{state | phases: new_phases}
+  end
+
+  @doc """
+  Step 3 — Gene expression: derive growth deltas from ATP yield (Phase 5/7).
 
   Reads `atp_yield_by_lineage` populated by `step_metabolism/1` in the same
   tick and converts each lineage's metabolic power into integer growth deltas.
 
-  ## Growth model (Phase 5)
+  ## Growth model (Phase 5/7)
 
   For each lineage with a non-nil genome:
 
-      sigma = 0.5 + phenotype.dna_binding_affinity          # 0.5..1.5
-      net   = (atp_yield - phenotype.energy_cost * 5.0) * sigma
-      delta = round(net) |> max(-200) |> min(500)
+      qs_boost = Signaling.qs_sigma_boost(phenotype, primary_signal_pool)  # 0.0..1.0
+      sigma    = 0.5 + phenotype.dna_binding_affinity + qs_boost            # 0.5..2.5
+      net      = (atp_yield - phenotype.energy_cost * 5.0) * sigma
+      delta    = round(net) |> max(-200) |> min(500)
 
   - `atp_yield` — dimensionless ATP index from `step_metabolism/1`. Zero when
     no substrate is available or the lineage lacks substrate-binding domains.
@@ -162,9 +195,11 @@ defmodule Arkea.Sim.Tick do
     This is the fundamental selection pressure: no substrate, no growth.
   - `energy_cost * 5.0` — scales the `0.0..5.0` cost field to the same order
     of magnitude as typical atp_yield values (0..50).
-  - `dna_binding_affinity` as σ-factor scalar — Phase 5 simplification.
+  - `dna_binding_affinity` as σ-factor scalar — Phase 5 component.
     A lineage with no `:dna_binding` domains gets sigma = 0.5 (half-speed).
-    Full σ-factor binding-site logic is deferred to Phase 7.
+  - `qs_boost` — Phase 7 QS sigma boost from `Signaling.qs_sigma_boost/2`.
+    Derived from the primary-phase signal pool after `step_signaling/1`.
+    Adds 0.0..1.0 to sigma: `sigma = 0.5 + dna_binding_affinity + qs_boost`.
   - Delta clamped to `-200..500` to bound extinction and burst growth.
 
   ## Lineages with `genome: nil`
@@ -186,6 +221,7 @@ defmodule Arkea.Sim.Tick do
         } = state
       ) do
     phase_names = Enum.map(phases, & &1.name)
+    phase_by_name = Map.new(phases, fn p -> {p.name, p} end)
 
     new_deltas =
       Map.new(lineages, fn lineage ->
@@ -193,7 +229,8 @@ defmodule Arkea.Sim.Tick do
           if lineage.genome != nil do
             phenotype = Phenotype.from_genome(lineage.genome)
             atp = Map.get(yields, lineage.id, 0.0)
-            compute_growth_deltas_v5(phenotype, atp, phase_names, lineage.genome)
+            signal_pool = primary_phase_signal_pool(lineage, phase_names, phase_by_name)
+            compute_growth_deltas_v5(phenotype, atp, phase_names, lineage.genome, signal_pool)
           else
             Map.get(state.growth_delta_by_lineage, lineage.id, %{})
           end
@@ -205,9 +242,9 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 3 — Cell events: growth + stochastic fission (Phase 4).
+  Step 4 — Cell events: growth + stochastic fission (Phase 4).
 
-  First applies growth deltas (as in Phase 3). Then runs the stochastic
+  First applies growth deltas from `step_expression/1`. Then runs the stochastic
   fission pipeline (`spawn_mutants/2`) which may add new child lineages.
   Updates `state.rng_seed` with the advanced RNG state.
 
@@ -449,9 +486,10 @@ defmodule Arkea.Sim.Tick do
     end)
   end
 
-  # Phase 5/6 growth model: ATP-driven deltas with σ-factor scalar + plasmid burden.
+  # Phase 5/6/7 growth model: ATP-driven deltas with σ-factor scalar + QS boost + plasmid burden.
   #
-  # sigma = 0.5 + dna_binding_affinity  (0.5..1.5)
+  # sigma = 0.5 + dna_binding_affinity + qs_boost  (0.5..2.5)
+  # qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool)  → 0.0..1.0
   # net   = (atp_yield - energy_cost * 5.0) * sigma
   #
   # Phase 6 plasmid replication burden:
@@ -464,8 +502,17 @@ defmodule Arkea.Sim.Tick do
   # When atp_yield == 0.0 (no substrate), net is negative proportional to
   # energy_cost — the lineage shrinks under metabolic burden without gain.
   # Plasmid-carrying lineages face additional burden (San Millán & MacLean 2018).
-  defp compute_growth_deltas_v5(%Phenotype{} = phenotype, atp_yield, phase_names, genome) do
-    sigma = 0.5 + phenotype.dna_binding_affinity
+  # The QS boost rewards coordinated signalling: lineages that receive matching
+  # signals get a higher sigma, amplifying their growth response to ATP yield.
+  defp compute_growth_deltas_v5(
+         %Phenotype{} = phenotype,
+         atp_yield,
+         phase_names,
+         genome,
+         signal_pool
+       ) do
+    qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool)
+    sigma = 0.5 + phenotype.dna_binding_affinity + qs_boost
     net = (atp_yield - phenotype.energy_cost * 5.0) * sigma
 
     # Phase 6: plasmid replication cost (0.3 ATP per plasmid gene)
@@ -475,6 +522,50 @@ defmodule Arkea.Sim.Tick do
     net_adjusted = net - plasmid_burden
     delta = round(net_adjusted) |> max(-200) |> min(500)
     Map.new(phase_names, fn name -> {name, delta} end)
+  end
+
+  # Accumulate signal contributions from all lineages into one phase's signal_pool.
+  defp emit_signals_into_phase(phase, lineages, phenotypes) do
+    new_pool =
+      Enum.reduce(lineages, phase.signal_pool, fn lineage, pool ->
+        emit_lineage_signals(lineage, phase.name, phenotypes, pool)
+      end)
+
+    %{phase | signal_pool: new_pool}
+  end
+
+  # Emit signal contributions for one lineage into the pool (or return pool unchanged).
+  defp emit_lineage_signals(lineage, phase_name, phenotypes, pool) do
+    abundance = Lineage.abundance_in(lineage, phase_name)
+    phenotype = Map.get(phenotypes, lineage.id)
+
+    if abundance > 0 and phenotype != nil and phenotype.qs_produces != [] do
+      Signaling.produce_signals(phenotype, abundance, pool)
+    else
+      pool
+    end
+  end
+
+  # Return the signal_pool of the primary phase for a lineage.
+  # Primary phase = the phase with the highest abundance for this lineage,
+  # constrained to phases present in the state. Falls back to %{} if none found.
+  defp primary_phase_signal_pool(lineage, phase_names, phase_by_name) do
+    inhabited =
+      Enum.filter(phase_names, fn name ->
+        Map.get(lineage.abundance_by_phase, name, 0) > 0
+      end)
+
+    primary_name =
+      if inhabited != [] do
+        Enum.max_by(inhabited, fn name -> Map.get(lineage.abundance_by_phase, name, 0) end)
+      else
+        List.first(phase_names)
+      end
+
+    case Map.get(phase_by_name, primary_name) do
+      nil -> %{}
+      phase -> phase.signal_pool
+    end
   end
 
   # Process one phase: compute per-lineage uptake, reduce the metabolite pool,

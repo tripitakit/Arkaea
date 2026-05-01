@@ -80,22 +80,22 @@ defmodule Arkea.Ecology.PhaseTest do
     phase =
       Phase.new(:surface, dilution_rate: 0.0)
       |> Phase.update_metabolite(:glucose, 100.0)
-      |> Phase.update_signal(:c4_hsl, 50.0)
+      |> Phase.update_signal("c4_hsl", 50.0)
 
     diluted = Phase.dilute(phase)
     assert diluted.metabolite_pool[:glucose] == 100.0
-    assert diluted.signal_pool[:c4_hsl] == 50.0
+    assert diluted.signal_pool["c4_hsl"] == 50.0
   end
 
   test "dilution with rate 1.0 reduces all concentrations to 0.0" do
     phase =
       Phase.new(:surface, dilution_rate: 1.0)
       |> Phase.update_metabolite(:glucose, 100.0)
-      |> Phase.update_signal(:c4_hsl, 50.0)
+      |> Phase.update_signal("c4_hsl", 50.0)
 
     diluted = Phase.dilute(phase)
     assert diluted.metabolite_pool[:glucose] == 0.0
-    assert diluted.signal_pool[:c4_hsl] == 0.0
+    assert diluted.signal_pool["c4_hsl"] == 0.0
   end
 
   # ---------------------------------------------------------------------------
@@ -234,7 +234,7 @@ defmodule Arkea.Ecology.PhaseTest do
   end
 
   property "update_signal stores the exact concentration" do
-    signal_names = [:c4_hsl, :c12_hsl, :ai2]
+    signal_names = ["c4_hsl", "c12_hsl", "ai2"]
 
     check all(
             phase <- Generators.phase(),

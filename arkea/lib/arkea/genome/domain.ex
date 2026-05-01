@@ -108,13 +108,13 @@ defmodule Arkea.Genome.Domain do
   | Type | Keys |
   |---|---|
   | `:substrate_binding` | `:target_metabolite_id`, `:km`, `:specificity_breadth` |
-  | `:catalytic_site` | `:reaction_class`, `:kcat`, `:cofactor_required` |
+  | `:catalytic_site` | `:reaction_class`, `:kcat`, `:cofactor_required`, `:signal_key` |
   | `:transmembrane_anchor` | `:hydrophobicity`, `:n_passes` |
   | `:channel_pore` | `:selectivity`, `:gating_threshold` |
   | `:energy_coupling` | `:atp_cost`, `:pmf_coupling` |
   | `:dna_binding` | `:promoter_specificity`, `:binding_affinity` |
   | `:regulator_output` | `:mode`, `:cooperativity` |
-  | `:ligand_sensor` | `:sensed_metabolite_id`, `:threshold`, `:response_curve` |
+  | `:ligand_sensor` | `:sensed_metabolite_id`, `:threshold`, `:response_curve`, `:signal_key` |
   | `:structural_fold` | `:stability`, `:multimerization_n` |
   | `:surface_tag` | `:tag_class` |
   | `:repair_fidelity` | `:repair_class`, `:efficiency` |
@@ -237,15 +237,18 @@ defmodule Arkea.Genome.Domain do
   # - reaction_class: rem(sum_first_3, 6) → index into 6-element list
   # - kcat: norm * 10.0 → 0.0..10.0 (catalytic turnover, s⁻¹ order of magnitude)
   # - cofactor_required: rem(last_codon, 2) == 0
+  # - signal_key: first 4 parameter_codons joined as "c0,c1,c2,c3" (Phase 7 QS)
   defp type_params(:catalytic_site, codons, _raw_sum, norm) do
     first_3 = Enum.take(codons, 3)
     last_codon = List.last(codons, 0)
     reaction_class = Enum.at(@reaction_classes, rem(sum_codons(first_3), 6))
+    signal_key = codons |> Enum.take(4) |> Enum.join(",")
 
     %{
       reaction_class: reaction_class,
       kcat: norm * 10.0,
-      cofactor_required: rem(last_codon, 2) == 0
+      cofactor_required: rem(last_codon, 2) == 0,
+      signal_key: signal_key
     }
   end
 
@@ -295,15 +298,18 @@ defmodule Arkea.Genome.Domain do
   # - sensed_metabolite_id: rem(first_codon, 13) → 0..12
   # - threshold: norm of middle third → 0.0..1.0
   # - response_curve: rem(sum_last_3, 3) → index into 3-element list
+  # - signal_key: first 4 parameter_codons joined as "c0,c1,c2,c3" (Phase 7 QS)
   defp type_params(:ligand_sensor, codons, _raw_sum, _norm) do
     first_codon = List.first(codons, 0)
     {_first_t, mid_t, last_t} = split_thirds(codons)
     response_curve = Enum.at(@response_curves, rem(sum_codons(last_t), 3))
+    signal_key = codons |> Enum.take(4) |> Enum.join(",")
 
     %{
       sensed_metabolite_id: rem(first_codon, 13),
       threshold: norm_of(mid_t),
-      response_curve: response_curve
+      response_curve: response_curve,
+      signal_key: signal_key
     }
   end
 
@@ -346,7 +352,8 @@ defmodule Arkea.Genome.Domain do
   defp type_params_valid?(:catalytic_site, params) do
     Map.has_key?(params, :reaction_class) and
       Map.has_key?(params, :kcat) and
-      Map.has_key?(params, :cofactor_required)
+      Map.has_key?(params, :cofactor_required) and
+      Map.has_key?(params, :signal_key)
   end
 
   defp type_params_valid?(:transmembrane_anchor, params) do
@@ -372,7 +379,8 @@ defmodule Arkea.Genome.Domain do
   defp type_params_valid?(:ligand_sensor, params) do
     Map.has_key?(params, :sensed_metabolite_id) and
       Map.has_key?(params, :threshold) and
-      Map.has_key?(params, :response_curve)
+      Map.has_key?(params, :response_curve) and
+      Map.has_key?(params, :signal_key)
   end
 
   defp type_params_valid?(:structural_fold, params) do

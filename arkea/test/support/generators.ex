@@ -323,7 +323,7 @@ defmodule Arkea.Generators do
   """
   def phase_with_pools do
     metabolite_names = [:glucose, :acetate, :lactate, :co2, :h2s, :oxygen]
-    signal_names = [:c4_hsl, :c12_hsl, :ai2, :indole]
+    signal_names = ["c4_hsl", "c12_hsl", "ai2", "indole"]
 
     StreamData.bind(phase(), fn p ->
       StreamData.bind(StreamData.member_of(metabolite_names), fn met ->

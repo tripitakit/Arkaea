@@ -38,7 +38,7 @@ defmodule Arkea.Ecology.Phase do
     field :osmolarity, float()
     field :dilution_rate, float()
     field :metabolite_pool, %{atom() => float()}, default: %{}
-    field :signal_pool, %{atom() => float()}, default: %{}
+    field :signal_pool, %{binary() => float()}, default: %{}
     field :phage_pool, %{binary() => non_neg_integer()}, default: %{}
     field :lineage_ids, MapSet.t(binary()), default: MapSet.new()
   end
@@ -110,11 +110,11 @@ defmodule Arkea.Ecology.Phase do
   end
 
   @doc """
-  Set or update a signal concentration. Must be ≥ 0.0. Pure.
+  Set or update a signal concentration. Key must be a binary string. Must be ≥ 0.0. Pure.
   """
-  @spec update_signal(t(), atom(), float()) :: t()
+  @spec update_signal(t(), binary(), float()) :: t()
   def update_signal(%__MODULE__{signal_pool: pool} = phase, id, conc)
-      when is_atom(id) and is_float(conc) and conc >= 0.0 do
+      when is_binary(id) and is_float(conc) and conc >= 0.0 do
     %{phase | signal_pool: Map.put(pool, id, conc)}
   end
 
@@ -165,7 +165,7 @@ defmodule Arkea.Ecology.Phase do
        :osmolarity_out_of_range},
       {fn -> in_range?(phase.dilution_rate, 0.0, 1.0) end, :dilution_rate_out_of_range},
       {fn -> valid_pool?(phase.metabolite_pool) end, :invalid_metabolite_pool},
-      {fn -> valid_pool?(phase.signal_pool) end, :invalid_signal_pool},
+      {fn -> valid_signal_pool?(phase.signal_pool) end, :invalid_signal_pool},
       {fn -> valid_phage_pool?(phase.phage_pool) end, :invalid_phage_pool},
       {fn -> match?(%MapSet{}, phase.lineage_ids) end, :invalid_lineage_ids}
     ]
@@ -179,6 +179,12 @@ defmodule Arkea.Ecology.Phase do
   end
 
   defp valid_pool?(_), do: false
+
+  defp valid_signal_pool?(pool) when is_map(pool) do
+    Enum.all?(pool, fn {k, v} -> is_binary(k) and is_float(v) and v >= 0.0 end)
+  end
+
+  defp valid_signal_pool?(_), do: false
 
   defp valid_phage_pool?(pool) when is_map(pool) do
     Enum.all?(pool, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
