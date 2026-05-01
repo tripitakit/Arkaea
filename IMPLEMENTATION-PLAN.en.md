@@ -4,7 +4,7 @@
 
 **References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md)
 **Date**: 2026-04-26
-**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · (see §1bis).
+**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · Phase 9 ✅ · (see §1bis).
 
 ---
 
@@ -24,7 +24,7 @@ This document defines **how** to build the system: the main architectural choice
 
 ## 1bis. Implementation status
 
-> Updated: 2026-05-01.
+> Updated: 2026-05-01. Synchronized with the Italian source through Phase 9.
 
 Completed phases on `master` as of 2026-05-01:
 - Phase 0: Bootstrap Phoenix scaffold (commit `86a3ef2`)
@@ -35,9 +35,10 @@ Completed phases on `master` as of 2026-05-01:
 - Phase 5: Michaelis-Menten metabolism
 - Phase 6: HGT + mobile elements — conjugation, prophage induction, plasmid cost (commit `7491a3f`)
 - Phase 7: Quorum sensing & signaling (commit `a9adab8`)
-- Phase 8: Migration + biotope network topology (commit `TBD`)
+- Phase 8: Migration + biotope network topology (commit `82e1d5f`)
+- Phase 9: UI: LiveView + PixiJS Hook (working tree, commit pending)
 
-### Phase 8 — Migration + network topology ✅ completed (commit `TBD`)
+### Phase 8 — Migration + network topology ✅ completed (commit `82e1d5f`)
 
 **Design decisions** (`elixir-otp-architect`, 2026-05-01):
 
@@ -68,6 +69,38 @@ Completed phases on `master` as of 2026-05-01:
 - Delivered Phase 8 covers topology + migration. Player-facing **claim/colonization** rules remain out of scope until lineages carry explicit provenance for home biotope / owner
 
 **Final suite**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
+
+### Phase 9 — UI: LiveView + PixiJS Hook ✅ completed (working tree, commit pending)
+
+**Design decisions** (`design-coherence-reviewer` + `elixir-otp-architect`, 2026-05-01):
+
+- **Client-side scene, server-authoritative state**: `ArkeaWeb.SimLive` still receives only `BiotopeState` + events from PubSub; the client computes no dynamics and instead renders a snapshot serialized by the LiveView
+- **Dedicated PixiJS hook**: new `BiotopeScene` hook mounted through `phx-hook="BiotopeScene"` in `assets/js/hooks/biotope_scene.js`, registered in `assets/js/app.js`; it initializes a `PIXI.Application`, listens to `push_event("biotope_snapshot", ...)`, reacts to LiveView updates, and maps canvas clicks back to `pushEvent("select_phase", %{phase: ...})`
+- **Procedural phase-derived rendering**: 2D regions are bands sized by per-phase abundance; dots represent lineage fractions distributed deterministically inside each phase band, colored by phenotypic cluster (`biofilm`, `motile`, `stress-tolerant`, `generalist`, `cryptic`)
+- **Interventions stay in the UI perimeter**: LiveView controls for antibiotic/plasmid/mixing do not mutate the simulation yet; they record a local operator-intent queue, explicitly separated from the pure tick and future persistence/audit work
+- **Responsive non-boilerplate shell**: new dashboard composition with PixiJS viewport, phase inspector, topology metadata, event log, and lineage board; dedicated CSS in `assets/css/app.css` adds atmospheric background, reveal animation, and mobile-first layout
+
+**Modules/files created or modified**:
+
+| Module / asset | File | Change |
+|---|---|---|
+| `ArkeaWeb.SimLive` | `lib/arkea_web/live/sim_live.ex` | full refactor: Phase 9 dashboard, snapshot serialization, phase selection, UI intent queue |
+| `BiotopeScene` hook | `assets/js/hooks/biotope_scene.js` | new — PixiJS scene, phase-band layout, lineage particles, click → `pushEvent` |
+| LiveSocket hooks | `assets/js/app.js` | registers `BiotopeScene` |
+| UI shell CSS | `assets/css/app.css` | new responsive skin with `sim-*` classes |
+| asset manifest | `assets/package.json`, `assets/package-lock.json` | adds dependency `pixi.js` `^8.18.1` |
+
+**Test suite** (new/updated):
+- `test/arkea_web/controllers/page_controller_test.exs` — verifies that `/` serves the new Phase 9 shell with `phx-hook="BiotopeScene"`
+- `test/arkea_web/live/sim_live_test.exs` — verifies phase selection via LiveView (`surface -> sediment`) and operator-intent recording in the UI panel
+
+**Architectural notes**:
+- The canvas remains a **pure visualization** of authoritative per-phase data, consistent with DESIGN.en.md Block 12: clicking a single dot has no simulation effect
+- The Hook ↔ LiveView bridge uses both channels called for in the design stack: `push_event` server → hook for snapshots, and `pushEvent` hook → LiveView for phase selection
+- `Biotope.Server` and `Tick` are not modified in Phase 9; the UI relies exclusively on the existing broadcasts
+- Development JS bundle: `priv/static/assets/js/app.js` grows to about `1.9mb` because of PixiJS. Acceptable for the prototype; extra slimming/tree-shaking can be handled as follow-up work
+
+**Final suite**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
 
 ---
 

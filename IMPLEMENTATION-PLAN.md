@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · (vedi §1bis).
 
 ---
 
@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 8.
+> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 9.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -158,7 +158,7 @@ Invarianti coperti (§6.2):
 
 - I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
 - Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
-- Sync EN della §1bis completato fino alla Fase 8; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
+- Sync EN della §1bis completato fino alla Fase 9; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
 
 ### Fase 2 — Tick engine minimale ✅ completata (commit `TBD`)
 
@@ -323,7 +323,7 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix test` → **123 properties, 204 tests, 0 failures**
 
-### Fase 8 — Migrazione + topologia di network ✅ completata (commit `TBD`)
+### Fase 8 — Migrazione + topologia di network ✅ completata (commit `82e1d5f`)
 
 **Decisioni di design** (`elixir-otp-architect`, 2026-05-01):
 
@@ -354,6 +354,38 @@ Invarianti coperti (§6.2):
 - La Fase 8 consegnata copre topologia + migrazione. Le regole di **claim/colonizzazione player-facing** restano fuori perimetro finché i lignaggi non portano provenance esplicita del biotopo home / owner
 
 **Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
+
+### Fase 9 — UI: LiveView + PixiJS Hook ✅ completata (working tree, commit pending)
+
+**Decisioni di design** (`design-coherence-reviewer` + `elixir-otp-architect`, 2026-05-01):
+
+- **Scene client-side ma server-authoritative**: `ArkeaWeb.SimLive` continua a ricevere solo `BiotopeState` + eventi da PubSub; il client non calcola dinamiche, ma renderizza uno snapshot serializzato dal LiveView
+- **Hook PixiJS dedicato**: nuovo hook `BiotopeScene` montato via `phx-hook="BiotopeScene"` in `assets/js/hooks/biotope_scene.js`, registrato in `assets/js/app.js`; inizializza una `PIXI.Application`, ascolta `push_event("biotope_snapshot", ...)`, reagisce agli update LiveView e rimappa il click sul canvas su `pushEvent("select_phase", %{phase: ...})`
+- **Rendering procedurale derivato dalle fasi**: le regioni 2D sono bande proporzionate all'abbondanza per fase; i puntini rappresentano frazioni di lignaggi distribuite deterministicamente nella banda della fase, colorate per cluster fenotipico (`biofilm`, `motile`, `stress-tolerant`, `generalist`, `cryptic`)
+- **Interventi nel perimetro UI**: i controlli LiveView per antibiotico/plasmide/mixing non mutano ancora la simulazione; registrano una coda locale di operator intent, esplicitamente separata dal tick puro e dalla futura persistenza/audit
+- **Responsive shell non-boilerplate**: nuova dashboard con viewport PixiJS, inspector di fase, metadati topologici, log eventi e board dei lignaggi; CSS dedicato in `assets/css/app.css` con background atmosferico, reveal animation e layout mobile-first
+
+**Moduli/file creati o modificati**:
+
+| Modulo / asset | File | Cambiamento |
+|---|---|---|
+| `ArkeaWeb.SimLive` | `lib/arkea_web/live/sim_live.ex` | refactor completo: dashboard Fase 9, serializzazione snapshot, selezione fase, coda intent UI |
+| `BiotopeScene` hook | `assets/js/hooks/biotope_scene.js` | nuovo — scena PixiJS, layout a bande di fase, particelle lignaggio, click → `pushEvent` |
+| LiveSocket hooks | `assets/js/app.js` | registrazione hook `BiotopeScene` |
+| UI shell CSS | `assets/css/app.css` | nuova skin responsive con classi `sim-*` |
+| asset manifest | `assets/package.json`, `assets/package-lock.json` | aggiunta dipendenza `pixi.js` `^8.18.1` |
+
+**Test suite** (nuovi/aggiornati):
+- `test/arkea_web/controllers/page_controller_test.exs` — verifica che `/` serva la nuova shell con viewport Fase 9 e `phx-hook="BiotopeScene"`
+- `test/arkea_web/live/sim_live_test.exs` — selezione di fase via LiveView (`surface -> sediment`) e registrazione di intent operatore nel pannello UI
+
+**Note architetturali**:
+- Il canvas resta una **pure visualization** del dato autoritativo per fase, coerente con DESIGN.md Blocco 12: nessun click su singolo puntino ha effetto simulativo
+- Il bridge Hook ↔ LiveView usa entrambi i canali previsti dallo stack di design: `push_event` server → hook per lo snapshot e `pushEvent` hook → LiveView per la selezione della fase
+- `Biotope.Server` e `Tick` non vengono modificati in Fase 9; l'UI si appoggia esclusivamente ai broadcast già esistenti
+- Bundle JS sviluppo: `priv/static/assets/js/app.js` cresce a ~`1.9mb` per l'inclusione di PixiJS. Accettabile per il prototipo; eventuale slimming/tree-shaking ulteriore può essere trattato come follow-up
+
+**Suite finale**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
 
 ---
 
