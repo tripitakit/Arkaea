@@ -71,6 +71,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Ecology.Phase
   alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.HGT
   alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
@@ -192,7 +193,7 @@ defmodule Arkea.Sim.Tick do
           if lineage.genome != nil do
             phenotype = Phenotype.from_genome(lineage.genome)
             atp = Map.get(yields, lineage.id, 0.0)
-            compute_growth_deltas_v5(phenotype, atp, phase_names)
+            compute_growth_deltas_v5(phenotype, atp, phase_names, lineage.genome)
           else
             Map.get(state.growth_delta_by_lineage, lineage.id, %{})
           end
@@ -232,14 +233,42 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 4 — Horizontal gene transfer (stub for Phase 6).
+  Step 4 — Horizontal gene transfer (Phase 6).
 
-  Will implement probabilistic coniugazione/trasduzione/trasformazione between
-  lineages in the same biotope per DESIGN.md Block 5.
-  For Phase 2, returns state unchanged.
+  Runs two HGT sub-steps in sequence:
+
+  1. **Conjugation** (`HGT.step/4`) — for each phase, stochastically transfers
+     conjugative plasmids from donor lineages to recipient lineages. New
+     transconjugant lineages are appended; recipient abundances are decremented
+     by 1 to conserve population (DESIGN.md Block 5).
+
+  2. **Prophage induction** (`HGT.induction_step/4`) — for each lineage
+     carrying integrated prophages, rolls a stress-driven lytic burst that
+     reduces abundance by 50% on induction.
+
+  Pure: reads and updates `state.rng_seed`; no I/O, no messages.
   """
   @spec step_hgt(BiotopeState.t()) :: BiotopeState.t()
-  def step_hgt(%BiotopeState{} = state), do: state
+  def step_hgt(%BiotopeState{lineages: lineages, phases: phases, tick_count: tick} = state) do
+    rng = get_rng(state)
+
+    # Step 4a: conjugation — run per phase, accumulate new child lineages
+    {conjugated_lineages, new_children, rng1} =
+      Enum.reduce(phases, {lineages, [], rng}, fn phase, {acc_lineages, acc_children, acc_rng} ->
+        {updated, children, next_rng} = HGT.step(phase.name, acc_lineages, tick, acc_rng)
+        {updated, acc_children ++ children, next_rng}
+      end)
+
+    all_lineages = conjugated_lineages ++ new_children
+
+    # Step 4b: prophage induction — stress-triggered lysis
+    phenotypes = build_phenotype_map(all_lineages)
+
+    {induced_lineages, rng2} =
+      HGT.induction_step(all_lineages, state.atp_yield_by_lineage, phenotypes, rng1)
+
+    %{state | lineages: induced_lineages, rng_seed: rng2}
+  end
 
   @doc """
   Step 5 — Environmental effects: dilution of lineage abundances and phase pools.
@@ -377,20 +406,31 @@ defmodule Arkea.Sim.Tick do
     end)
   end
 
-  # Phase 5 growth model: ATP-driven deltas with σ-factor scalar.
+  # Phase 5/6 growth model: ATP-driven deltas with σ-factor scalar + plasmid burden.
   #
   # sigma = 0.5 + dna_binding_affinity  (0.5..1.5)
   # net   = (atp_yield - energy_cost * 5.0) * sigma
-  # delta = round(net) clamped to -200..500
+  #
+  # Phase 6 plasmid replication burden:
+  #   plasmid_gene_count = total genes across all plasmids
+  #   plasmid_burden     = plasmid_gene_count * 0.3 ATP per tick
+  #   net_adjusted       = net - plasmid_burden
+  #
+  # delta = round(net_adjusted) clamped to -200..500
   #
   # When atp_yield == 0.0 (no substrate), net is negative proportional to
   # energy_cost — the lineage shrinks under metabolic burden without gain.
-  # This is the core selection mechanism: specialised metabolisers outcompete
-  # generalists in their preferred environment.
-  defp compute_growth_deltas_v5(%Phenotype{} = phenotype, atp_yield, phase_names) do
+  # Plasmid-carrying lineages face additional burden (San Millán & MacLean 2018).
+  defp compute_growth_deltas_v5(%Phenotype{} = phenotype, atp_yield, phase_names, genome) do
     sigma = 0.5 + phenotype.dna_binding_affinity
     net = (atp_yield - phenotype.energy_cost * 5.0) * sigma
-    delta = round(net) |> max(-200) |> min(500)
+
+    # Phase 6: plasmid replication cost (0.3 ATP per plasmid gene)
+    plasmid_gene_count = Enum.sum_by(genome.plasmids, &length/1)
+    plasmid_burden = plasmid_gene_count * 0.3
+
+    net_adjusted = net - plasmid_burden
+    delta = round(net_adjusted) |> max(-200) |> min(500)
     Map.new(phase_names, fn name -> {name, delta} end)
   end
 
@@ -451,6 +491,15 @@ defmodule Arkea.Sim.Tick do
   # Return the RNG state, initialising from the biotope id if nil.
   defp get_rng(%BiotopeState{rng_seed: nil, id: id}), do: Mutator.init_seed(id)
   defp get_rng(%BiotopeState{rng_seed: rng}), do: rng
+
+  # Build a %{lineage_id => Phenotype.t() | nil} map for all lineages.
+  # Used by step_hgt/1 to compute prophage induction stress.
+  defp build_phenotype_map(lineages) do
+    Map.new(lineages, fn l ->
+      ph = if l.genome != nil, do: Phenotype.from_genome(l.genome), else: nil
+      {l.id, ph}
+    end)
+  end
 
   # Stochastic fission: for each lineage with genome != nil, maybe produce a
   # child mutant. Returns {updated_lineages, new_rng}.

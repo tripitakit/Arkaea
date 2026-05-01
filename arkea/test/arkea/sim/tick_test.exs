@@ -260,9 +260,15 @@ defmodule Arkea.Sim.TickTest do
     end
   end
 
-  test "step_hgt returns state unchanged" do
+  test "step_hgt preserves lineages and phases when no lineage has a plasmid or prophage" do
+    # Phase 6: step_hgt is no longer a stub. It advances the RNG even when
+    # no HGT events occur. When the lineage set has no plasmids/prophages the
+    # lineage list and phases are unchanged; only rng_seed advances.
     state = simple_state()
-    assert Tick.step_hgt(state) == state
+    new_state = Tick.step_hgt(state)
+    assert new_state.lineages == state.lineages
+    assert new_state.phases == state.phases
+    assert new_state.tick_count == state.tick_count
   end
 
   test "step_pruning returns state unchanged" do
