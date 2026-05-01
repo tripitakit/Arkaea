@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · (vedi §1bis).
 
 ---
 
@@ -290,6 +290,38 @@ Invarianti coperti (§6.2):
 - `credo:disable-for-this-file Credo.Check.Refactor.Nesting` nel test HGT: necessario per il pattern `gen all do ... end` di StreamData (nesting canonico della libreria)
 
 **Suite finale**: `mix test` → **122 properties, 198 tests, 0 failures**
+
+---
+
+### Fase 7 — Quorum sensing & signaling ✅ completata (commit `a9adab8`)
+
+**Decisioni di design** (`elixir-otp-architect`, 2026-05-01):
+
+- **Chiave segnale**: stringa binaria `"c0,c1,c2,c3"` derivata dai primi 4 `parameter_codons` di ogni dominio `:catalytic_site` / `:ligand_sensor`; uso di binary (non atom) per evitare crescita illimitata dell'atom table con chiavi dinamiche
+- **Affinità Gaussiana**: `exp(-dist² / (2σ²))` con σ = 4.0 nello spazio intero `[0..19]^4`; risultato ∈ [0, 1]
+- **Produzione segnale**: `rate × abundance / 100.0` per (sig_key, rate) in `phenotype.qs_produces`; accumulato nel `signal_pool` della fase del lignaggio a ogni tick (step 2 della pipeline)
+- **QS boost**: `qs_sigma_boost(phenotype, signal_pool)` somma le attivazioni recettore (concentrazione × affinità > soglia → `affinità × 0.5`), clampato a 1.0; range σ-factor esteso da [0.5..1.5] a [0.5..2.5] grazie al boost
+- **Pipeline 7 step**: `step_metabolism → step_signaling → step_expression → step_cell_events → step_hgt → step_environment → step_pruning`; inserimento di `step_signaling` come step 2 garantisce che ogni tick popoli i signal_pool prima di expression
+
+**Moduli creati/modificati**:
+
+| Modulo | File | Cambiamento |
+|---|---|---|
+| `Arkea.Sim.Signaling` | `lib/arkea/sim/signaling.ex` | nuovo — `binding_affinity/2`, `qs_sigma_boost/2`, `produce_signals/3` |
+| `Arkea.Genome.Domain` | `lib/arkea/genome/domain.ex` | `type_params/2` per `:catalytic_site` / `:ligand_sensor` aggiunge `signal_key`; guards aggiornati |
+| `Arkea.Sim.Phenotype` | `lib/arkea/sim/phenotype.ex` | nuovi campi `qs_produces`, `qs_receives`; aggregatori per `:catalytic_site` / `:ligand_sensor` |
+| `Arkea.Ecology.Phase` | `lib/arkea/ecology/phase.ex` | `signal_pool` keys da atom → binary; `update_signal/3` guard aggiornato |
+| `Arkea.Sim.Tick` | `lib/arkea/sim/tick.ex` | `step_signaling/1` inserito come step 2; `step_expression/1` applica QS boost; `compute_growth_deltas_v5` guadagna parametro `signal_pool` |
+
+**Test suite** (nuovi):
+- `test/arkea/sim/signaling_test.exs` — 7 test: affinità = 1.0 per chiavi identiche, < 0.1 per chiavi distanti, boost = 0 senza segnale, boost > 0 con segnale matching sopra soglia, delta crescita maggiore con QS signal, accumulo segnale cross-tick, property `binding_affinity ∈ [0.0, 1.0]`
+
+**Note architetturali**:
+- `phase_test.exs` e `generators.ex` aggiornati per usare chiavi binary nei signal_pool
+- Il boost QS è applicato a `sigma` in `step_expression` (non al growth rate direttamente) — modella la modulazione trascrizionale senza introdurre un nuovo canale causale
+- Il segnale persiste nel `signal_pool` della fase tra un tick e l'altro (soggetto a `dilute_pool/2` in `step_environment`); questo crea il "ritardo di risposta" biologicamente realistico
+
+**Suite finale**: `mix test` → **123 properties, 204 tests, 0 failures**
 
 ---
 
