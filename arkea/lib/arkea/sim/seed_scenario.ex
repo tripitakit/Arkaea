@@ -46,6 +46,10 @@ defmodule Arkea.Sim.SeedScenario do
   # subscription and Registry lookup always find the same process.
   @default_biotope_id "00000000-0000-0000-0000-000000000001"
 
+  @doc "Stable UUID used by the default demo biotope."
+  @spec default_biotope_id() :: binary()
+  def default_biotope_id, do: @default_biotope_id
+
   @doc """
   Start the default simulation scenario.
 

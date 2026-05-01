@@ -33,6 +33,7 @@ defmodule Arkea.Persistence.AuditWriter do
 
     %{
       event_type: event_type(Map.get(event, :type)),
+      actor_player_id: actor_player_id(payload),
       target_biotope_id: biotope_id,
       target_lineage_id: lineage_id(payload),
       payload: stringify_keys(payload),
@@ -51,6 +52,12 @@ defmodule Arkea.Persistence.AuditWriter do
   end
 
   defp lineage_id(_payload), do: nil
+
+  defp actor_player_id(payload) when is_map(payload) do
+    Map.get(payload, :actor_player_id) || Map.get(payload, "actor_player_id")
+  end
+
+  defp actor_player_id(_payload), do: nil
 
   defp stringify_keys(%{} = map) do
     Map.new(map, fn

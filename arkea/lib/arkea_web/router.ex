@@ -17,7 +17,10 @@ defmodule ArkeaWeb.Router do
   scope "/", ArkeaWeb do
     pipe_through :browser
 
-    live "/", SimLive
+    live "/", WorldLive
+    live "/world", WorldLive
+    live "/seed-lab", SeedLabLive
+    live "/biotopes/:id", SimLive
   end
 
   # Other scopes may use custom stacks.

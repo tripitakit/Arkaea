@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-01. Fase 11 committata (vedi heading). Tutte le 11 fasi completate. Sezione EN: pending sync dalla Fase 8 in poi.
+> Aggiornato: 2026-05-01. Fase 11 committata (vedi heading). Tutte le 11 fasi completate. Sezione EN riallineata in questo aggiornamento.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -158,7 +158,7 @@ Invarianti coperti (§6.2):
 
 - I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
 - Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
-- Sync EN della §1bis completato fino alla Fase 9; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
+- Sync EN della §1bis e delle sezioni UI/UX riallineato in questo aggiornamento; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
 
 ### Fase 2 — Tick engine minimale ✅ completata (commit `TBD`)
 
@@ -355,39 +355,53 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 207 tests, 0 failures**
 
-### Fase 9 — UI: LiveView + PixiJS Hook ✅ completata (commit `0c047c0`)
+### Fase 9 — UI: LiveView + PixiJS Hook ✅ completata (commit base `0c047c0`, poi rifinita nelle integrazioni successive)
 
 **Decisioni di design** (`design-coherence-reviewer` + `elixir-otp-architect`, 2026-05-01):
 
 - **Scene client-side ma server-authoritative**: `ArkeaWeb.SimLive` continua a ricevere solo `BiotopeState` + eventi da PubSub; il client non calcola dinamiche, ma renderizza uno snapshot serializzato dal LiveView
-- **Hook PixiJS dedicato**: nuovo hook `BiotopeScene` montato via `phx-hook="BiotopeScene"` in `assets/js/hooks/biotope_scene.js`, registrato in `assets/js/app.js`; inizializza una `PIXI.Application`, ascolta `push_event("biotope_snapshot", ...)`, reagisce agli update LiveView e rimappa il click sul canvas su `pushEvent("select_phase", %{phase: ...})`
-- **Rendering procedurale derivato dalle fasi**: le regioni 2D sono bande proporzionate all'abbondanza per fase; i puntini rappresentano frazioni di lignaggi distribuite deterministicamente nella banda della fase, colorate per cluster fenotipico (`biofilm`, `motile`, `stress-tolerant`, `generalist`, `cryptic`)
-- **Interventi nel perimetro UI**: i controlli LiveView per antibiotico/plasmide/mixing non mutano ancora la simulazione; registrano una coda locale di operator intent, esplicitamente separata dal tick puro e dalla futura persistenza/audit
-- **Responsive shell non-boilerplate**: nuova dashboard con viewport PixiJS, inspector di fase, metadati topologici, log eventi e board dei lignaggi; CSS dedicato in `assets/css/app.css` con background atmosferico, reveal animation e layout mobile-first
+- **Shell di gioco multi-view**: la UI è stata separata in `WorldLive`, `SeedLabLive` e `SimLive`, con route `"/"`, `"/world"`, `"/seed-lab"` e `"/biotopes/:id"`; `GameChrome` fornisce la navigazione comune tra overview del mondo, builder del seed e viewport di dettaglio
+- **Hook PixiJS dedicato e resiliente ai patch LiveView**: `BiotopeScene`, montato via `phx-hook="BiotopeScene"` in `assets/js/hooks/biotope_scene.js` e registrato in `assets/js/app.js`, inizializza una `PIXI.Application`, ascolta `push_event("biotope_snapshot", ...)`, rimappa i click del canvas su `pushEvent("select_phase", %{phase: ...})`, e mantiene il canvas vivo tramite `phx-update="ignore"` + remount guard `ensureCanvasMounted()`
+- **Rendering procedurale leggibile e stabile**: le regioni 2D sono bande proporzionate all'abbondanza per fase; i puntini rappresentano frazioni di lignaggi colorate per cluster fenotipico (`biofilm`, `motile`, `stress-tolerant`, `generalist`, `cryptic`) e sono ancorati deterministicamente da `phase + lineage + slot`, così tra tick consecutivi cambia la densità, non un reshuffle completo
+- **Pulizia visuale del viewport**: rimossi i glow overlay ambigui, aggiunti margini verticali di sicurezza per non coprire label/header/footer, legenda esplicita (banda, dot, focus) e cursore `pointer` per chiarire la selezione della fase
+- **Onboarding del player prototipale**: `SeedLabLive` consente la scelta dell'ecotipo iniziale, il tuning phenotype-first, la preview del genoma/fenotipo derivato e il provisioning del primo home biotope; `WorldLive` mostra overview del network, ownership e inventario attivo degli ecotipi
+- **Navigazione e world map leggibili**: la shell usa link `href` diretti tra `World`, `SeedLab` e `Biotope`; i layer decorativi non intercettano il puntatore e `Arkea.Game.World` risolve collisioni dei nodi prima del render, così i riquadri dei biotopi non si sovrappongono
+- **Fondazioni dell'editor del seed**: `SeedLabLive` espone anche un `Arkeon phenotype portrait` gameplay-facing e un `Chromosome atlas` read-only che separa già cromosoma, plasmidi e profagi come base del futuro editor avanzato
+- **Responsive shell non-boilerplate**: dashboard e mappe usano CSS dedicato in `assets/css/app.css` con background atmosferico, reveal animation e layout mobile-first, mantenendo distinta la scala mondo vs biotopo
 
 **Moduli/file creati o modificati**:
 
 | Modulo / asset | File | Cambiamento |
 |---|---|---|
-| `ArkeaWeb.SimLive` | `lib/arkea_web/live/sim_live.ex` | refactor completo: dashboard Fase 9, serializzazione snapshot, selezione fase, coda intent UI |
-| `BiotopeScene` hook | `assets/js/hooks/biotope_scene.js` | nuovo — scena PixiJS, layout a bande di fase, particelle lignaggio, click → `pushEvent` |
+| `ArkeaWeb.WorldLive` | `lib/arkea_web/live/world_live.ex` | nuovo — overview macroscala del mondo, network map, inventory degli ecotipi attivi, CTA di navigazione |
+| `ArkeaWeb.SeedLabLive` | `lib/arkea_web/live/seed_lab_live.ex` | nuovo — builder del seed, preview fenotipo/genoma, portrait morfologico, chromosome atlas e provisioning del primo home biotope |
+| `ArkeaWeb.SimLive` | `lib/arkea_web/live/sim_live.ex` | refactor completo: viewport di dettaglio, serializzazione snapshot, selezione fase, pannello operatore e feedback di ownership/budget |
+| `ArkeaWeb.GameChrome` | `lib/arkea_web/game_chrome.ex` | nuovo — top navigation condivisa tra world, seed lab e biotope view |
+| `Arkea.Game.World` | `lib/arkea/game/world.ex` | nuovo — read model leggero per overview runtime, mappa del network e risoluzione collisioni dei nodi |
+| `Arkea.Game.SeedLab`, `Arkea.Game.PrototypePlayer` | `lib/arkea/game/seed_lab.ex`, `lib/arkea/game/prototype_player.ex` | nuovo — builder phenotype-first, player demo e flow di provisioning iniziale |
+| `BiotopeScene` hook | `assets/js/hooks/biotope_scene.js` | nuovo — scena PixiJS con bande di fase, dot a ancore stabili, remount safe e click → `pushEvent` |
 | LiveSocket hooks | `assets/js/app.js` | registrazione hook `BiotopeScene` |
-| UI shell CSS | `assets/css/app.css` | nuova skin responsive con classi `sim-*` |
+| router LiveView | `lib/arkea_web/router.ex` | nuove route `WorldLive`, `SeedLabLive`, `SimLive` |
+| UI shell CSS | `assets/css/app.css` | nuova skin responsive con classi `sim-*`, world map leggibile, portrait del seed e chromosome atlas |
 | asset manifest | `assets/package.json`, `assets/package-lock.json` | aggiunta dipendenza `pixi.js` `^8.18.1` |
 
 **Test suite** (nuovi/aggiornati):
-- `test/arkea_web/controllers/page_controller_test.exs` — verifica che `/` serva la nuova shell con viewport Fase 9 e `phx-hook="BiotopeScene"`
-- `test/arkea_web/live/sim_live_test.exs` — selezione di fase via LiveView (`surface -> sediment`) e registrazione di intent operatore nel pannello UI
+- `test/arkea_web/controllers/page_controller_test.exs` — verifica che `/` serva `WorldLive` con overview del network e accesso al seed lab
+- `test/arkea_web/live/world_live_test.exs` — rendering della shell mondo con mappa e CTA di navigazione
+- `test/arkea_web/live/seed_lab_live_test.exs` — preview dell'ecotipo/seed builder, rendering di portrait + atlas e provisioning del home biotope con redirect al viewport
+- `test/arkea_web/live/sim_live_test.exs` — selezione di fase via LiveView (`surface -> sediment`), container canvas `phx-update="ignore"`, link `World/Seed lab` e pannello interventi sul biotopo del player
+- `test/arkea/game/world_test.exs` — verifica che il resolver del layout world eviti overlap tra nodi con coordinate iniziali collidenti
 
 **Note architetturali**:
 - Il canvas resta una **pure visualization** del dato autoritativo per fase, coerente con DESIGN.md Blocco 12: nessun click su singolo puntino ha effetto simulativo
 - Il bridge Hook ↔ LiveView usa entrambi i canali previsti dallo stack di design: `push_event` server → hook per lo snapshot e `pushEvent` hook → LiveView per la selezione della fase
-- `Biotope.Server` e `Tick` non vengono modificati in Fase 9; l'UI si appoggia esclusivamente ai broadcast già esistenti
+- La separazione `WorldLive -> SeedLabLive -> SimLive` chiarisce la differenza tra vista mondo, costruzione del seed e dettaglio autoritativo del singolo biotopo
+- Gli interventi autorevoli vengono agganciati successivamente tramite `apply_intervention/2` e sono documentati nella Fase 10; il viewport Fase 9 resta comunque una vista aggregata per fasi, non una simulazione client-side
 - Bundle JS sviluppo: `priv/static/assets/js/app.js` cresce a ~`1.9mb` per l'inclusione di PixiJS. Accettabile per il prototipo; eventuale slimming/tree-shaking ulteriore può essere trattato come follow-up
 
-**Suite finale**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
+**Suite finale**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 223 tests, 0 failures**
 
-### Fase 10 — Persistenza completa ✅ completata (commit `fec12f6`)
+### Fase 10 — Persistenza completa ✅ completata (commit base `fec12f6`, poi estesa con asset player e interventi autorevoli)
 
 **Decisioni di design** (`ecto-postgres-modeler` + `elixir-otp-architect`, 2026-05-01):
 
@@ -395,7 +409,9 @@ Invarianti coperti (§6.2):
 - **Snapshot periodico via Oban**: ogni transizione con `tick_count rem 10 == 0` enqueuea `SnapshotWorker`, che copia il WAL sorgente in `biotope_snapshots`; l'upsert su `(biotope_id, tick_count)` consente a un eventuale transfer di migrazione nello stesso tick di sovrascrivere lo snapshot con lo stato più recente
 - **Recovery a due livelli**: `Arkea.Persistence.Recovery` sceglie tra latest WAL e latest snapshot, preferendo il WAL a parità di tick; al boot ripopola `Biotope.Supervisor` con tutti i biotopi persistiti e semina lo scenario di default solo se non esiste stato recuperabile
 - **Restart-safe child boot**: `Biotope.Server.start_link/1` passa da `Recovery.resolve_start_state/1`, quindi un crash del processo sotto `Biotope.Supervisor` riparte dallo stato persistito più recente invece che dal seed iniziale
-- **Audit tipizzato nella stessa transazione**: `Arkea.Persistence.AuditWriter` normalizza gli eventi runtime (`lineage_born`, `lineage_extinct`, `hgt_event`, `migration`) e li inserisce in `audit_log` nello stesso `Ecto.Multi` del WAL
+- **Asset player persistiti + interventi autorevoli**: `SeedLab` persiste `ArkeonBlueprint` e `PlayerBiotope` per il primo home biotope del player prototipale; `PlayerInterventions` valida ownership e `intervention budget` per biotopo, scrive `intervention_logs`, e invoca `Biotope.Server.apply_intervention/2`, che delega a `Arkea.Sim.Intervention` trasformazioni pure come `nutrient_pulse`, `plasmid_inoculation` e `mixing_event`
+- **Immutabilità del seed dopo la prima colonizzazione**: quando esiste un `home` attivo per il player, `SeedLab` rilegge il blueprint persistito, blocca le opzioni fenotipiche e mostra lo stesso seed come configurazione read-only legata al biotopo iniziale
+- **Audit tipizzato nella stessa transazione**: `Arkea.Persistence.AuditWriter` normalizza gli eventi runtime (`lineage_born`, `lineage_extinct`, `hgt_event`, `migration`, `intervention`) e propaga anche `actor_player_id` in `audit_log` nello stesso `Ecto.Multi` del WAL
 - **Gating esplicito nei test**: `config/test.exs` tiene `:persistence_enabled` disattivato di default per non forzare I/O DB sui test del tick puro; i test Phase 10 lo riattivano localmente e avviano `Arkea.Oban` in `testing: :manual`
 
 **Moduli/file creati o modificati**:
@@ -411,21 +427,34 @@ Invarianti coperti (§6.2):
 | `Arkea.Persistence.Store` | `lib/arkea/persistence/store.ex` | `Ecto.Multi` transazionale: WAL + audit + enqueue snapshot |
 | `Arkea.Persistence.SnapshotWorker` | `lib/arkea/persistence/snapshot_worker.ex` | worker Oban che materializza snapshot dal WAL |
 | `Arkea.Persistence.Recovery` | `lib/arkea/persistence/recovery.ex` | restore al boot + helper `resolve_start_state/1` |
+| `Arkea.Persistence.ArkeonBlueprint` | `lib/arkea/persistence/arkeon_blueprint.ex` | nuovo — blueprint persistito del seed del player |
+| `Arkea.Persistence.PlayerBiotope` | `lib/arkea/persistence/player_biotope.ex` | nuovo — relazione esplicita player ↔ biotopo controllato (`home`, `colonized`) |
+| `Arkea.Persistence.InterventionLog` | `lib/arkea/persistence/intervention_log.ex` | nuovo — log append-only per budget e storico interventi |
+| `Arkea.Game.PlayerAssets` | `lib/arkea/game/player_assets.ex` | nuovo — registrazione player, blueprint e home biotope in `Ecto.Multi` |
+| `Arkea.Game.PlayerInterventions` | `lib/arkea/game/player_interventions.ex` | nuovo — ownership check, budget per biotopo e audit dei comandi player |
+| `Arkea.Sim.Intervention` | `lib/arkea/sim/intervention.ex` | nuovo — trasformazioni pure degli interventi fuori dal tick |
 | migration DB | `priv/repo/migrations/20260501113000_add_runtime_persistence.exs` | nuove tabelle `biotope_wal_entries`, `biotope_snapshots`, `oban_jobs` |
-| runtime/config | `lib/arkea/application.ex`, `lib/arkea/sim/biotope/server.ex`, `config/config.exs`, `config/test.exs` | wiring supervisor, persist post-tick, config Oban/persistence |
+| migration DB player/runtime | `priv/repo/migrations/20260501143000_add_player_assets_and_intervention_logs.exs` | nuove tabelle `arkeon_blueprints`, `player_biotopes`, `intervention_logs` |
+| runtime/UI config | `lib/arkea/application.ex`, `lib/arkea/sim/biotope/server.ex`, `lib/arkea/game/seed_lab.ex`, `lib/arkea/game/prototype_player.ex`, `lib/arkea_web/live/sim_live.ex`, `config/config.exs`, `config/test.exs` | wiring supervisor, persist post-tick, `apply_intervention/2`, budget/ownership nel pannello operatore |
 
-**Test suite** (nuovi):
+**Test suite** (nuovi/aggiornati):
 - `test/arkea/persistence/runtime_persistence_test.exs` — 4 integration test: WAL + audit su `manual_tick/1`, enqueue/materializzazione snapshot al tick 10, restart di `Biotope.Server` dall'ultimo WAL, recovery child che ripristina i biotopi persistiti al boot
+- `test/arkea/game/player_interventions_test.exs` — intervento player autorevole: mutazione dello stato sul server, scrittura `intervention_logs`, budget lock successivo
+- `test/arkea_web/live/seed_lab_live_test.exs` — provisioning seed/home con verifica di `ArkeonBlueprint` e `PlayerBiotope`, più riapertura read-only del seed dopo il primo home
+- `test/arkea_web/live/sim_live_test.exs` — esecuzione di `nutrient_pulse` su biotopo controllato dal player e feedback di budget lock nel pannello LiveView
 
 **Note architetturali**:
 - Il WAL di Fase 10 è un **journal di stato completo**, non un event stream canonico: scelta deliberata per recovery semplice e robusto nel prototipo
 - Lo snapshot viene costruito **dal WAL già scritto**, non interrogando il processo live, così il worker resta idempotente e non dipende dall'esistenza del `Biotope.Server`
 - In caso di snapshot e migrazione nello stesso tick, il recovery continua a privilegiare il WAL; lo snapshot serve come checkpoint periodico e viene riallineato via upsert
+- Gli interventi player restano **fuori dal tick puro**, ma passano comunque dal `Biotope.Server` che possiede lo stato: il confine `tick(state) -> {new_state, events}` rimane intatto anche con azioni realtime del player
+- Nel prototipo il player `Anna` può possedere un solo `home` attivo; la UI usa `player_biotopes` + `intervention_logs` per esporre ownership e cooldown in modo coerente con la simulazione autoritativa
+- La futura evoluzione verso un editor avanzato del genoma deve operare sul layer persistito del blueprint (`arkeon_blueprints`), non direttamente sullo stato live del biotopo
 
 **Note credo** (fix applicati al commit `fec12f6`):
 - `phase_color` in `sim_live.ex` (CC 10 → map lookup); 6 nesting depth in `migration.ex` (helper estratti: `plan_phase_transfer`, `distribute_by_scores`, `move_pool_key`, `apply_lineage_delta`, `correct_last_float`, semplificazione `allocate_integer_by_weights`); alias order in `application.ex` e `store.ex`; nesting in `recovery.ex` (`recover_one`)
 
-**Suite finale**: `mix format --check-formatted` · `mix credo --strict` · `mix test` → **124 properties, 213 tests, 0 failures**
+**Suite finale**: `mix format` · `MIX_ENV=test mix ecto.migrate` · `mix ecto.migrate` · `mix assets.build` · `mix test` → **124 properties, 223 tests, 0 failures**
 
 ---
 
@@ -579,8 +608,8 @@ end
 | **6. HGT + elementi mobili** | Plasmidi, profagi, coniugazione gene-encoded, lisi fagica, costo plasmide | Test: introduzione di un plasmide → diffusione misurabile via HGT | 5, 8 |
 | **7. Quorum sensing & signaling** | Synthase + recettori 4D, programma QS, density-dipendenza | Test: programma OFF a basso N, ON a alto N | 9 |
 | **8. Migrazione + topologia di network** | Network di biotopi, archi pesati, biotope_compatibility, fasi (Blocco 12) | Test: 5 biotopi connessi, lignaggi diffondono coerentemente; preferenze di fase emergenti | 3, 5, 10, 12 |
-| **9. UI: LiveView + PixiJS Hook** | Vista biotopo 2D (rendering procedurale), dashboard, log eventi, controlli intervento | Anna del caso d'uso può accedere via browser e vedere il proprio biotopo | 12, 14 |
-| **10. Persistenza completa** | Snapshot ogni 10 tick + audit log + recovery | Crash deliberato → restart → stato preservato fino al WAL recente | 11, 13, 14 |
+| **9. UI: LiveView + PixiJS Hook** | Shell `World / Seed lab / Biotope`, vista 2D procedurale, dashboard, inventory ecotipi, builder seed, `Arkeon phenotype portrait`, `Chromosome atlas`, log eventi | Anna del caso d'uso può progettare il seed, provisionare l'home biotope, navigare la world overview e aprire il viewport di dettaglio | 12, 14 |
+| **10. Persistenza completa** | Snapshot ogni 10 tick + audit log + recovery + `arkeon_blueprints` / `player_biotopes` / `intervention_logs` | Crash deliberato → restart → stato preservato; seed, home e interventi player persistiti con budget autorevole, seed iniziale riaperto in sola lettura dopo la prima colonizzazione | 11, 13, 14 |
 | **11. Caso d'uso "Cronache" abbreviato** | Riproduzione dello stress test su scala prototipo | Da seed → resistenza, biofilm, profago, colonizzazione visibili in qualche ora reale | tutti |
 
 ### 5.1 Dipendenze e parallelismo

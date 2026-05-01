@@ -2,6 +2,8 @@ import { Application, Container, Graphics, Text } from "pixi.js"
 
 const H_MARGIN = 26
 const V_MARGIN = 22
+const TOP_OVERLAY_GUTTER = 42
+const BOTTOM_OVERLAY_GUTTER = 34
 const BAND_GAP = 10
 const MAX_PHASE_PARTICLES = 72
 
@@ -193,34 +195,27 @@ export const BiotopeScene = {
       bg.moveTo(x, 0).lineTo(x, height).stroke({ color: "#102034", alpha: 0.16, width: 1 })
     }
 
-    const leftGlow = new Graphics()
-    leftGlow.circle(width * 0.18, height * 0.22, Math.min(width, height) * 0.25)
-    leftGlow.fill({ color: "#0f766e", alpha: 0.08 })
-
-    const rightGlow = new Graphics()
-    rightGlow.circle(width * 0.82, height * 0.8, Math.min(width, height) * 0.23)
-    rightGlow.fill({ color: "#ea580c", alpha: 0.06 })
-
     this.layers.backdrop.addChild(bg)
-    this.layers.backdrop.addChild(leftGlow)
-    this.layers.backdrop.addChild(rightGlow)
   },
 
   layoutPhases(phases, width, height) {
     const innerWidth = width - H_MARGIN * 2
-    const innerHeight = height - V_MARGIN * 2 - BAND_GAP * Math.max(phases.length - 1, 0)
+    const topInset = V_MARGIN + TOP_OVERLAY_GUTTER
+    const bottomInset = V_MARGIN + BOTTOM_OVERLAY_GUTTER
+    const innerHeight =
+      height - topInset - bottomInset - BAND_GAP * Math.max(phases.length - 1, 0)
     const weights = phases.map((phase) => Math.max(phase.totalAbundance || 0, 1))
     const totalWeight = weights.reduce((sum, value) => sum + value, 0)
     const minBandHeight = Math.min(72, innerHeight / Math.max(phases.length, 1))
     const extraHeight = Math.max(0, innerHeight - minBandHeight * phases.length)
 
-    let cursorY = V_MARGIN
+    let cursorY = topInset
 
     return phases.map((phase, index) => {
       const weight = weights[index]
       const heightShare = minBandHeight + (extraHeight * weight) / totalWeight
       const bandHeight =
-        index === phases.length - 1 ? height - V_MARGIN - cursorY : Math.max(52, heightShare)
+        index === phases.length - 1 ? height - bottomInset - cursorY : Math.max(52, heightShare)
 
       const band = {
         ...phase,
@@ -239,7 +234,6 @@ export const BiotopeScene = {
 
   drawPhaseBand(phaseBound, index) {
     const band = new Graphics()
-    const overlay = new Graphics()
     const alpha = phaseBound.isSelected ? 0.2 : 0.13
     const strokeAlpha = phaseBound.isSelected ? 0.9 : 0.45
     const strokeWidth = phaseBound.isSelected ? 2.8 : 1.2
@@ -249,25 +243,7 @@ export const BiotopeScene = {
     band.fill({ color: phaseBound.color, alpha })
     band.stroke({ color: phaseBound.color, alpha: strokeAlpha, width: strokeWidth })
 
-    overlay.circle(
-      0,
-      0,
-      Math.min(phaseBound.width, phaseBound.height) * 0.3
-    )
-    overlay.x = phaseBound.x + phaseBound.width * 0.78
-    overlay.y = phaseBound.y + phaseBound.height * 0.5
-    overlay.fill({ color: phaseBound.color, alpha: 1 })
-    overlay.alpha = phaseBound.isSelected ? 0.12 : 0.06
-
     this.layers.backdrop.addChild(band)
-    this.layers.backdrop.addChild(overlay)
-
-    this.animatedNodes.push({
-      node: overlay,
-      baseAlpha: overlay.alpha,
-      speed: 0.55 + index * 0.07,
-      scaleAmp: 0.028,
-    })
   },
 
   drawPhaseParticles(phaseBound, phaseIndex) {
@@ -302,11 +278,11 @@ export const BiotopeScene = {
       used += particleCount
 
       for (let i = 0; i < particleCount; i += 1) {
-        const seed = `${this.snapshot.tick}:${phaseBound.name}:${lineage.id}:${i}`
+        const seed = `${phaseBound.name}:${lineage.id}:${i}`
         const rng = mulberry32(hashString(seed))
         const x = phaseBound.x + 18 + rng() * Math.max(phaseBound.width - 36, 10)
         const y = phaseBound.y + 22 + rng() * Math.max(phaseBound.height - 44, 10)
-        const radius = 1.6 + rng() * 3.6 + Math.min(lineageIndex * 0.03, 0.8)
+        const radius = 1.6 + rng() * 3.6
 
         const particle = new Graphics()
         particle.x = x
@@ -358,7 +334,7 @@ export const BiotopeScene = {
 
     overlayText.anchor.set(1, 0)
     overlayText.x = width - 18
-    overlayText.y = 16
+    overlayText.y = 14
 
     const footer = new Text({
       text: "Procedural render derived from authoritative phase aggregates",
@@ -366,7 +342,7 @@ export const BiotopeScene = {
     })
 
     footer.x = 18
-    footer.y = height - 26
+    footer.y = height - 18
 
     this.layers.overlay.addChild(overlayText)
     this.layers.overlay.addChild(footer)

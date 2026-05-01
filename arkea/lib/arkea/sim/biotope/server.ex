@@ -58,6 +58,7 @@ defmodule Arkea.Sim.Biotope.Server do
   alias Arkea.Persistence.Recovery
   alias Arkea.Persistence.Store
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Intervention
   alias Arkea.Sim.Migration
   alias Arkea.Sim.Tick
 
@@ -118,6 +119,15 @@ defmodule Arkea.Sim.Biotope.Server do
     GenServer.call(via(id), {:apply_migration, transfer, tick})
   end
 
+  @doc """
+  Apply an authoritative player intervention outside the pure tick pipeline.
+  """
+  @spec apply_intervention(binary(), Intervention.command()) ::
+          {:ok, %{payload: map(), tick: non_neg_integer()}} | {:error, atom()}
+  def apply_intervention(id, command) when is_binary(id) and is_map(command) do
+    GenServer.call(via(id), {:apply_intervention, command})
+  end
+
   # ---------------------------------------------------------------------------
   # GenServer callbacks
 
@@ -165,6 +175,18 @@ defmodule Arkea.Sim.Biotope.Server do
 
         post_transition(state.id, new_state, events, :migration)
         {:reply, :ok, new_state}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:apply_intervention, command}, _from, state) do
+    case Intervention.apply(state, command) do
+      {:ok, new_state, events, payload} ->
+        post_transition(state.id, new_state, events, :intervention)
+        {:reply, {:ok, %{payload: payload, tick: new_state.tick_count}}, new_state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 

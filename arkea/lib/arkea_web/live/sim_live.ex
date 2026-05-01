@@ -1,9 +1,9 @@
 defmodule ArkeaWeb.SimLive do
   @moduledoc """
-  LiveView shell for the default biotope simulation.
+  Detailed LiveView viewport for one authoritative biotope.
 
-  The simulation remains server-authoritative: this module subscribes to
-  `"biotope:<id>"`, receives `{:biotope_tick, new_state, events}` from
+  The simulation remains server-authoritative: this module subscribes to the
+  selected `"biotope:<id>"`, receives `{:biotope_tick, new_state, events}` from
   `Arkea.Sim.Biotope.Server`, and turns the current `BiotopeState` into:
 
     - a LiveView dashboard for operator-facing telemetry
@@ -15,41 +15,35 @@ defmodule ArkeaWeb.SimLive do
 
   use ArkeaWeb, :live_view
 
+  alias Arkea.Game.PlayerInterventions
+  alias Arkea.Game.PrototypePlayer
   alias Arkea.Ecology.Lineage
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
+  alias ArkeaWeb.GameChrome
 
-  @default_biotope_id "00000000-0000-0000-0000-000000000001"
   @max_event_log 20
   @max_operator_log 8
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    biotope_id = @default_biotope_id
-
-    if Phoenix.LiveView.connected?(socket) do
-      Phoenix.PubSub.subscribe(Arkea.PubSub, "biotope:#{biotope_id}")
-    end
-
-    {sim_state, phenotype_cache} = load_initial_state(biotope_id)
-
-    socket =
-      socket
-      |> assign(
-        biotope_id: biotope_id,
-        sim_state: sim_state,
-        phenotype_cache: phenotype_cache,
-        selected_phase_name: resolve_selected_phase(nil, sim_state),
-        event_log: [],
-        operator_log: [],
-        running: Phoenix.LiveView.connected?(socket),
-        scene_snapshot_json: "{}",
-        page_title: "Arkea Biotope"
-      )
-      |> assign_scene_snapshot()
-
-    {:ok, socket}
+    {:ok,
+     assign(socket,
+       biotope_id: nil,
+       sim_state: nil,
+       player: PrototypePlayer.profile(),
+       phenotype_cache: %{},
+       selected_phase_name: nil,
+       event_log: [],
+       operator_log: [],
+       operator_error: nil,
+       intervention_status: default_intervention_status(),
+       running: false,
+       scene_snapshot_json: "{}",
+       not_found?: false,
+       page_title: "Arkea Biotope"
+     )}
   end
 
   @impl Phoenix.LiveView
@@ -65,7 +59,8 @@ defmodule ArkeaWeb.SimLive do
         phenotype_cache: cache,
         selected_phase_name: selected_phase_name,
         event_log: log,
-        running: true
+        running: true,
+        intervention_status: intervention_status(socket.assigns.player, socket.assigns.biotope_id)
       )
       |> assign_scene_snapshot()
 
@@ -73,6 +68,35 @@ defmodule ArkeaWeb.SimLive do
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  @impl Phoenix.LiveView
+  def handle_params(%{"id" => biotope_id}, _uri, socket) do
+    if Phoenix.LiveView.connected?(socket) and socket.assigns.biotope_id != biotope_id do
+      Phoenix.PubSub.subscribe(Arkea.PubSub, "biotope:#{biotope_id}")
+    end
+
+    {sim_state, phenotype_cache} = load_initial_state(biotope_id)
+    selected_phase_name = resolve_selected_phase(nil, sim_state)
+
+    socket =
+      socket
+      |> assign(
+        biotope_id: biotope_id,
+        sim_state: sim_state,
+        phenotype_cache: phenotype_cache,
+        selected_phase_name: selected_phase_name,
+        event_log: [],
+        operator_log: [],
+        operator_error: nil,
+        intervention_status: intervention_status(socket.assigns.player, biotope_id),
+        running: Phoenix.LiveView.connected?(socket) and not is_nil(sim_state),
+        not_found?: is_nil(sim_state),
+        page_title: page_title(sim_state, biotope_id)
+      )
+      |> assign_scene_snapshot()
+
+    {:noreply, socket}
+  end
 
   @impl Phoenix.LiveView
   def handle_event("select_phase", %{"phase" => phase_name}, socket) do
@@ -90,22 +114,33 @@ defmodule ArkeaWeb.SimLive do
     {:noreply, socket}
   end
 
-  def handle_event("queue_intervention", %{"kind" => kind} = params, socket) do
-    scope =
-      case Map.get(params, "scope", "phase") do
-        "biotope" -> "whole biotope"
-        _ -> phase_label(socket.assigns.selected_phase_name)
-      end
+  def handle_event("apply_intervention", params, socket) do
+    case socket.assigns.sim_state do
+      %BiotopeState{id: biotope_id} ->
+        with {:ok, command} <- intervention_command(params, socket.assigns.selected_phase_name),
+             {:ok, result} <-
+               PlayerInterventions.apply(socket.assigns.player, biotope_id, command) do
+          entry = operator_entry(command, result)
 
-    entry = %{
-      id: System.unique_integer([:positive]),
-      kind: intervention_label(kind),
-      scope: scope,
-      tick: socket.assigns.sim_state && socket.assigns.sim_state.tick_count
-    }
+          {:noreply,
+           socket
+           |> assign(
+             operator_log: prepend_operator_log(socket.assigns.operator_log, entry),
+             operator_error: nil,
+             intervention_status: intervention_status(socket.assigns.player, biotope_id)
+           )}
+        else
+          {:error, reason} ->
+            {:noreply,
+             assign(socket,
+               operator_error: intervention_error_message(reason),
+               intervention_status: intervention_status(socket.assigns.player, biotope_id)
+             )}
+        end
 
-    {:noreply,
-     assign(socket, operator_log: prepend_operator_log(socket.assigns.operator_log, entry))}
+      nil ->
+        {:noreply, assign(socket, operator_error: "Biotope state is not available yet.")}
+    end
   end
 
   @impl Phoenix.LiveView
@@ -116,36 +151,47 @@ defmodule ArkeaWeb.SimLive do
       <div class="sim-shell__aurora sim-shell__aurora--east"></div>
       <div class="sim-shell__grid"></div>
       <div class="sim-shell__content">
-        <%= if is_nil(@sim_state) do %>
-          <.loading_view />
-        <% else %>
-          <.sim_header sim_state={@sim_state} running={@running} />
+        <GameChrome.top_nav
+          active={:biotope}
+          player_name={@player.display_name}
+          biotope_label={biotope_nav_label(@sim_state, @biotope_id)}
+        />
 
-          <div class="sim-main-grid mt-6">
-            <.scene_panel
-              sim_state={@sim_state}
-              selected_phase_name={@selected_phase_name}
-              scene_snapshot_json={@scene_snapshot_json}
-            />
+        <%= cond do %>
+          <% @not_found? -> %>
+            <.missing_view biotope_id={@biotope_id} />
+          <% is_nil(@sim_state) -> %>
+            <.loading_view />
+          <% true -> %>
+            <.sim_header sim_state={@sim_state} running={@running} />
 
-            <div class="sim-sidebar">
-              <.phase_inspector
+            <div class="sim-main-grid mt-6">
+              <.scene_panel
                 sim_state={@sim_state}
                 selected_phase_name={@selected_phase_name}
+                scene_snapshot_json={@scene_snapshot_json}
               />
-              <.topology_panel sim_state={@sim_state} />
-              <.operator_panel
-                selected_phase_name={@selected_phase_name}
-                operator_log={@operator_log}
-              />
-            </div>
-          </div>
 
-          <div class="sim-lower-grid mt-6">
-            <.lineage_table sim_state={@sim_state} phenotype_cache={@phenotype_cache} />
-            <.chemistry_panel sim_state={@sim_state} />
-            <.event_log_panel event_log={@event_log} />
-          </div>
+              <div class="sim-sidebar">
+                <.phase_inspector
+                  sim_state={@sim_state}
+                  selected_phase_name={@selected_phase_name}
+                />
+                <.topology_panel sim_state={@sim_state} />
+                <.operator_panel
+                  selected_phase_name={@selected_phase_name}
+                  operator_log={@operator_log}
+                  operator_error={@operator_error}
+                  intervention_status={@intervention_status}
+                />
+              </div>
+            </div>
+
+            <div class="sim-lower-grid mt-6">
+              <.lineage_table sim_state={@sim_state} phenotype_cache={@phenotype_cache} />
+              <.chemistry_panel sim_state={@sim_state} />
+              <.event_log_panel event_log={@event_log} />
+            </div>
         <% end %>
       </div>
     </div>
@@ -154,12 +200,31 @@ defmodule ArkeaWeb.SimLive do
 
   defp loading_view(assigns) do
     ~H"""
-    <div class="sim-loading">
+    <div class="sim-loading mt-6">
       <span class="loading loading-dots loading-lg text-primary"></span>
-      <h2 class="sim-loading__title">Bootstrapping biotope viewport</h2>
+      <h2 class="sim-loading__title">Loading biotope viewport</h2>
       <p class="sim-loading__copy">
         Waiting for the authoritative biotope process to publish its first state.
       </p>
+    </div>
+    """
+  end
+
+  defp missing_view(assigns) do
+    ~H"""
+    <div class="sim-loading mt-6">
+      <h2 class="sim-loading__title">Biotope not found</h2>
+      <p class="sim-loading__copy">
+        No active `Biotope.Server` is registered for {@biotope_id || "this route"}.
+      </p>
+      <div class="world-cta-stack">
+        <.link href={~p"/world"} class="sim-action-button sim-action-button--wide">
+          Return to world overview
+        </.link>
+        <.link href={~p"/seed-lab"} class="sim-action-button sim-action-button--wide">
+          Open seed lab
+        </.link>
+      </div>
     </div>
     """
   end
@@ -180,7 +245,7 @@ defmodule ArkeaWeb.SimLive do
         <div class="sim-hero__eyebrow">Arkea prototype · phase 9 console</div>
         <h1 class="sim-hero__title">Procedural biotope viewport</h1>
         <p class="sim-hero__copy">
-          The canvas is a derived scene. Population, chemistry and migration-facing phases remain authoritative on the server.
+          The canvas is a derived scene for one selected biotope. Population, chemistry and migration-facing phases remain authoritative on the server.
         </p>
       </div>
 
@@ -230,6 +295,25 @@ defmodule ArkeaWeb.SimLive do
         </div>
       </div>
 
+      <div class="sim-scene-legend">
+        <div class="sim-scene-legend__item">
+          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--band"></span>
+          <span>
+            Band = phase pocket; its height tracks aggregate population in that compartment.
+          </span>
+        </div>
+        <div class="sim-scene-legend__item">
+          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--dot"></span>
+          <span>
+            Dot = lineage fraction; anchors stay stable across ticks unless the phase itself expands or contracts.
+          </span>
+        </div>
+        <div class="sim-scene-legend__item">
+          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--focus"></span>
+          <span>Bright outline = phase currently focused by the player.</span>
+        </div>
+      </div>
+
       <div class="sim-phase-tabs">
         <button
           :for={phase <- @sim_state.phases}
@@ -251,7 +335,7 @@ defmodule ArkeaWeb.SimLive do
       </div>
 
       <div class="sim-scene-note">
-        Click a rendered band or a phase tab to focus the inspector. Direct cell picking stays intentionally unavailable.
+        Click a rendered band or a phase tab to focus the inspector. The viewport remains an aggregate phase view; direct single-cell picking stays intentionally unavailable.
       </div>
     </section>
     """
@@ -396,52 +480,89 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp operator_panel(assigns) do
+    phase_actions_disabled =
+      not assigns.intervention_status.owner? or
+        not assigns.intervention_status.allowed? or
+        is_nil(assigns.selected_phase_name)
+
+    biotope_actions_disabled =
+      not assigns.intervention_status.owner? or not assigns.intervention_status.allowed?
+
+    assigns =
+      assign(assigns,
+        phase_actions_disabled: phase_actions_disabled,
+        biotope_actions_disabled: biotope_actions_disabled
+      )
+
     ~H"""
     <section class="sim-card">
       <div class="sim-card__header">
         <div>
           <div class="sim-card__eyebrow">Operator console</div>
-          <h2 class="sim-card__title">Intervention shell</h2>
+          <h2 class="sim-card__title">Authoritative interventions</h2>
         </div>
         <div class="sim-card__meta">{phase_label(@selected_phase_name)}</div>
       </div>
 
       <p class="sim-muted mb-4">
-        UI-only queue for phase-level actions. Simulation mutations stay deferred until persistence and audit plumbing is in place.
+        Actions mutate the authoritative biotope immediately, then write audit
+        and budget records for the prototype player.
       </p>
+
+      <div class="sim-operator-status">
+        <%= cond do %>
+          <% not @intervention_status.owner? -> %>
+            <span class="sim-token sim-token--ghost">
+              Read-only: this biotope is not controlled by the prototype player.
+            </span>
+          <% @intervention_status.allowed? -> %>
+            <span class="sim-token">Intervention slot open</span>
+          <% true -> %>
+            <span class="sim-token sim-token--ghost">
+              Budget locked for {format_duration(@intervention_status.remaining_seconds)}.
+            </span>
+        <% end %>
+      </div>
 
       <div class="sim-action-grid">
         <button
           type="button"
           class="sim-action-button"
-          phx-click="queue_intervention"
-          phx-value-kind="antibiotic_dose"
+          phx-click="apply_intervention"
+          phx-value-kind="nutrient_pulse"
+          disabled={@phase_actions_disabled}
         >
-          Dose antibiotic
+          Pulse nutrients
         </button>
         <button
           type="button"
           class="sim-action-button"
-          phx-click="queue_intervention"
+          phx-click="apply_intervention"
           phx-value-kind="plasmid_inoculation"
+          disabled={@phase_actions_disabled}
         >
           Inoculate plasmid
         </button>
         <button
           type="button"
           class="sim-action-button sim-action-button--wide"
-          phx-click="queue_intervention"
+          phx-click="apply_intervention"
           phx-value-kind="mixing_event"
           phx-value-scope="biotope"
+          disabled={@biotope_actions_disabled}
         >
           Trigger mixing event
         </button>
       </div>
 
+      <%= if @operator_error do %>
+        <p class="sim-muted mt-4">{@operator_error}</p>
+      <% end %>
+
       <div class="mt-4">
-        <div class="sim-card__eyebrow mb-2">Queued intents</div>
+        <div class="sim-card__eyebrow mb-2">Executed interventions</div>
         <%= if @operator_log == [] do %>
-          <p class="sim-muted">No operator intents recorded in this session.</p>
+          <p class="sim-muted">No interventions executed in this session yet.</p>
         <% else %>
           <div class="space-y-2">
             <div :for={entry <- @operator_log} class="sim-operator-entry">
@@ -694,6 +815,18 @@ defmodule ArkeaWeb.SimLive do
     _ -> {nil, %{}}
   end
 
+  defp page_title(nil, biotope_id), do: "Arkea Biotope · #{short_id(biotope_id || "")}"
+
+  defp page_title(%BiotopeState{} = state, _biotope_id) do
+    "Arkea Biotope · " <> phase_label(state.archetype)
+  end
+
+  defp biotope_nav_label(nil, biotope_id), do: "Biotope " <> short_id(biotope_id || "")
+
+  defp biotope_nav_label(%BiotopeState{} = state, _biotope_id) do
+    phase_label(state.archetype)
+  end
+
   defp assign_scene_snapshot(%{assigns: %{sim_state: nil}} = socket) do
     assign(socket, scene_snapshot_json: "{}")
   end
@@ -777,6 +910,18 @@ defmodule ArkeaWeb.SimLive do
 
   defp prepend_operator_log(log, entry), do: [entry | log] |> Enum.take(@max_operator_log)
 
+  defp default_intervention_status do
+    %{allowed?: false, owner?: false, retry_at: nil, remaining_seconds: 0, last_kind: nil}
+  end
+
+  defp intervention_status(_player, nil), do: default_intervention_status()
+
+  defp intervention_status(player, biotope_id) do
+    PlayerInterventions.status(player.id, biotope_id)
+  rescue
+    _ -> default_intervention_status()
+  end
+
   defp format_event(%{type: :lineage_born, payload: %{lineage_id: id, tick: tick}}) do
     {"◉", "green", "Lineage born", short_id(id), tick}
   end
@@ -789,10 +934,81 @@ defmodule ArkeaWeb.SimLive do
     {"⇢", "amber", "Horizontal transfer", short_id(id), tick}
   end
 
+  defp format_event(%{type: :intervention, payload: payload}) do
+    kind = Map.get(payload, :kind) || Map.get(payload, "kind") || "intervention"
+    lineage_id = Map.get(payload, :lineage_id) || Map.get(payload, "lineage_id") || ""
+    tick = Map.get(payload, :tick) || Map.get(payload, "tick") || "?"
+    {"✦", "sky", intervention_label(kind), short_id(lineage_id), tick}
+  end
+
   defp format_event(%{type: type, payload: payload}) do
     {"·", "slate", phase_label(type), short_id(Map.get(payload, :lineage_id, "")),
      Map.get(payload, :tick, "?")}
   end
+
+  defp intervention_command(%{"kind" => kind} = params, selected_phase_name) do
+    with {:ok, parsed_kind} <- parse_intervention_kind(kind),
+         {:ok, scope} <- parse_intervention_scope(Map.get(params, "scope", "phase")) do
+      command =
+        %{kind: parsed_kind, scope: scope}
+        |> maybe_put_phase_name(scope, selected_phase_name)
+
+      if scope == :phase and is_nil(Map.get(command, :phase_name)) do
+        {:error, :invalid_phase}
+      else
+        {:ok, command}
+      end
+    end
+  end
+
+  defp parse_intervention_kind("nutrient_pulse"), do: {:ok, :nutrient_pulse}
+  defp parse_intervention_kind("plasmid_inoculation"), do: {:ok, :plasmid_inoculation}
+  defp parse_intervention_kind("mixing_event"), do: {:ok, :mixing_event}
+  defp parse_intervention_kind(_kind), do: {:error, :unknown_intervention}
+
+  defp parse_intervention_scope("biotope"), do: {:ok, :biotope}
+  defp parse_intervention_scope("phase"), do: {:ok, :phase}
+  defp parse_intervention_scope(nil), do: {:ok, :phase}
+  defp parse_intervention_scope(_scope), do: {:error, :unknown_scope}
+
+  defp maybe_put_phase_name(command, :phase, phase_name) when is_atom(phase_name) do
+    Map.put(command, :phase_name, phase_name)
+  end
+
+  defp maybe_put_phase_name(command, _scope, _phase_name), do: command
+
+  defp operator_entry(command, %{payload: payload}) do
+    scope =
+      case Map.get(command, :scope, :phase) do
+        :biotope -> "Whole biotope"
+        _ -> phase_label(Map.get(command, :phase_name))
+      end
+
+    %{
+      id: System.unique_integer([:positive]),
+      kind: intervention_label(Map.get(payload, :kind) || Map.get(payload, "kind")),
+      scope: scope,
+      tick: Map.get(payload, :tick) || Map.get(payload, "tick")
+    }
+  end
+
+  defp intervention_error_message(:forbidden),
+    do: "This biotope is not controlled by the prototype player."
+
+  defp intervention_error_message(:budget_locked),
+    do: "Intervention budget locked for this biotope."
+
+  defp intervention_error_message(:invalid_phase),
+    do: "The selected phase is no longer available."
+
+  defp intervention_error_message(:no_lineage_host),
+    do: "No suitable lineage host is present in the focused phase."
+
+  defp intervention_error_message(:persistence_failed),
+    do: "The intervention executed, but its budget record could not be persisted."
+
+  defp intervention_error_message(reason) when is_atom(reason),
+    do: "Intervention failed: #{reason |> Atom.to_string() |> humanize_string()}."
 
   defp selected_phase(%BiotopeState{phases: phases}, phase_name) do
     Enum.find(phases, &(&1.name == phase_name)) || List.first(phases)
@@ -912,7 +1128,7 @@ defmodule ArkeaWeb.SimLive do
     Enum.at(palette, rem(:erlang.phash2(lineage_id), length(palette)))
   end
 
-  defp intervention_label("antibiotic_dose"), do: "Antibiotic dose"
+  defp intervention_label("nutrient_pulse"), do: "Nutrient pulse"
   defp intervention_label("plasmid_inoculation"), do: "Plasmid inoculation"
   defp intervention_label("mixing_event"), do: "Mixing event"
   defp intervention_label(kind) when is_binary(kind), do: humanize_string(kind)
@@ -925,6 +1141,12 @@ defmodule ArkeaWeb.SimLive do
 
   defp format_float(value, decimals) when is_float(value),
     do: :erlang.float_to_binary(value, decimals: decimals)
+
+  defp format_duration(seconds) when is_integer(seconds) and seconds >= 0 do
+    minutes = div(seconds, 60)
+    secs = rem(seconds, 60)
+    "#{minutes}m #{String.pad_leading(Integer.to_string(secs), 2, "0")}s"
+  end
 
   defp humanize_string(value) when is_binary(value) do
     value
