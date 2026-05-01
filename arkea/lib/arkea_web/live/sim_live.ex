@@ -91,11 +91,12 @@ defmodule ArkeaWeb.SimLive do
       <% else %>
         <.sim_header sim_state={@sim_state} />
         <div class="flex gap-4 mt-4">
-          <div class="w-[70%]">
+          <div class="w-[65%]">
             <.lineage_table sim_state={@sim_state} phenotype_cache={@phenotype_cache} />
           </div>
-          <div class="w-[30%]">
+          <div class="w-[35%] flex flex-col gap-4">
             <.event_log_panel event_log={@event_log} />
+            <.metabolite_panel sim_state={@sim_state} />
           </div>
         </div>
       <% end %>
@@ -173,13 +174,14 @@ defmodule ArkeaWeb.SimLive do
               <th class="text-left px-3 py-2">Abundance</th>
               <th class="text-right px-3 py-2 w-20">Growth</th>
               <th class="text-right px-3 py-2 w-20">Repair</th>
+              <th class="text-right px-3 py-2 w-12">Plas.</th>
               <th class="text-right px-3 py-2 w-16">Tick born</th>
             </tr>
           </thead>
           <tbody>
             <%= if @sorted_lineages == [] do %>
               <tr>
-                <td colspan="6" class="text-center text-gray-600 py-8">No lineages</td>
+                <td colspan="7" class="text-center text-gray-600 py-8">No lineages</td>
               </tr>
             <% else %>
               <.lineage_row
@@ -220,6 +222,14 @@ defmodule ArkeaWeb.SimLive do
         do: :erlang.float_to_binary(phenotype.repair_efficiency, decimals: 2),
         else: "—"
 
+    plasmid_count = if lineage.genome, do: length(lineage.genome.plasmids), else: 0
+    plasmid_str = if plasmid_count > 0, do: to_string(plasmid_count), else: "—"
+
+    row_class =
+      if plasmid_count > 0,
+        do: "border-b border-gray-800 hover:bg-gray-800 bg-orange-950/20 transition-colors",
+        else: "border-b border-gray-800 hover:bg-gray-800 transition-colors"
+
     assigns =
       assign(assigns,
         short_id: short_id,
@@ -227,11 +237,13 @@ defmodule ArkeaWeb.SimLive do
         abundance: abundance,
         pct: pct,
         growth_str: growth_str,
-        repair_str: repair_str
+        repair_str: repair_str,
+        plasmid_str: plasmid_str,
+        row_class: row_class
       )
 
     ~H"""
-    <tr class="border-b border-gray-800 hover:bg-gray-800 transition-colors">
+    <tr class={@row_class}>
       <td class="px-3 py-1 text-green-400">{@short_id}</td>
       <td class="px-3 py-1 text-gray-500">{@short_parent}</td>
       <td class="px-3 py-1">
@@ -247,6 +259,7 @@ defmodule ArkeaWeb.SimLive do
       </td>
       <td class="px-3 py-1 text-right text-yellow-300">{@growth_str}</td>
       <td class="px-3 py-1 text-right text-purple-300">{@repair_str}</td>
+      <td class="px-3 py-1 text-right text-orange-300">{@plasmid_str}</td>
       <td class="px-3 py-1 text-right text-gray-500">{@lineage.created_at_tick}</td>
     </tr>
     """
@@ -338,9 +351,59 @@ defmodule ArkeaWeb.SimLive do
     {"○", "text-red-400", "Extinct", String.slice(id, 0, 8), tick}
   end
 
+  defp format_event(%{type: :hgt_transfer, payload: %{lineage_id: id, tick: tick}}) do
+    {"⇢", "text-orange-400", "HGT", String.slice(id, 0, 8), tick}
+  end
+
   defp format_event(%{type: type, payload: payload}) do
     tick = Map.get(payload, :tick, "?")
     id = Map.get(payload, :lineage_id, "") |> String.slice(0, 8)
     {"·", "text-gray-500", to_string(type), id, tick}
+  end
+
+  defp metabolite_panel(assigns) do
+    ~H"""
+    <div class="bg-gray-900 border border-gray-700 rounded">
+      <div class="px-3 py-2 border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wider">
+        Metabolite pools
+      </div>
+      <div class="p-2 space-y-3 overflow-y-auto max-h-48">
+        <%= if @sim_state.phases == [] do %>
+          <p class="text-gray-600 text-xs text-center py-2">No phases</p>
+        <% else %>
+          <.phase_pool :for={phase <- @sim_state.phases} phase={phase} />
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp phase_pool(assigns) do
+    top =
+      assigns.phase.metabolite_pool
+      |> Enum.filter(fn {_k, v} -> v > 0.01 end)
+      |> Enum.sort_by(fn {_k, v} -> v end, :desc)
+      |> Enum.take(6)
+
+    assigns = assign(assigns, top_metabolites: top)
+
+    ~H"""
+    <div>
+      <div class="text-gray-500 text-xs mb-1 uppercase tracking-wider">{@phase.name}</div>
+      <%= if @top_metabolites == [] do %>
+        <span class="text-gray-700 text-xs italic">depleted</span>
+      <% else %>
+        <div class="flex flex-wrap gap-1">
+          <span
+            :for={{met, conc} <- @top_metabolites}
+            class="inline-flex items-center gap-1 text-xs bg-gray-800 rounded px-1.5 py-0.5"
+          >
+            <span class="text-teal-400">{met}</span>
+            <span class="text-gray-400">{:erlang.float_to_binary(conc, decimals: 1)}</span>
+          </span>
+        </div>
+      <% end %>
+    </div>
+    """
   end
 end

@@ -358,16 +358,23 @@ defmodule Arkea.Sim.Tick do
       from `old_state`.
     - `:lineage_extinct` for every lineage id present in `old_state` but absent
       from `new_state`.
+
+  Phase 6 adds:
+
+    - `:hgt_transfer` for every new lineage whose parent carried fewer plasmids,
+      indicating a successful conjugation event (transconjugant detected).
   """
   @spec derive_events(BiotopeState.t(), BiotopeState.t()) :: [event()]
   def derive_events(%BiotopeState{} = old_state, %BiotopeState{} = new_state) do
     old_ids = MapSet.new(old_state.lineages, & &1.id)
     new_ids = MapSet.new(new_state.lineages, & &1.id)
+    old_by_id = Map.new(old_state.lineages, fn l -> {l.id, l} end)
+
+    born_lineages =
+      Enum.filter(new_state.lineages, fn l -> not MapSet.member?(old_ids, l.id) end)
 
     born_events =
-      new_state.lineages
-      |> Enum.filter(fn l -> not MapSet.member?(old_ids, l.id) end)
-      |> Enum.map(fn l ->
+      Enum.map(born_lineages, fn l ->
         %{
           type: :lineage_born,
           payload: %{
@@ -388,11 +395,47 @@ defmodule Arkea.Sim.Tick do
         }
       end)
 
-    born_events ++ extinct_events
+    hgt_events =
+      Enum.flat_map(born_lineages, fn l ->
+        detect_hgt_transfer(l, old_by_id, new_state.tick_count)
+      end)
+
+    born_events ++ extinct_events ++ hgt_events
   end
 
   # ---------------------------------------------------------------------------
   # Private helpers
+
+  # Emit a :hgt_transfer event if the new lineage gained plasmids vs its parent.
+  defp detect_hgt_transfer(%{parent_id: nil}, _old_by_id, _tick), do: []
+  defp detect_hgt_transfer(%{genome: nil}, _old_by_id, _tick), do: []
+
+  defp detect_hgt_transfer(new_l, old_by_id, tick) do
+    gain = plasmid_count_gain(new_l.genome, Map.get(old_by_id, new_l.parent_id))
+
+    if gain > 0 do
+      [
+        %{
+          type: :hgt_transfer,
+          payload: %{
+            lineage_id: new_l.id,
+            parent_id: new_l.parent_id,
+            plasmids_gained: gain,
+            tick: tick
+          }
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp plasmid_count_gain(_genome, nil), do: 0
+
+  defp plasmid_count_gain(new_genome, parent) do
+    parent_count = if parent.genome != nil, do: length(parent.genome.plasmids), else: 0
+    max(length(new_genome.plasmids) - parent_count, 0)
+  end
 
   defp increment_tick(%BiotopeState{tick_count: n} = state) do
     %{state | tick_count: n + 1}
