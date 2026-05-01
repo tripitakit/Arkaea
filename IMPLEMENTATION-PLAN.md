@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · (vedi §1bis).
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · Fase 11 ✅ (vedi §1bis). **Progetto completato.**
 
 ---
 
@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-01. Fase 10 committata (`fec12f6`). Sezione EN: pending sync dalla Fase 8 in poi.
+> Aggiornato: 2026-05-01. Fase 11 committata (vedi heading). Tutte le 11 fasi completate. Sezione EN: pending sync dalla Fase 8 in poi.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 

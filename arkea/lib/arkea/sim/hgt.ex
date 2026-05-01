@@ -270,17 +270,19 @@ defmodule Arkea.Sim.HGT do
   end
 
   # Execute a confirmed plasmid transfer: create a child lineage for the
-  # recipient and decrement the recipient's abundance by 1.
+  # recipient and decrement the recipient's abundance by 5.
   defp execute_transfer(donor, recipient, plasmid, phase_name, tick, lmap, children, rng) do
     child_genome = Genome.add_plasmid(recipient.genome, plasmid)
 
     # child tick must be strictly greater than parent (recipient) created_at_tick
     child_tick = max(tick + 1, recipient.created_at_tick + 1)
-    child_abundances = %{phase_name => 1}
+    # Seed the transconjugant with 5 units so it survives the dilution step
+    # in the same tick (floor(5 × (1 - rate)) ≥ 1 for any rate ≤ 0.80).
+    child_abundances = %{phase_name => 5}
     child = Lineage.new_child(recipient, child_genome, child_abundances, child_tick)
 
-    # Decrement recipient abundance by 1 (abundance conservation)
-    updated_recipient = decrement_abundance(recipient, phase_name, 1)
+    # Decrement recipient abundance by 5 (abundance conservation)
+    updated_recipient = decrement_abundance(recipient, phase_name, 5)
 
     # Ensure donor is also preserved in map (it may have been updated by prior step)
     lmap1 = Map.put(lmap, recipient.id, updated_recipient)
