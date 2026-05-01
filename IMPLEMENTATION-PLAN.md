@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-01. Sezione EN sincronizzata fino alla Fase 10.
+> Aggiornato: 2026-05-01. Fase 10 committata (`fec12f6`). Sezione EN: pending sync dalla Fase 8 in poi.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -387,7 +387,7 @@ Invarianti coperti (§6.2):
 
 **Suite finale**: `mix format` + `mix assets.build` + `mix test` → **124 properties, 209 tests, 0 failures**
 
-### Fase 10 — Persistenza completa ✅ completata (working tree, commit pending)
+### Fase 10 — Persistenza completa ✅ completata (commit `fec12f6`)
 
 **Decisioni di design** (`ecto-postgres-modeler` + `elixir-otp-architect`, 2026-05-01):
 
@@ -422,7 +422,10 @@ Invarianti coperti (§6.2):
 - Lo snapshot viene costruito **dal WAL già scritto**, non interrogando il processo live, così il worker resta idempotente e non dipende dall'esistenza del `Biotope.Server`
 - In caso di snapshot e migrazione nello stesso tick, il recovery continua a privilegiare il WAL; lo snapshot serve come checkpoint periodico e viene riallineato via upsert
 
-**Suite finale**: `mix format --check-formatted` + `mix test` → **124 properties, 213 tests, 0 failures**
+**Note credo** (fix applicati al commit `fec12f6`):
+- `phase_color` in `sim_live.ex` (CC 10 → map lookup); 6 nesting depth in `migration.ex` (helper estratti: `plan_phase_transfer`, `distribute_by_scores`, `move_pool_key`, `apply_lineage_delta`, `correct_last_float`, semplificazione `allocate_integer_by_weights`); alias order in `application.ex` e `store.ex`; nesting in `recovery.ex` (`recover_one`)
+
+**Suite finale**: `mix format --check-formatted` · `mix credo --strict` · `mix test` → **124 properties, 213 tests, 0 failures**
 
 ---
 
