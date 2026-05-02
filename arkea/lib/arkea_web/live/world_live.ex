@@ -1,11 +1,10 @@
 defmodule ArkeaWeb.WorldLive do
   @moduledoc """
-  Macroscala world overview for active prototype biotopes.
+  Macroscala world overview for active player-controlled biotopes.
   """
 
   use ArkeaWeb, :live_view
 
-  alias Arkea.Game.PrototypePlayer
   alias Arkea.Game.SeedLab
   alias Arkea.Game.World
   alias ArkeaWeb.GameChrome
@@ -143,13 +142,13 @@ defmodule ArkeaWeb.WorldLive do
               </div>
 
               <p class="sim-muted">
-                The prototype player can provision one starter home biotope from the seed lab, then jump into the detailed biotope viewport for realtime evolution.
+                This player can provision one starter home biotope from the seed lab, then jump into the detailed biotope viewport for realtime evolution.
               </p>
 
               <div class="world-cta-stack mt-4">
                 <.link href={~p"/seed-lab"} class="sim-action-button sim-action-button--wide">
                   <%= if @overview.owned_count > 0 do %>
-                    Reopen seed lab prototype
+                    Reopen seed lab
                   <% else %>
                     Open seed lab
                   <% end %>
@@ -160,7 +159,7 @@ defmodule ArkeaWeb.WorldLive do
                   href={~p"/biotopes/#{@overview.focus_biotope_id}"}
                   class="sim-action-button sim-action-button--wide"
                 >
-                  Inspect demo biotope
+                  Inspect active biotope
                 </.link>
               </div>
             </section>
@@ -231,10 +230,12 @@ defmodule ArkeaWeb.WorldLive do
   end
 
   defp refresh(socket) do
+    player = socket.assigns.current_player
+
     assign(socket,
-      overview: World.overview(),
+      overview: World.overview(player.id),
       starter_ecotypes: SeedLab.starter_ecotypes(),
-      player: PrototypePlayer.profile(),
+      player: player,
       page_title: "Arkea World"
     )
   end

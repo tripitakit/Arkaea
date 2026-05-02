@@ -15,9 +15,8 @@ defmodule ArkeaWeb.SimLive do
 
   use ArkeaWeb, :live_view
 
-  alias Arkea.Game.PlayerInterventions
-  alias Arkea.Game.PrototypePlayer
   alias Arkea.Ecology.Lineage
+  alias Arkea.Game.PlayerInterventions
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
@@ -32,7 +31,7 @@ defmodule ArkeaWeb.SimLive do
      assign(socket,
        biotope_id: nil,
        sim_state: nil,
-       player: PrototypePlayer.profile(),
+       player: socket.assigns.current_player,
        phenotype_cache: %{},
        selected_phase_name: nil,
        event_log: [],
@@ -506,14 +505,14 @@ defmodule ArkeaWeb.SimLive do
 
       <p class="sim-muted mb-4">
         Actions mutate the authoritative biotope immediately, then write audit
-        and budget records for the prototype player.
+        and budget records for the current player.
       </p>
 
       <div class="sim-operator-status">
         <%= cond do %>
           <% not @intervention_status.owner? -> %>
             <span class="sim-token sim-token--ghost">
-              Read-only: this biotope is not controlled by the prototype player.
+              Read-only: this biotope is not controlled by the current player.
             </span>
           <% @intervention_status.allowed? -> %>
             <span class="sim-token">Intervention slot open</span>
@@ -993,7 +992,7 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp intervention_error_message(:forbidden),
-    do: "This biotope is not controlled by the prototype player."
+    do: "This biotope is not controlled by the current player."
 
   defp intervention_error_message(:budget_locked),
     do: "Intervention budget locked for this biotope."

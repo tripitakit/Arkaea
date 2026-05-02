@@ -8,10 +8,10 @@ defmodule ArkeaWeb.SimLiveTest do
   alias Arkea.Game.World
   alias Arkea.Sim.SeedScenario
 
-  setup do
+  setup %{conn: conn} do
     cleanup_owned_biotopes()
     on_exit(&cleanup_owned_biotopes/0)
-    :ok
+    {:ok, conn: log_in_prototype_player(conn)}
   end
 
   test "phase selector updates the focused phase", %{conn: conn} do

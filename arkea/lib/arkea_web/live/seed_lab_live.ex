@@ -1,13 +1,12 @@
 defmodule ArkeaWeb.SeedLabLive do
   @moduledoc """
-  Phenotype-first seed builder for the prototype player.
+  Phenotype-first seed builder for the authenticated player.
   """
 
   use ArkeaWeb, :live_view
 
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
-  alias Arkea.Game.PrototypePlayer
   alias Arkea.Game.SeedLab
   alias ArkeaWeb.GameChrome
 
@@ -16,7 +15,7 @@ defmodule ArkeaWeb.SeedLabLive do
     {:ok,
      socket
      |> assign(
-       player: PrototypePlayer.profile(),
+       player: socket.assigns.current_player,
        starter_ecotypes: SeedLab.starter_ecotypes(),
        metabolism_profiles: SeedLab.metabolism_profiles(),
        membrane_profiles: SeedLab.membrane_profiles(),
@@ -171,7 +170,7 @@ defmodule ArkeaWeb.SeedLabLive do
        )
        |> apply_form(%{})}
     else
-      case SeedLab.provision_home(params) do
+      case SeedLab.provision_home(socket.assigns.player, params) do
         {:ok, biotope_id} ->
           {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
 
@@ -959,7 +958,7 @@ defmodule ArkeaWeb.SeedLabLive do
   end
 
   defp apply_form(socket, params) do
-    case SeedLab.locked_seed() do
+    case SeedLab.locked_seed(socket.assigns.player) do
       %{params: locked_params, preview: preview, biotope_id: biotope_id} ->
         socket
         |> assign(
@@ -980,13 +979,13 @@ defmodule ArkeaWeb.SeedLabLive do
           |> Map.get(:seed_params, SeedLab.form_defaults())
           |> Map.merge(Map.new(params))
 
-        preview = SeedLab.preview(merged)
+        preview = SeedLab.preview(merged, socket.assigns.player)
 
         socket
         |> assign(
           form: to_form(merged, as: :seed),
           preview: preview,
-          can_provision_home?: SeedLab.can_provision_home?(),
+          can_provision_home?: SeedLab.can_provision_home?(socket.assigns.player),
           seed_locked?: false,
           home_biotope_id: nil,
           seed_params: merged,

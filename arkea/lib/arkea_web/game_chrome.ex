@@ -28,6 +28,9 @@ defmodule ArkeaWeb.GameChrome do
 
       <div :if={@player_name} class="game-nav__operator">
         Operator <span>{@player_name}</span>
+        <.link href={~p"/players/log-out"} class="game-nav__link">
+          Log out
+        </.link>
       </div>
     </nav>
     """

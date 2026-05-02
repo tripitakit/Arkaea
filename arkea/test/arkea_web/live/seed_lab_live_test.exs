@@ -10,10 +10,10 @@ defmodule ArkeaWeb.SeedLabLiveTest do
   alias Arkea.Game.SeedLab
   alias Arkea.Game.World
 
-  setup do
+  setup %{conn: conn} do
     cleanup_owned_biotopes()
     on_exit(&cleanup_owned_biotopes/0)
-    :ok
+    {:ok, conn: log_in_prototype_player(conn)}
   end
 
   test "seed lab updates the ecotype preview", %{conn: conn} do

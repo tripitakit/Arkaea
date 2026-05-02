@@ -35,4 +35,19 @@ defmodule ArkeaWeb.ConnCase do
     Arkea.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  alias Arkea.Game.PlayerAssets
+  alias Arkea.Game.PrototypePlayer
+  alias ArkeaWeb.PlayerAuth
+
+  def log_in_player(conn, player) do
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> PlayerAuth.log_in_player(player)
+  end
+
+  def log_in_prototype_player(conn) do
+    {:ok, player} = PlayerAssets.ensure_player(PrototypePlayer.profile())
+    log_in_player(conn, player)
+  end
 end

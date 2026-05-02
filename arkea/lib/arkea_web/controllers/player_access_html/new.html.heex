@@ -1,0 +1,59 @@
+<section class="space-y-8">
+  <div class="space-y-3">
+    <p class="text-sm uppercase tracking-[0.24em] text-base-content/60">Arkea game shell</p>
+    <h1 class="text-4xl font-semibold tracking-tight">
+      Create a player, design a seed, colonize a controlled biotope.
+    </h1>
+    <p class="text-base text-base-content/70">
+      This prototype now starts from a real player account instead of the fixed operator. Register a player, then enter the Seed Lab to build the first Arkeon and launch colonization.
+    </p>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="card bg-base-200 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Create player</h2>
+        <p class="text-sm text-base-content/70">
+          Creates a persistent player record used by seed provisioning, home-biotope ownership, and intervention audit.
+        </p>
+
+        <.form for={@register_form} action={~p"/players/register"} method="post" class="space-y-2">
+          <.input
+            field={@register_form[:display_name]}
+            label="Display name"
+            autocomplete="nickname"
+            required
+          />
+          <.input
+            field={@register_form[:email]}
+            type="email"
+            label="Email"
+            autocomplete="email"
+            required
+          />
+          <.button class="btn btn-primary w-full">Create player and enter world</.button>
+        </.form>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Resume player</h2>
+        <p class="text-sm text-base-content/70">
+          Prototype access is email-based only. Re-enter the same email to reopen world, seed, and controlled biotopes for that player.
+        </p>
+
+        <.form for={@login_form} action={~p"/players/log-in"} method="post" class="space-y-2">
+          <.input
+            field={@login_form[:email]}
+            type="email"
+            label="Email"
+            autocomplete="email"
+            required
+          />
+          <.button class="btn btn-outline w-full">Resume existing player</.button>
+        </.form>
+      </div>
+    </div>
+  </div>
+</section>

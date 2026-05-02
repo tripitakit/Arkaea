@@ -298,7 +298,21 @@ defmodule Arkea.Game.SeedLab do
           }
           | nil
   def locked_seed do
-    case PlayerAssets.active_home_with_blueprint(PrototypePlayer.id()) do
+    locked_seed(PrototypePlayer.profile())
+  end
+
+  @spec locked_seed(%{id: binary()} | binary()) ::
+          %{
+            biotope_id: binary(),
+            blueprint_id: binary(),
+            params: map(),
+            preview: preview()
+          }
+          | nil
+  def locked_seed(player_or_id) do
+    player_profile = normalize_player_profile(player_or_id)
+
+    case PlayerAssets.active_home_with_blueprint(player_profile.id) do
       %PlayerBiotope{
         biotope_id: biotope_id,
         source_blueprint: %ArkeonBlueprint{} = blueprint
@@ -309,7 +323,7 @@ defmodule Arkea.Game.SeedLab do
           biotope_id: biotope_id,
           blueprint_id: blueprint.id,
           params: params,
-          preview: locked_preview(blueprint, params)
+          preview: locked_preview(blueprint, params, player_profile)
         }
 
       _ ->
@@ -318,34 +332,49 @@ defmodule Arkea.Game.SeedLab do
   end
 
   @spec can_provision_home?() :: boolean()
-  def can_provision_home? do
-    is_nil(PlayerAssets.active_home(PrototypePlayer.id()))
+  def can_provision_home?, do: can_provision_home?(PrototypePlayer.profile())
+
+  @spec can_provision_home?(%{id: binary()} | binary()) :: boolean()
+  def can_provision_home?(player_or_id) do
+    is_nil(PlayerAssets.active_home(player_id(player_or_id)))
   end
 
   @spec owned_biotopes() :: [World.biotope_summary()]
-  def owned_biotopes do
-    World.list_biotopes(PrototypePlayer.id())
+  def owned_biotopes, do: owned_biotopes(PrototypePlayer.profile())
+
+  @spec owned_biotopes(%{id: binary()} | binary()) :: [World.biotope_summary()]
+  def owned_biotopes(player_or_id) do
+    World.list_biotopes(player_id(player_or_id))
     |> Enum.filter(&(&1.ownership == :player_controlled))
   end
 
   @spec preview(map()) :: preview()
-  def preview(params) when is_map(params) do
+  def preview(params) when is_map(params), do: preview(params, PrototypePlayer.profile())
+
+  @spec preview(map(), %{id: binary(), display_name: binary()} | binary()) :: preview()
+  def preview(params, player_or_profile) when is_map(params) do
     spec = normalize_params(params)
     genome = build_genome(spec)
-    build_preview(spec, genome)
+    build_preview(spec, genome, normalize_player_profile(player_or_profile))
   end
 
   @spec provision_home(map()) :: {:ok, binary()} | {:error, %{atom() => binary()}}
-  def provision_home(params) when is_map(params) do
+  def provision_home(params) when is_map(params),
+    do: provision_home(PrototypePlayer.profile(), params)
+
+  @spec provision_home(%{id: binary(), display_name: binary(), email: binary()}, map()) ::
+          {:ok, binary()} | {:error, %{atom() => binary()}}
+  def provision_home(player_profile, params) when is_map(player_profile) and is_map(params) do
     spec = normalize_params(params)
+    player_profile = normalize_player_profile(player_profile)
 
     with :ok <- validate(spec),
-         :ok <- ensure_home_slot_available() do
-      do_provision(spec)
+         :ok <- ensure_home_slot_available(player_profile.id) do
+      do_provision(player_profile, spec)
     end
   end
 
-  defp do_provision(spec) do
+  defp do_provision(player_profile, spec) do
     ecotype = starter_ecotype(spec.starter_archetype)
     {x, y} = World.spawn_coords(spec.starter_archetype)
     neighbors = candidate_neighbors(spec.starter_archetype, {x, y})
@@ -360,7 +389,7 @@ defmodule Arkea.Game.SeedLab do
         x: x,
         y: y,
         zone: ecotype.zone,
-        owner_player_id: PrototypePlayer.id(),
+        owner_player_id: player_profile.id,
         neighbor_ids: Enum.map(neighbors, & &1.id),
         phases: phases,
         dilution_rate: mean_dilution(phases),
@@ -370,8 +399,8 @@ defmodule Arkea.Game.SeedLab do
 
     with {:ok, _pid} <- BiotopeSupervisor.start_biotope(state),
          {:ok, _changes} <-
-           PlayerAssets.register_home(PrototypePlayer.profile(), spec, genome, state) do
-      _ = persist_seed_transition(state, lineage, spec)
+           PlayerAssets.register_home(player_profile, spec, genome, state) do
+      _ = persist_seed_transition(state, lineage, spec, player_profile)
       Phoenix.PubSub.broadcast(Arkea.PubSub, "world:registry", {:world_changed, state.id})
       {:ok, state.id}
     else
@@ -385,7 +414,7 @@ defmodule Arkea.Game.SeedLab do
     end
   end
 
-  defp persist_seed_transition(state, lineage, spec) do
+  defp persist_seed_transition(state, lineage, spec, player_profile) do
     Store.persist_transition(
       state,
       [
@@ -395,8 +424,8 @@ defmodule Arkea.Game.SeedLab do
             lineage_id: lineage.id,
             seed_name: spec.seed_name,
             starter_archetype: Atom.to_string(spec.starter_archetype),
-            actor: PrototypePlayer.display_name(),
-            actor_player_id: PrototypePlayer.id(),
+            actor: player_profile.display_name,
+            actor_player_id: player_profile.id,
             kind: "seed_provisioned"
           }
         }
@@ -418,11 +447,11 @@ defmodule Arkea.Game.SeedLab do
     if map_size(errors) == 0, do: :ok, else: {:error, errors}
   end
 
-  defp ensure_home_slot_available do
-    if can_provision_home?() do
+  defp ensure_home_slot_available(player_id) do
+    if can_provision_home?(player_id) do
       :ok
     else
-      {:error, %{starter_archetype: "Prototype player already owns a home biotope."}}
+      {:error, %{starter_archetype: "This player already owns a home biotope."}}
     end
   end
 
@@ -457,16 +486,16 @@ defmodule Arkea.Game.SeedLab do
 
   defp changeset_errors(_reason), do: %{starter_archetype: "Could not persist player home."}
 
-  defp locked_preview(%ArkeonBlueprint{} = blueprint, params) do
+  defp locked_preview(%ArkeonBlueprint{} = blueprint, params, player_profile) do
     spec = normalize_params(params)
 
     case ArkeonBlueprint.load_genome(blueprint.genome_binary) do
-      {:ok, genome} -> build_preview(spec, genome)
-      _ -> build_preview(spec, build_genome(spec))
+      {:ok, genome} -> build_preview(spec, genome, player_profile)
+      _ -> build_preview(spec, build_genome(spec), player_profile)
     end
   end
 
-  defp build_preview(spec, %Genome{} = genome) do
+  defp build_preview(spec, %Genome{} = genome, player_profile) do
     ecotype = starter_ecotype(spec.starter_archetype)
     phenotype = Phenotype.from_genome(genome)
     {x, y} = World.spawn_coords(spec.starter_archetype)
@@ -475,7 +504,7 @@ defmodule Arkea.Game.SeedLab do
 
     %{
       spec: spec,
-      player: PrototypePlayer.profile(),
+      player: player_profile,
       ecotype: ecotype,
       phenotype: phenotype,
       genome: genome,
@@ -492,6 +521,18 @@ defmodule Arkea.Game.SeedLab do
       phase_count: length(phase_names)
     }
   end
+
+  defp normalize_player_profile(%{id: id, display_name: display_name, email: email})
+       when is_binary(id) and is_binary(display_name) and is_binary(email) do
+    %{id: id, display_name: display_name, email: email}
+  end
+
+  defp normalize_player_profile(player_id) when is_binary(player_id) do
+    %{id: player_id, display_name: "Player", email: "player@arkea.local"}
+  end
+
+  defp player_id(%{id: id}) when is_binary(id), do: id
+  defp player_id(id) when is_binary(id), do: id
 
   defp build_seed_phases(archetype) do
     pool = starting_pool(archetype)

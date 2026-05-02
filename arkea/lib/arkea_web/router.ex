@@ -1,6 +1,8 @@
 defmodule ArkeaWeb.Router do
   use ArkeaWeb, :router
 
+  import ArkeaWeb.PlayerAuth
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -8,6 +10,15 @@ defmodule ArkeaWeb.Router do
     plug :put_root_layout, html: {ArkeaWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_player
+  end
+
+  pipeline :redirect_if_authenticated do
+    plug :redirect_if_authenticated_player
+  end
+
+  pipeline :require_authenticated do
+    plug :require_authenticated_player
   end
 
   pipeline :api do
@@ -15,12 +26,24 @@ defmodule ArkeaWeb.Router do
   end
 
   scope "/", ArkeaWeb do
-    pipe_through :browser
+    pipe_through [:browser, :redirect_if_authenticated]
 
-    live "/", WorldLive
-    live "/world", WorldLive
-    live "/seed-lab", SeedLabLive
-    live "/biotopes/:id", SimLive
+    get "/", PlayerAccessController, :new
+    post "/players/register", PlayerAccessController, :create
+    post "/players/log-in", PlayerAccessController, :log_in
+  end
+
+  scope "/", ArkeaWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    get "/players/log-out", PlayerAccessController, :delete
+
+    live_session :player_authenticated,
+      on_mount: [{ArkeaWeb.PlayerAuth, :ensure_authenticated}] do
+      live "/world", WorldLive
+      live "/seed-lab", SeedLabLive
+      live "/biotopes/:id", SimLive
+    end
   end
 
   # Other scopes may use custom stacks.
