@@ -292,7 +292,8 @@ export const BiotopeScene = {
       if (used >= particleBudget) return
 
       const abundance = lineage.phaseAbundance?.[phaseBound.name] || 0
-      let particleCount = Math.round((abundance / totalInPhase) * particleBudget)
+      const fraction = totalInPhase > 0 ? abundance / totalInPhase : 0
+      let particleCount = Math.round(fraction * particleBudget)
 
       if (particleCount === 0 && abundance > 0 && used < particleBudget * 0.75) {
         particleCount = 1
@@ -306,7 +307,7 @@ export const BiotopeScene = {
         const rng = mulberry32(hashString(seed))
         const x = phaseBound.x + 18 + rng() * Math.max(phaseBound.width - 36, 10)
         const y = phaseBound.y + 22 + rng() * Math.max(phaseBound.height - 44, 10)
-        const baseRadius = 1.6 + rng() * 3.2
+        const baseRadius = 1.2 + fraction * 5.5 + rng() * 0.5
 
         const particle = new Graphics()
         particle.x = x
