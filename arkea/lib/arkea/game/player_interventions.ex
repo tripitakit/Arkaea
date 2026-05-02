@@ -11,7 +11,7 @@ defmodule Arkea.Game.PlayerInterventions do
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Ecto.Changeset
 
-  @budget_cooldown_seconds 30 * 60
+  @budget_cooldown_seconds 60
 
   @type budget_status :: %{
           allowed?: boolean(),
