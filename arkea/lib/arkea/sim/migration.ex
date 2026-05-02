@@ -521,6 +521,8 @@ defmodule Arkea.Sim.Migration do
     end)
   end
 
+  defp put_lineage_delta(acc, _biotope_id, _lineage_id, _phase_name, _delta, _template), do: acc
+
   defp apply_lineage_delta(ensured, lineage_id, phase_name, delta, template) do
     updated_deltas =
       Map.update(ensured.lineage_deltas, lineage_id, %{phase_name => delta}, fn phase_deltas ->
@@ -536,8 +538,6 @@ defmodule Arkea.Sim.Migration do
 
     %{ensured | lineage_deltas: updated_deltas, lineage_templates: templates}
   end
-
-  defp put_lineage_delta(acc, _biotope_id, _lineage_id, _phase_name, _delta, _template), do: acc
 
   defp put_phase_resource_delta(acc, biotope_id, phase_name, kind, key, delta) when delta != 0 do
     update_in(acc, [biotope_id], fn transfer ->

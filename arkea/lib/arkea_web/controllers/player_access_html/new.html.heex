@@ -1,23 +1,76 @@
-<section class="space-y-8">
-  <div class="space-y-3">
-    <p class="text-sm uppercase tracking-[0.24em] text-base-content/60">Arkea game shell</p>
-    <h1 class="text-4xl font-semibold tracking-tight">
-      Create a player, design a seed, colonize a controlled biotope.
-    </h1>
-    <p class="text-base text-base-content/70">
-      This prototype now starts from a real player account instead of the fixed operator. Register a player, then enter the Seed Lab to build the first Arkeon and launch colonization.
-    </p>
-  </div>
+<div class="sim-shell" data-view="access">
+  <div class="sim-shell__aurora sim-shell__aurora--west"></div>
+  <div class="sim-shell__aurora sim-shell__aurora--east"></div>
+  <div class="sim-shell__grid"></div>
 
-  <div class="grid gap-6 lg:grid-cols-2">
-    <div class="card bg-base-200 shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title">Create player</h2>
-        <p class="text-sm text-base-content/70">
-          Creates a persistent player record used by seed provisioning, home-biotope ownership, and intervention audit.
+  <div class="sim-shell__content">
+    <nav class="game-nav access-nav">
+      <div class="game-nav__brand">
+        <span class="game-nav__brand-mark"></span>
+        <span>Arkea</span>
+      </div>
+
+      <div class="game-nav__links">
+        <span class="game-nav__link game-nav__link--active">Shared simulation</span>
+        <span class="game-nav__link">24/7 runtime</span>
+        <span class="game-nav__link">Player-seeded biotopes</span>
+      </div>
+
+      <div class="game-nav__operator">Create or resume a player</div>
+    </nav>
+
+    <section class="sim-hero access-hero mt-6">
+      <div>
+        <div class="sim-hero__eyebrow">Arkea simulation · splash shell</div>
+        <h1 class="sim-hero__title">Persistent shared biotope simulation</h1>
+        <p class="sim-hero__copy">
+          Create a player, design a seed, colonize a controlled biotope. This
+          entrypoint opens the same simulation shell used by the shared world,
+          seed engineering, and authoritative biotope views.
+        </p>
+      </div>
+
+      <div class="sim-stat-strip">
+        <div class="sim-stat-chip sim-stat-chip--gold">
+          <span class="sim-stat-chip__label">entry</span>
+          <span class="sim-stat-chip__value">player access</span>
+        </div>
+        <div class="sim-stat-chip sim-stat-chip--teal">
+          <span class="sim-stat-chip__label">build</span>
+          <span class="sim-stat-chip__value">custom seed</span>
+        </div>
+        <div class="sim-stat-chip sim-stat-chip--sky">
+          <span class="sim-stat-chip__label">deploy</span>
+          <span class="sim-stat-chip__value">home biotope</span>
+        </div>
+        <div class="sim-stat-chip sim-stat-chip--amber">
+          <span class="sim-stat-chip__label">runtime</span>
+          <span class="sim-stat-chip__value">server-authoritative</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="sim-main-grid access-main-grid mt-6">
+      <section class="sim-card access-card access-card--create">
+        <div class="sim-card__header">
+          <div>
+            <div class="sim-card__eyebrow">Player access</div>
+            <h2 class="sim-card__title">Create player</h2>
+          </div>
+          <div class="sim-card__meta">new session</div>
+        </div>
+
+        <p class="sim-muted access-card__lead">
+          Creates a persistent player record used by seed provisioning,
+          home-biotope ownership, and intervention audit.
         </p>
 
-        <.form for={@register_form} action={~p"/players/register"} method="post" class="space-y-2">
+        <.form
+          for={@register_form}
+          action={~p"/players/register"}
+          method="post"
+          class="access-form mt-4"
+        >
           <.input
             field={@register_form[:display_name]}
             label="Display name"
@@ -31,29 +84,80 @@
             autocomplete="email"
             required
           />
-          <.button class="btn btn-primary w-full">Create player and enter world</.button>
+          <.button class="access-submit w-full">Create player and enter world</.button>
         </.form>
-      </div>
-    </div>
+      </section>
 
-    <div class="card bg-base-200 shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title">Resume player</h2>
-        <p class="text-sm text-base-content/70">
-          Prototype access is email-based only. Re-enter the same email to reopen world, seed, and controlled biotopes for that player.
-        </p>
+      <div class="sim-sidebar access-sidebar">
+        <section class="sim-card access-card access-card--resume">
+          <div class="sim-card__header">
+            <div>
+              <div class="sim-card__eyebrow">Session resume</div>
+              <h2 class="sim-card__title">Resume player</h2>
+            </div>
+            <div class="sim-card__meta">email-only</div>
+          </div>
 
-        <.form for={@login_form} action={~p"/players/log-in"} method="post" class="space-y-2">
-          <.input
-            field={@login_form[:email]}
-            type="email"
-            label="Email"
-            autocomplete="email"
-            required
-          />
-          <.button class="btn btn-outline w-full">Resume existing player</.button>
-        </.form>
+          <p class="sim-muted access-card__lead">
+            Re-enter the same email to reopen the shared world, the seed lab,
+            and every controlled biotope owned by that player.
+          </p>
+
+          <.form
+            for={@login_form}
+            action={~p"/players/log-in"}
+            method="post"
+            class="access-form mt-4"
+          >
+            <.input
+              field={@login_form[:email]}
+              type="email"
+              label="Email"
+              autocomplete="email"
+              required
+            />
+            <.button class="access-submit access-submit--outline w-full" variant="primary">
+              Resume existing player
+            </.button>
+          </.form>
+        </section>
+
+        <section class="sim-card access-card access-card--brief">
+          <div class="sim-card__header">
+            <div>
+              <div class="sim-card__eyebrow">Simulation brief</div>
+              <h2 class="sim-card__title">What starts after login</h2>
+            </div>
+            <div class="sim-card__meta">shared runtime</div>
+          </div>
+
+          <div class="access-brief-grid">
+            <article class="access-brief-item">
+              <div class="sim-card__eyebrow">World</div>
+              <p class="access-brief-copy">
+                Shared map of active biotopes, ownership state, topology, and
+                ecotype inventory.
+              </p>
+            </article>
+
+            <article class="access-brief-item">
+              <div class="sim-card__eyebrow">Seed lab</div>
+              <p class="access-brief-copy">
+                Phenotype-first tuning, genome preview, custom gene design, and
+                first home-biotope placement.
+              </p>
+            </article>
+
+            <article class="access-brief-item">
+              <div class="sim-card__eyebrow">Biotope view</div>
+              <p class="access-brief-copy">
+                Realtime authoritative viewport with phase inspection,
+                procedural visualization, and audited interventions.
+              </p>
+            </article>
+          </div>
+        </section>
       </div>
     </div>
   </div>
-</section>
+</div>

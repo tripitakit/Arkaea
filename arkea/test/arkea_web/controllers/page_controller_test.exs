@@ -7,6 +7,7 @@ defmodule ArkeaWeb.PageControllerTest do
     conn = get(conn, ~p"/")
     html = html_response(conn, 200)
 
+    assert html =~ "Persistent shared biotope simulation"
     assert html =~ "Create player"
     assert html =~ "Resume player"
     assert html =~ "Create a player, design a seed, colonize a controlled biotope."
