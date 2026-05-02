@@ -1,18 +1,28 @@
-# Arkea
+# Arkea Phoenix app
 
-To start your Phoenix server:
+Applicazione Phoenix del prototipo Arkea.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## Avvio locale
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+```bash
+mix setup
+mix ecto.migrate
+mix phx.server
+```
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+Apri poi [`localhost:4000`](http://localhost:4000).
 
-## Learn more
+## Flusso corrente
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+- `/` — crea un player o riprendi un player esistente via email
+- `/world` — overview condivisa del network di biotopi
+- `/seed-lab` — costruzione del seed e provisioning del primo home biotope
+- `/biotopes/:id` — viewport realtime del biotopo controllato
+
+## Comandi utili
+
+```bash
+mix test
+mix assets.build
+mix format --check-formatted
+```

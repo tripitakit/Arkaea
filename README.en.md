@@ -2,17 +2,37 @@
 
 # Arkea
 
-Persistent MMO simulation of proto-bacterial organism evolution. The player designs an *Arkeon* (cellular structure + genome) and trains it in a shared ecosystem that evolves 24/7 server-side. Target audience: biologists, microbiologists, geneticists, molecular biologists.
+Persistent shared simulation of proto-bacterial organism evolution. Players create or resume an account, design an *Arkeon* seed (cellular structure + genome), and start colonization in a controlled biotope inside an ecosystem that evolves 24/7 server-side. Target audience: biologists, microbiologists, geneticists, molecular biologists.
 
-**Status**: consolidated design (15 blocks), validated by tabletop stress test, defined architecture. Ready for Phase 0 of implementation.
+**Status**: phases `0–11` completed. Operational web shell with player access, `World`, `Seed Lab`, authoritative biotope viewport, runtime persistence/recovery, and the “Chronicles” scenario reproduced on the prototype.
 
 **Stack**: Elixir + Phoenix (LiveView + Channels) · PostgreSQL via Ecto · PixiJS for the 2D WebGL view · prototype on DigitalOcean VPS.
+
+## Current shell
+
+- `/` — player access: account creation or email-based resume
+- `/world` — shared overview of the biotope network and active ecotypes
+- `/seed-lab` — seed construction, phenotype/genome editor, and first colonization
+- `/biotopes/:id` — realtime biotope viewport with telemetry, phase inspection, and authoritative interventions
+
+The web app remains a **shared simulation**, not a competitive game: no scoreboard, presence, or contest loop are part of the current runtime.
+
+## Quick local start
+
+```bash
+cd arkea
+mix setup
+mix ecto.migrate
+mix phx.server
+```
+
+Then open [`localhost:4000`](http://localhost:4000) and create or resume a player from route `/`.
 
 ## Documents
 
 - [DESIGN.en.md](DESIGN.en.md) — complete design document, 15 blocks (architecture, biological model, environment, population, engine, metabolic inventory, generative domain system, selective pressures, quorum sensing, network topology, time, micro/macroscale, anti-griefing, stack, integral use case)
 - [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md) — walk-through "Chronicles of a contested estuary" that validates design coherence by traversing all 15 blocks
-- [IMPLEMENTATION-PLAN.en.md](IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick), analysis of the discarded Event Sourcing alternative, roadmap of 12 incremental phases, development discipline
+- [IMPLEMENTATION-PLAN.en.md](IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick), analysis of the discarded Event Sourcing alternative, implemented roadmap, and consolidation notes on UI, persistence, and player onboarding
 
 ## Project subagents
 
