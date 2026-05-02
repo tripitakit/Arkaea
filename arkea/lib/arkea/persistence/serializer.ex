@@ -16,11 +16,12 @@ defmodule Arkea.Persistence.Serializer do
   """
   @spec load(binary()) :: {:ok, BiotopeState.t()} | {:error, atom() | tuple()}
   def load(binary) when is_binary(binary) do
-    case :erlang.binary_to_term(binary, [:safe]) do
+    case :erlang.binary_to_term(binary) do
       %BiotopeState{} = state -> {:ok, state}
       other -> {:error, {:unexpected_term, other}}
     end
   rescue
     ArgumentError -> {:error, :invalid_binary}
+    error in [ErlangError] -> {:error, {:erlang_error, error}}
   end
 end
