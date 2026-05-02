@@ -18,6 +18,7 @@ defmodule Arkea.Game.SeedLab do
   alias Arkea.Game.World
   alias Arkea.Genome
   alias Arkea.Genome.Domain
+  alias Arkea.Genome.Domain.Type, as: DomainType
   alias Arkea.Genome.Gene
   alias Arkea.Persistence.ArkeonBlueprint
   alias Arkea.Persistence.PlayerBiotope
@@ -122,13 +123,127 @@ defmodule Arkea.Game.SeedLab do
     }
   ]
 
+  @domain_palette [
+    %{
+      id: "substrate_binding",
+      label: "Substrate binding",
+      description: "Defines target metabolite affinity and breadth.",
+      runtime: :active
+    },
+    %{
+      id: "catalytic_site",
+      label: "Catalytic site",
+      description: "Adds catalytic turnover and reaction class.",
+      runtime: :active
+    },
+    %{
+      id: "transmembrane_anchor",
+      label: "Transmembrane anchor",
+      description: "Adds membrane insertion and pass count.",
+      runtime: :active
+    },
+    %{
+      id: "channel_pore",
+      label: "Channel / pore",
+      description: "Encodes transport selectivity and gating threshold.",
+      runtime: :latent
+    },
+    %{
+      id: "energy_coupling",
+      label: "Energy coupling",
+      description: "Defines ATP cost and proton-motive coupling.",
+      runtime: :active
+    },
+    %{
+      id: "dna_binding",
+      label: "DNA binding",
+      description: "Controls promoter affinity and sigma coupling.",
+      runtime: :active
+    },
+    %{
+      id: "regulator_output",
+      label: "Regulator output",
+      description: "Stores activator/repressor output logic for regulatory programs.",
+      runtime: :latent
+    },
+    %{
+      id: "ligand_sensor",
+      label: "Ligand sensor",
+      description: "Adds metabolite or signal sensing thresholds.",
+      runtime: :active
+    },
+    %{
+      id: "structural_fold",
+      label: "Structural fold",
+      description: "Adds stability and multimerization support.",
+      runtime: :active
+    },
+    %{
+      id: "surface_tag",
+      label: "Surface tag",
+      description: "Carries pilus/phage/surface identity tags.",
+      runtime: :active
+    },
+    %{
+      id: "repair_fidelity",
+      label: "Repair / fidelity",
+      description: "Tunes mismatch repair and mutator pressure.",
+      runtime: :active
+    }
+  ]
+
+  @intergenic_palette %{
+    expression: [
+      %{
+        id: "sigma_promoter",
+        label: "Sigma promoter",
+        description: "Basal promoter block for expression gating."
+      },
+      %{
+        id: "multi_sigma_operator",
+        label: "Multi-sigma operator",
+        description: "Overlapping operator logic for combinatorial expression."
+      },
+      %{
+        id: "metabolite_riboswitch",
+        label: "Metabolite riboswitch",
+        description: "Ligand-responsive translation gate in the regulatory block."
+      }
+    ],
+    transfer: [
+      %{
+        id: "orit_site",
+        label: "oriT site",
+        description: "Marks a transfer initiation hotspot for future mobility logic."
+      },
+      %{
+        id: "integration_hotspot",
+        label: "Integration hotspot",
+        description: "Marks an insertion/landing site for future mobile-element routing."
+      }
+    ],
+    duplication: [
+      %{
+        id: "repeat_array",
+        label: "Repeat array",
+        description: "Repetitive intergenic sequence biasing local duplications."
+      },
+      %{
+        id: "duplication_hotspot",
+        label: "Duplication hotspot",
+        description: "Marks a local locus for copy-and-expand events."
+      }
+    ]
+  }
+
   @defaults %{
     "seed_name" => "Aster-Seed",
     "starter_archetype" => "eutrophic_pond",
     "metabolism_profile" => "balanced",
     "membrane_profile" => "porous",
     "regulation_profile" => "responsive",
-    "mobile_module" => "none"
+    "mobile_module" => "none",
+    "custom_gene_payload" => "[]"
   }
 
   @type preview :: %{
@@ -138,6 +253,8 @@ defmodule Arkea.Game.SeedLab do
           phenotype: Phenotype.t(),
           genome: Genome.t(),
           gene_count: non_neg_integer(),
+          chromosome_gene_count: non_neg_integer(),
+          custom_gene_count: non_neg_integer(),
           plasmid_count: non_neg_integer(),
           prophage_count: non_neg_integer(),
           playstyle: binary(),
@@ -165,6 +282,12 @@ defmodule Arkea.Game.SeedLab do
 
   @spec mobile_modules() :: [map()]
   def mobile_modules, do: @mobile_modules
+
+  @spec domain_palette() :: [map()]
+  def domain_palette, do: @domain_palette
+
+  @spec intergenic_palette() :: %{required(atom()) => [map()]}
+  def intergenic_palette, do: @intergenic_palette
 
   @spec locked_seed() ::
           %{
@@ -357,6 +480,8 @@ defmodule Arkea.Game.SeedLab do
       phenotype: phenotype,
       genome: genome,
       gene_count: Genome.gene_count(genome),
+      chromosome_gene_count: length(genome.chromosome),
+      custom_gene_count: length(spec.custom_genes),
       plasmid_count: length(genome.plasmids),
       prophage_count: length(genome.prophages),
       playstyle: playstyle_for(phenotype),
@@ -420,23 +545,75 @@ defmodule Arkea.Game.SeedLab do
 
     genome = Genome.new([Gene.from_domains(chromosome_domains)])
 
-    case spec.mobile_module do
-      "conjugative_plasmid" ->
-        plasmid_gene =
-          Gene.from_domains([
-            Domain.new([0, 0, 2], List.duplicate(9, 20)),
-            Domain.new([0, 0, 9], [0 | List.duplicate(8, 19)])
-          ])
+    genome =
+      case spec.mobile_module do
+        "conjugative_plasmid" ->
+          plasmid_gene =
+            Gene.from_domains([
+              Domain.new([0, 0, 2], List.duplicate(9, 20)),
+              Domain.new([0, 0, 9], [0 | List.duplicate(8, 19)])
+            ])
 
-        Genome.add_plasmid(genome, [plasmid_gene])
+          Genome.add_plasmid(genome, [plasmid_gene])
 
-      "latent_prophage" ->
-        prophage_gene = Gene.from_domains([Domain.new([0, 0, 8], List.duplicate(6, 20))])
-        Genome.integrate_prophage(genome, [prophage_gene])
+        "latent_prophage" ->
+          prophage_gene = Gene.from_domains([Domain.new([0, 0, 8], List.duplicate(6, 20))])
+          Genome.integrate_prophage(genome, [prophage_gene])
 
-      _ ->
-        genome
-    end
+        _ ->
+          genome
+      end
+
+    append_custom_genes(genome, spec.custom_genes)
+  end
+
+  defp append_custom_genes(%Genome{} = genome, []), do: genome
+
+  defp append_custom_genes(%Genome{} = genome, custom_genes) when is_list(custom_genes) do
+    extra_genes = Enum.map(custom_genes, &build_custom_gene/1)
+
+    Genome.new(genome.chromosome ++ extra_genes,
+      plasmids: genome.plasmids,
+      prophages: genome.prophages
+    )
+  end
+
+  defp build_custom_gene(spec) when is_map(spec) do
+    domains =
+      spec
+      |> Map.get(:domains, [])
+      |> Enum.map(&template_domain/1)
+
+    intergenic_blocks =
+      spec
+      |> Map.get(:intergenic, %{})
+      |> normalize_intergenic_blocks()
+
+    Gene.from_domains(domains)
+    |> Map.put(:intergenic_blocks, intergenic_blocks)
+  end
+
+  defp template_domain(type_id) do
+    type = domain_type_from_id(type_id)
+    index = Enum.find_index(DomainType.all(), &(&1 == type))
+    type_tag = [0, 0, index]
+
+    parameter_codons =
+      case type do
+        :substrate_binding -> [0 | List.duplicate(4, 19)]
+        :catalytic_site -> List.duplicate(9, 20)
+        :transmembrane_anchor -> List.duplicate(7, 20)
+        :channel_pore -> List.duplicate(6, 20)
+        :energy_coupling -> List.duplicate(5, 20)
+        :dna_binding -> List.duplicate(10, 20)
+        :regulator_output -> List.duplicate(8, 20)
+        :ligand_sensor -> List.duplicate(11, 20)
+        :structural_fold -> List.duplicate(12, 20)
+        :surface_tag -> List.duplicate(13, 20)
+        :repair_fidelity -> List.duplicate(9, 20)
+      end
+
+    Domain.new(type_tag, parameter_codons)
   end
 
   defp substrate_domain("thrifty"), do: Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
@@ -592,6 +769,8 @@ defmodule Arkea.Game.SeedLab do
     Enum.find(@starter_ecotypes, &(&1.id == archetype))
   end
 
+  defp domain_label(:dna_binding), do: "DNA Binding"
+
   defp domain_label(type) when is_atom(type) do
     type
     |> Atom.to_string()
@@ -621,8 +800,88 @@ defmodule Arkea.Game.SeedLab do
     |> Map.merge(Map.new(blueprint.phenotype_spec || %{}))
     |> Map.merge(%{
       "seed_name" => blueprint.name,
-      "starter_archetype" => blueprint.starter_archetype
+      "starter_archetype" => blueprint.starter_archetype,
+      "custom_gene_payload" =>
+        blueprint.phenotype_spec
+        |> Map.get("custom_genes", [])
+        |> Jason.encode!()
     })
+  end
+
+  defp decode_custom_gene_payload(payload) when is_binary(payload) do
+    case Jason.decode(payload) do
+      {:ok, decoded} when is_list(decoded) ->
+        Enum.map(decoded, &normalize_custom_gene_spec/1)
+
+      _ ->
+        []
+    end
+  end
+
+  defp decode_custom_gene_payload(payload) when is_list(payload) do
+    Enum.map(payload, &normalize_custom_gene_spec/1)
+  end
+
+  defp decode_custom_gene_payload(_payload), do: []
+
+  defp normalize_custom_gene_spec(spec) when is_map(spec) do
+    %{
+      domains:
+        spec
+        |> Map.get("domains", Map.get(spec, :domains, []))
+        |> Enum.map(&to_string/1)
+        |> Enum.filter(&valid_domain_id?/1)
+        |> Enum.take(9),
+      intergenic:
+        spec
+        |> Map.get("intergenic", Map.get(spec, :intergenic, %{}))
+        |> normalize_intergenic_blocks()
+    }
+  end
+
+  defp normalize_custom_gene_spec(_other),
+    do: %{domains: [], intergenic: normalize_intergenic_blocks(%{})}
+
+  defp normalize_intergenic_blocks(blocks) when is_map(blocks) do
+    %{
+      expression: normalize_intergenic_family(blocks, "expression", :expression),
+      transfer: normalize_intergenic_family(blocks, "transfer", :transfer),
+      duplication: normalize_intergenic_family(blocks, "duplication", :duplication)
+    }
+  end
+
+  defp normalize_intergenic_blocks(_other) do
+    %{expression: [], transfer: [], duplication: []}
+  end
+
+  defp normalize_intergenic_family(blocks, string_key, atom_key) do
+    valid_ids =
+      @intergenic_palette
+      |> Map.fetch!(atom_key)
+      |> Enum.map(& &1.id)
+
+    blocks
+    |> Map.get(string_key, Map.get(blocks, atom_key, []))
+    |> List.wrap()
+    |> Enum.map(&to_string/1)
+    |> Enum.filter(&(&1 in valid_ids))
+    |> Enum.uniq()
+  end
+
+  defp valid_domain_id?(domain_id) when is_binary(domain_id) do
+    Enum.any?(@domain_palette, &(&1.id == domain_id))
+  end
+
+  defp domain_type_from_id(domain_id) when is_binary(domain_id) do
+    type = String.to_existing_atom(domain_id)
+
+    if type in DomainType.all() do
+      type
+    else
+      :substrate_binding
+    end
+  rescue
+    ArgumentError -> :substrate_binding
   end
 
   defp normalize_params(params) do
@@ -633,13 +892,20 @@ defmodule Arkea.Game.SeedLab do
     regulation = safe_option_id(merged["regulation_profile"], @regulation_profiles, "responsive")
     mobile = safe_option_id(merged["mobile_module"], @mobile_modules, "none")
 
+    custom_genes =
+      merged
+      |> Map.get("custom_gene_payload", "[]")
+      |> decode_custom_gene_payload()
+      |> Enum.reject(&(&1.domains == []))
+
     %{
       seed_name: merged["seed_name"] |> to_string() |> String.trim(),
       starter_archetype: starter |> starter_ecotype() |> Map.fetch!(:archetype),
       metabolism_profile: metabolism,
       membrane_profile: membrane,
       regulation_profile: regulation,
-      mobile_module: mobile
+      mobile_module: mobile,
+      custom_genes: custom_genes
     }
   end
 

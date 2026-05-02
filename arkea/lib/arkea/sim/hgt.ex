@@ -23,10 +23,11 @@ defmodule Arkea.Sim.HGT do
   For each ordered donor-recipient pair sharing a phase:
 
       strength = conjugation_strength(donor_plasmid)
+      bias     = intergenic_transfer_bias(donor_genome, recipient_genome, donor_plasmid)
       n_donor  = Lineage.abundance_in(donor, phase_name)
       n_recip  = Lineage.abundance_in(recipient, phase_name)
       n_total  = total abundance of all lineages in this phase
-      p_conj   = clamp(strength × 0.005 × n_donor × n_recip / max(n_total², 1), 0.0, 0.3)
+      p_conj   = clamp(strength × bias × 0.005 × n_donor × n_recip / max(n_total², 1), 0.0, 0.3)
 
   When the RNG roll falls below `p_conj`, a new child lineage of the recipient
   is created carrying the donor's plasmid. Abundance is conserved: the
@@ -43,6 +44,7 @@ defmodule Arkea.Sim.HGT do
   alias Arkea.Ecology.Lineage
   alias Arkea.Genome
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.Intergenic
   alias Arkea.Sim.Phenotype
 
   @conj_base_rate 0.005
@@ -254,10 +256,14 @@ defmodule Arkea.Sim.HGT do
   # Compute the conjugation probability for a (donor, recipient) pair.
   defp conjugation_probability(plasmid, donor, recipient, phase_name, n_total) do
     strength = conjugation_strength(plasmid)
+
+    transfer_bias =
+      Intergenic.transfer_probability_multiplier(donor.genome, recipient.genome, plasmid)
+
     n_donor = Lineage.abundance_in(donor, phase_name)
     n_recip = Lineage.abundance_in(recipient, phase_name)
     denom = max(n_total * n_total, 1)
-    raw = strength * @conj_base_rate * n_donor * n_recip / denom
+    raw = strength * transfer_bias * @conj_base_rate * n_donor * n_recip / denom
     raw |> max(0.0) |> min(@p_conj_max)
   end
 

@@ -73,6 +73,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.HGT
+  alias Arkea.Sim.Intergenic
   alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
@@ -488,7 +489,7 @@ defmodule Arkea.Sim.Tick do
 
   # Phase 5/6/7 growth model: ATP-driven deltas with σ-factor scalar + QS boost + plasmid burden.
   #
-  # sigma = 0.5 + dna_binding_affinity + qs_boost  (0.5..2.5)
+  # sigma = 0.5 + dna_binding_affinity + qs_boost  (0.5..2.5 before intergenic modifiers)
   # qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool)  → 0.0..1.0
   # net   = (atp_yield - energy_cost * 5.0) * sigma
   #
@@ -504,6 +505,11 @@ defmodule Arkea.Sim.Tick do
   # Plasmid-carrying lineages face additional burden (San Millán & MacLean 2018).
   # The QS boost rewards coordinated signalling: lineages that receive matching
   # signals get a higher sigma, amplifying their growth response to ATP yield.
+  #
+  # Intergenic runtime semantics:
+  # - `sigma_promoter` adds a modest basal sigma bonus
+  # - `multi_sigma_operator` amplifies QS-derived sigma boosts
+  # - `metabolite_riboswitch` relieves part of the ATP burden during starvation
   defp compute_growth_deltas_v5(
          %Phenotype{} = phenotype,
          atp_yield,
@@ -511,9 +517,12 @@ defmodule Arkea.Sim.Tick do
          genome,
          signal_pool
        ) do
-    qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool)
-    sigma = 0.5 + phenotype.dna_binding_affinity + qs_boost
-    net = (atp_yield - phenotype.energy_cost * 5.0) * sigma
+    expression_mods = Intergenic.expression_modifiers(genome, atp_yield, phenotype.energy_cost)
+    qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool) * expression_mods.qs_multiplier
+    sigma = 0.5 + phenotype.dna_binding_affinity + expression_mods.sigma_bonus + qs_boost
+
+    net =
+      (atp_yield - phenotype.energy_cost * 5.0 + expression_mods.energy_relief) * sigma
 
     # Phase 6: plasmid replication cost (0.3 ATP per plasmid gene)
     plasmid_gene_count = Enum.sum_by(genome.plasmids, &length/1)

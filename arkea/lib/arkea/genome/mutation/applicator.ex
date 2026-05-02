@@ -171,10 +171,20 @@ defmodule Arkea.Genome.Mutation.Applicator do
 
   # Re-parse a gene with new codons, preserving the original gene id.
   # Returns {:ok, gene} | {:error, atom()}.
-  defp reparse_gene(%Gene{id: id} = _gene, new_codons) do
+  defp reparse_gene(%Gene{} = gene, new_codons) do
     case Gene.from_codons(new_codons) do
-      {:ok, parsed} -> {:ok, %{parsed | id: id}}
-      {:error, _} = err -> err
+      {:ok, parsed} ->
+        {:ok,
+         %{
+           parsed
+           | id: gene.id,
+             promoter_block: gene.promoter_block,
+             regulatory_block: gene.regulatory_block,
+             intergenic_blocks: gene.intergenic_blocks
+         }}
+
+      {:error, _} = err ->
+        err
     end
   end
 

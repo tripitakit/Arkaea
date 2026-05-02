@@ -22,7 +22,13 @@ defmodule ArkeaWeb.SeedLabLive do
        membrane_profiles: SeedLab.membrane_profiles(),
        regulation_profiles: SeedLab.regulation_profiles(),
        mobile_modules: SeedLab.mobile_modules(),
+       domain_palette: SeedLab.domain_palette(),
+       intergenic_palette: SeedLab.intergenic_palette(),
        errors: %{},
+       gene_draft: empty_gene_draft(),
+       gene_editor_error: nil,
+       selected_replicon_id: "chromosome",
+       selected_gene_index: 1,
        page_title: "Arkea Seed Lab"
      )
      |> apply_form(SeedLab.form_defaults())}
@@ -32,8 +38,128 @@ defmodule ArkeaWeb.SeedLabLive do
   def handle_event("change_seed", %{"seed" => params}, socket) do
     {:noreply,
      socket
-     |> assign(errors: %{})
+     |> assign(errors: %{}, gene_editor_error: nil)
      |> maybe_apply_seed_form(params)}
+  end
+
+  def handle_event("append_domain", %{"type" => type_id}, socket) do
+    draft = socket.assigns.gene_draft
+    draft_domains = Map.get(draft, :domains, [])
+
+    cond do
+      socket.assigns.seed_locked? ->
+        {:noreply, socket}
+
+      not valid_domain_palette_id?(socket.assigns.domain_palette, type_id) ->
+        {:noreply, assign(socket, gene_editor_error: "Unknown functional domain.")}
+
+      length(draft_domains) >= 9 ->
+        {:noreply,
+         assign(socket,
+           gene_editor_error: "A custom gene can carry at most 9 functional domains."
+         )}
+
+      true ->
+        draft = Map.put(draft, :domains, draft_domains ++ [type_id])
+        {:noreply, assign(socket, gene_draft: draft, gene_editor_error: nil)}
+    end
+  end
+
+  def handle_event("toggle_intergenic", %{"family" => family, "module" => module_id}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(
+         gene_draft:
+           toggle_intergenic_module(
+             socket.assigns.gene_draft,
+             family,
+             module_id,
+             socket.assigns.intergenic_palette
+           ),
+         gene_editor_error: nil
+       )}
+    end
+  end
+
+  def handle_event("undo_gene_domain", _params, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      draft = socket.assigns.gene_draft
+      draft_domains = Map.get(draft, :domains, [])
+
+      {:noreply,
+       assign(
+         socket,
+         gene_draft: Map.put(draft, :domains, Enum.drop(draft_domains, -1)),
+         gene_editor_error: nil
+       )}
+    end
+  end
+
+  def handle_event("clear_gene_draft", _params, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, gene_draft: empty_gene_draft(), gene_editor_error: nil)}
+    end
+  end
+
+  def handle_event("commit_custom_gene", _params, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      draft = socket.assigns.gene_draft
+
+      case Map.get(draft, :domains, []) do
+        [] ->
+          {:noreply,
+           assign(socket,
+             gene_editor_error: "Add at least one functional domain before committing a gene."
+           )}
+
+        domains ->
+          custom_genes =
+            socket.assigns.custom_gene_specs ++
+              [
+                %{
+                  domains: domains,
+                  intergenic: Map.get(draft, :intergenic, empty_intergenic_blocks())
+                }
+              ]
+
+          {:noreply,
+           socket
+           |> assign(gene_draft: empty_gene_draft(), gene_editor_error: nil)
+           |> replace_custom_genes(custom_genes)
+           |> focus_chromosome_tail()}
+      end
+    end
+  end
+
+  def handle_event("remove_custom_gene", %{"index" => index}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(index)
+      custom_genes = List.delete_at(socket.assigns.custom_gene_specs, idx)
+
+      {:noreply,
+       socket
+       |> assign(gene_editor_error: nil)
+       |> replace_custom_genes(custom_genes)}
+    end
+  end
+
+  def handle_event("focus_gene", %{"replicon" => replicon_id, "gene" => gene_index}, socket) do
+    {:noreply,
+     assign(socket,
+       selected_replicon_id: replicon_id,
+       selected_gene_index: String.to_integer(gene_index)
+     )}
   end
 
   def handle_event("provision_seed", %{"seed" => params}, socket) do
@@ -187,6 +313,12 @@ defmodule ArkeaWeb.SeedLabLive do
                     options={@mobile_modules}
                   />
                 </div>
+
+                <input
+                  type="hidden"
+                  name="seed[custom_gene_payload]"
+                  value={@seed_params["custom_gene_payload"]}
+                />
               </fieldset>
 
               <div class="seed-submit-row">
@@ -282,7 +414,30 @@ defmodule ArkeaWeb.SeedLabLive do
                 <div class="sim-card__meta">{@preview.gene_count} genes total</div>
               </div>
 
-              <.genome_atlas preview={@preview} />
+              <.gene_designer
+                domain_palette={@domain_palette}
+                intergenic_palette={@intergenic_palette}
+                gene_draft={@gene_draft}
+                custom_gene_specs={@custom_gene_specs}
+                seed_locked?={@seed_locked?}
+                gene_editor_error={@gene_editor_error}
+                preview={@preview}
+              />
+
+              <.genome_atlas
+                preview={@preview}
+                custom_gene_specs={@custom_gene_specs}
+                selected_replicon_id={@selected_replicon_id}
+                selected_gene_index={@selected_gene_index}
+                seed_locked?={@seed_locked?}
+              />
+
+              <.gene_inspector
+                preview={@preview}
+                custom_gene_specs={@custom_gene_specs}
+                selected_replicon_id={@selected_replicon_id}
+                selected_gene_index={@selected_gene_index}
+              />
             </section>
 
             <section class="sim-card">
@@ -344,10 +499,10 @@ defmodule ArkeaWeb.SeedLabLive do
     """
   end
 
-  attr :field, :string, required: true
-  attr :label, :string, required: true
-  attr :value, :string, required: true
-  attr :options, :list, required: true
+  attr(:field, :string, required: true)
+  attr(:label, :string, required: true)
+  attr(:value, :string, required: true)
+  attr(:options, :list, required: true)
 
   defp option_select(assigns) do
     ~H"""
@@ -365,8 +520,8 @@ defmodule ArkeaWeb.SeedLabLive do
     """
   end
 
-  attr :preview, :map, required: true
-  attr :seed_locked?, :boolean, required: true
+  attr(:preview, :map, required: true)
+  attr(:seed_locked?, :boolean, required: true)
 
   defp arkeon_portrait(assigns) do
     antenna_count = max(assigns.preview.phenotype.n_transmembrane, 1)
@@ -425,30 +580,224 @@ defmodule ArkeaWeb.SeedLabLive do
     """
   end
 
-  attr :preview, :map, required: true
+  attr(:preview, :map, required: true)
+  attr(:domain_palette, :list, required: true)
+  attr(:intergenic_palette, :map, required: true)
+  attr(:gene_draft, :map, required: true)
+  attr(:custom_gene_specs, :list, required: true)
+  attr(:seed_locked?, :boolean, required: true)
+  attr(:gene_editor_error, :string, default: nil)
+
+  defp gene_designer(assigns) do
+    draft_domains = Map.get(assigns.gene_draft, :domains, [])
+    draft_intergenic = Map.get(assigns.gene_draft, :intergenic, empty_intergenic_blocks())
+
+    assigns =
+      assign(assigns,
+        draft_domains: draft_domains,
+        draft_intergenic: draft_intergenic,
+        draft_intergenic_count: intergenic_count(draft_intergenic),
+        custom_gene_count: length(assigns.custom_gene_specs)
+      )
+
+    ~H"""
+    <div class="seed-editor">
+      <div class="seed-editor__summary">
+        <div class="sim-phase-kpis">
+          <div class="sim-mini-stat">
+            <span class="sim-mini-stat__label">chromosome genes</span>
+            <span class="sim-mini-stat__value">{@preview.chromosome_gene_count}</span>
+          </div>
+          <div class="sim-mini-stat">
+            <span class="sim-mini-stat__label">custom genes</span>
+            <span class="sim-mini-stat__value">{@preview.custom_gene_count}</span>
+          </div>
+          <div class="sim-mini-stat">
+            <span class="sim-mini-stat__label">draft blocks</span>
+            <span class="sim-mini-stat__value">
+              {length(@draft_domains)} + {@draft_intergenic_count}
+            </span>
+          </div>
+          <div class="sim-mini-stat">
+            <span class="sim-mini-stat__label">replicons</span>
+            <span class="sim-mini-stat__value">
+              {1 + @preview.plasmid_count + @preview.prophage_count}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="seed-editor__panel">
+        <div class="sim-card__eyebrow">Custom chromosome gene designer</div>
+        <p class="sim-muted seed-editor__copy">
+          Compose a chromosome gene from the functional domains implemented in the simulation. Intergenic blocks now feed runtime expression control, transfer bias, and duplication hotspots.
+        </p>
+
+        <div class="seed-editor__draft">
+          <div class="seed-editor__draft-title">Draft gene</div>
+          <div class="seed-gene__bar seed-gene__bar--draft">
+            <span
+              :for={domain_id <- @draft_domains}
+              class={["seed-domain", "seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
+              style="flex: 23;"
+              title={domain_label(domain_type_from_id(domain_id))}
+            >
+            </span>
+            <span :if={@draft_domains == []} class="seed-editor__draft-empty">
+              add functional domains
+            </span>
+          </div>
+
+          <div class="seed-intergenic-summary">
+            <span :for={entry <- intergenic_badges(@draft_intergenic)} class="seed-intergenic-chip">
+              {entry}
+            </span>
+            <span :if={intergenic_badges(@draft_intergenic) == []} class="sim-muted">
+              no intergenic blocks attached
+            </span>
+          </div>
+
+          <p :if={@gene_editor_error} class="seed-field__error">{@gene_editor_error}</p>
+        </div>
+
+        <div class="seed-editor__palette">
+          <button
+            :for={domain <- @domain_palette}
+            type="button"
+            class={[
+              "seed-palette-button",
+              domain.runtime == :latent && "seed-palette-button--latent"
+            ]}
+            phx-click="append_domain"
+            phx-value-type={domain.id}
+            disabled={@seed_locked?}
+            title={domain.description}
+          >
+            <span class="seed-palette-button__title">{domain.label}</span>
+            <span class="seed-palette-button__meta">
+              {if(domain.runtime == :active, do: "active now", else: "stored / future")}
+            </span>
+          </button>
+        </div>
+
+        <div class="seed-intergenic-grid">
+          <div :for={{family, entries} <- @intergenic_palette} class="seed-intergenic-group">
+            <div class="seed-editor__draft-title">{intergenic_family_label(family)}</div>
+            <div class="seed-intergenic-group__buttons">
+              <button
+                :for={entry <- entries}
+                type="button"
+                class={[
+                  "seed-intergenic-button",
+                  intergenic_selected?(@draft_intergenic, family, entry.id) &&
+                    "seed-intergenic-button--active"
+                ]}
+                phx-click="toggle_intergenic"
+                phx-value-family={family}
+                phx-value-module={entry.id}
+                disabled={@seed_locked?}
+                title={entry.description}
+              >
+                {entry.label}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="seed-editor__actions">
+          <button
+            type="button"
+            class="sim-action-button"
+            phx-click="undo_gene_domain"
+            disabled={@seed_locked? or @draft_domains == []}
+          >
+            Undo domain
+          </button>
+          <button
+            type="button"
+            class="sim-action-button"
+            phx-click="clear_gene_draft"
+            disabled={@seed_locked? or (@draft_domains == [] and @draft_intergenic_count == 0)}
+          >
+            Clear draft
+          </button>
+          <button
+            type="button"
+            class="sim-action-button"
+            phx-click="commit_custom_gene"
+            disabled={@seed_locked?}
+          >
+            Commit chromosome gene
+          </button>
+        </div>
+      </div>
+
+      <div class="seed-custom-gene-list">
+        <div class="seed-editor__draft-title">Committed custom genes</div>
+        <%= if @custom_gene_specs == [] do %>
+          <p class="sim-muted">
+            No custom chromosome genes committed yet. The atlas currently shows only the phenotype-derived base genome.
+          </p>
+        <% else %>
+          <div :for={{gene, index} <- Enum.with_index(@custom_gene_specs, 1)} class="seed-custom-gene">
+            <div class="seed-custom-gene__header">
+              <span class="seed-custom-gene__title">Custom gene {index}</span>
+              <button
+                :if={!@seed_locked?}
+                type="button"
+                class="seed-custom-gene__remove"
+                phx-click="remove_custom_gene"
+                phx-value-index={index - 1}
+              >
+                Remove
+              </button>
+            </div>
+            <div class="seed-gene__bar">
+              <span
+                :for={domain_id <- gene.domains}
+                class={["seed-domain", "seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
+                style="flex: 23;"
+                title={domain_label(domain_type_from_id(domain_id))}
+              >
+              </span>
+            </div>
+            <div class="seed-custom-gene__meta">
+              {Enum.map_join(gene.domains, " · ", &domain_label(domain_type_from_id(&1)))}
+            </div>
+            <div class="seed-intergenic-summary">
+              <span :for={entry <- intergenic_badges(gene.intergenic)} class="seed-intergenic-chip">
+                {entry}
+              </span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:preview, :map, required: true)
+  attr(:custom_gene_specs, :list, required: true)
+  attr(:selected_replicon_id, :string, required: true)
+  attr(:selected_gene_index, :integer, required: true)
+  attr(:seed_locked?, :boolean, required: true)
 
   defp genome_atlas(assigns) do
-    chromosome = %{label: "Chromosome", tone: "core", genes: assigns.preview.genome.chromosome}
-
-    plasmids =
-      assigns.preview.genome.plasmids
-      |> Enum.with_index(1)
-      |> Enum.map(fn {genes, index} ->
-        %{label: "Plasmid #{index}", tone: "plasmid", genes: genes}
-      end)
-
-    prophages =
-      assigns.preview.genome.prophages
-      |> Enum.with_index(1)
-      |> Enum.map(fn {genes, index} ->
-        %{label: "Prophage #{index}", tone: "prophage", genes: genes}
-      end)
-
-    assigns = assign(assigns, replicons: [chromosome | plasmids ++ prophages])
+    assigns =
+      assign(assigns, replicons: replicon_views(assigns.preview, assigns.custom_gene_specs))
 
     ~H"""
     <div class="seed-atlas">
-      <.replicon_track :for={replicon <- @replicons} replicon={replicon} />
+      <div class="seed-atlas__copy">
+        Click a gene track to inspect its functional domains and intergenic blocks.
+      </div>
+
+      <.replicon_track
+        :for={replicon <- @replicons}
+        replicon={replicon}
+        selected_replicon_id={@selected_replicon_id}
+        selected_gene_index={@selected_gene_index}
+      />
 
       <div class="seed-domain-legend">
         <span :for={entry <- domain_legend()} class="seed-domain-legend__item">
@@ -459,29 +808,21 @@ defmodule ArkeaWeb.SeedLabLive do
       </div>
 
       <p class="sim-muted">
-        This read-only atlas is the foundation for the future advanced editor: chromosome and mobile cassettes are already separated as distinct visual tracks.
+        <%= if @seed_locked? do %>
+          This committed atlas is now read-only, but gene composition and intergenic blocks remain inspectable.
+        <% else %>
+          The atlas is now the advanced chromosome editor surface: phenotype presets seed the baseline, then custom genes extend the chromosome gene-by-gene.
+        <% end %>
       </p>
     </div>
     """
   end
 
-  attr :replicon, :map, required: true
+  attr(:replicon, :map, required: true)
+  attr(:selected_replicon_id, :string, required: true)
+  attr(:selected_gene_index, :integer, required: true)
 
   defp replicon_track(assigns) do
-    gene_views =
-      assigns.replicon.genes
-      |> Enum.with_index(1)
-      |> Enum.map(fn {gene, index} ->
-        %{
-          index: index,
-          codon_count: length(gene.codons),
-          domain_count: length(gene.domains),
-          domains: domain_views(gene)
-        }
-      end)
-
-    assigns = assign(assigns, gene_views: gene_views)
-
     ~H"""
     <div class="seed-replicon">
       <div class="seed-replicon__header">
@@ -491,7 +832,28 @@ defmodule ArkeaWeb.SeedLabLive do
       </div>
 
       <div class="seed-replicon__genes">
-        <div :for={gene <- @gene_views} class="seed-gene">
+        <button
+          :for={gene <- @replicon.genes}
+          type="button"
+          phx-click="focus_gene"
+          phx-value-replicon={@replicon.id}
+          phx-value-gene={gene.index}
+          class={[
+            "seed-gene",
+            (@selected_replicon_id == @replicon.id and @selected_gene_index == gene.index) &&
+              "seed-gene--selected",
+            gene.is_custom && "seed-gene--custom"
+          ]}
+        >
+          <div :if={intergenic_badges(gene.intergenic_blocks) != []} class="seed-intergenic-summary">
+            <span
+              :for={entry <- intergenic_badges(gene.intergenic_blocks)}
+              class="seed-intergenic-chip"
+            >
+              {entry}
+            </span>
+          </div>
+
           <div class="seed-gene__bar">
             <span
               :for={domain <- gene.domains}
@@ -502,8 +864,68 @@ defmodule ArkeaWeb.SeedLabLive do
             </span>
           </div>
           <div class="seed-gene__meta">
-            G{gene.index} · {gene.domain_count} domains · {gene.codon_count} codons
+            {gene.label} · {gene.domain_count} domains · {gene.codon_count} codons
           </div>
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:preview, :map, required: true)
+  attr(:custom_gene_specs, :list, required: true)
+  attr(:selected_replicon_id, :string, required: true)
+  attr(:selected_gene_index, :integer, required: true)
+
+  defp gene_inspector(assigns) do
+    gene =
+      selected_gene_view(
+        assigns.preview,
+        assigns.custom_gene_specs,
+        assigns.selected_replicon_id,
+        assigns.selected_gene_index
+      )
+
+    assigns = assign(assigns, gene: gene)
+
+    ~H"""
+    <div :if={@gene} class="seed-gene-inspector">
+      <div class="seed-gene-inspector__header">
+        <div>
+          <div class="sim-card__eyebrow">Gene inspector</div>
+          <h3 id="seed-gene-inspector-title" class="seed-gene-inspector__title">
+            {@gene.replicon_label} · {@gene.label}
+          </h3>
+        </div>
+        <div class="seed-gene-inspector__meta">
+          {@gene.domain_count} domains · {@gene.codon_count} codons
+        </div>
+      </div>
+
+      <p class="sim-muted">
+        {@gene.behavior_copy}
+      </p>
+
+      <div :if={intergenic_badges(@gene.intergenic_blocks) != []} class="seed-gene-inspector__blocks">
+        <span :for={entry <- intergenic_badges(@gene.intergenic_blocks)} class="seed-intergenic-chip">
+          {entry}
+        </span>
+      </div>
+
+      <div class="seed-domain-stack">
+        <div
+          :for={{domain, index} <- Enum.with_index(@gene.raw_gene.domains, 1)}
+          class="seed-domain-card"
+        >
+          <div class="seed-domain-card__header">
+            <span class={[
+              "seed-domain-legend__swatch",
+              "seed-domain-legend__swatch--#{domain_tone(domain.type)}"
+            ]}>
+            </span>
+            <span class="seed-domain-card__title">Domain {index} · {domain_label(domain.type)}</span>
+          </div>
+          <div class="seed-domain-card__copy">{domain_summary(domain)}</div>
         </div>
       </div>
     </div>
@@ -539,25 +961,332 @@ defmodule ArkeaWeb.SeedLabLive do
   defp apply_form(socket, params) do
     case SeedLab.locked_seed() do
       %{params: locked_params, preview: preview, biotope_id: biotope_id} ->
-        assign(socket,
+        socket
+        |> assign(
           form: to_form(locked_params, as: :seed),
           preview: preview,
           can_provision_home?: false,
           seed_locked?: true,
-          home_biotope_id: biotope_id
+          home_biotope_id: biotope_id,
+          seed_params: locked_params,
+          custom_gene_specs: preview.spec.custom_genes
         )
+        |> assign_editor_focus(preview)
 
       nil ->
-        merged = Map.merge(SeedLab.form_defaults(), Map.new(params))
+        merged =
+          socket
+          |> Map.get(:assigns)
+          |> Map.get(:seed_params, SeedLab.form_defaults())
+          |> Map.merge(Map.new(params))
 
-        assign(socket,
+        preview = SeedLab.preview(merged)
+
+        socket
+        |> assign(
           form: to_form(merged, as: :seed),
-          preview: SeedLab.preview(merged),
+          preview: preview,
           can_provision_home?: SeedLab.can_provision_home?(),
           seed_locked?: false,
-          home_biotope_id: nil
+          home_biotope_id: nil,
+          seed_params: merged,
+          custom_gene_specs: preview.spec.custom_genes
         )
+        |> assign_editor_focus(preview)
     end
+  end
+
+  defp assign_editor_focus(socket, preview) do
+    replicons = replicon_views(preview, preview.spec.custom_genes)
+
+    case find_gene_view(
+           replicons,
+           socket.assigns[:selected_replicon_id],
+           socket.assigns[:selected_gene_index]
+         ) do
+      nil ->
+        assign(socket,
+          selected_replicon_id: "chromosome",
+          selected_gene_index: 1
+        )
+
+      _gene ->
+        socket
+    end
+  end
+
+  defp replace_custom_genes(socket, custom_gene_specs) do
+    params =
+      socket.assigns.seed_params
+      |> Map.put("custom_gene_payload", Jason.encode!(custom_gene_specs))
+
+    apply_form(socket, params)
+  end
+
+  defp focus_chromosome_tail(socket) do
+    assign(socket,
+      selected_replicon_id: "chromosome",
+      selected_gene_index: length(socket.assigns.preview.genome.chromosome)
+    )
+  end
+
+  defp empty_gene_draft do
+    %{domains: [], intergenic: empty_intergenic_blocks()}
+  end
+
+  defp empty_intergenic_blocks do
+    %{expression: [], transfer: [], duplication: []}
+  end
+
+  defp valid_domain_palette_id?(palette, type_id) do
+    Enum.any?(palette, &(&1.id == type_id))
+  end
+
+  defp toggle_intergenic_module(draft, family, module_id, palette) do
+    family_key = parse_intergenic_family(family)
+
+    valid_ids =
+      palette
+      |> Map.fetch!(family_key)
+      |> Enum.map(& &1.id)
+
+    if module_id in valid_ids do
+      update_in(draft, [:intergenic, family_key], fn values ->
+        if module_id in values do
+          List.delete(values, module_id)
+        else
+          values ++ [module_id]
+        end
+      end)
+    else
+      draft
+    end
+  end
+
+  defp parse_intergenic_family("expression"), do: :expression
+  defp parse_intergenic_family("transfer"), do: :transfer
+  defp parse_intergenic_family("duplication"), do: :duplication
+  defp parse_intergenic_family(:expression), do: :expression
+  defp parse_intergenic_family(:transfer), do: :transfer
+  defp parse_intergenic_family(:duplication), do: :duplication
+
+  defp intergenic_selected?(blocks, family, module_id) do
+    module_id in Map.get(blocks, parse_intergenic_family(family), [])
+  end
+
+  defp intergenic_badges(blocks) do
+    [
+      label_intergenic_modules(Map.get(blocks, :expression, []), "expr"),
+      label_intergenic_modules(Map.get(blocks, :transfer, []), "xfer"),
+      label_intergenic_modules(Map.get(blocks, :duplication, []), "dup")
+    ]
+    |> List.flatten()
+  end
+
+  defp label_intergenic_modules(modules, prefix) do
+    Enum.map(modules, fn module_id ->
+      "#{prefix}:#{module_short_label(module_id)}"
+    end)
+  end
+
+  defp module_short_label("sigma_promoter"), do: "sigma"
+  defp module_short_label("multi_sigma_operator"), do: "multi-op"
+  defp module_short_label("metabolite_riboswitch"), do: "riboswitch"
+  defp module_short_label("orit_site"), do: "oriT"
+  defp module_short_label("integration_hotspot"), do: "landing"
+  defp module_short_label("repeat_array"), do: "repeat"
+  defp module_short_label("duplication_hotspot"), do: "hotspot"
+  defp module_short_label(other), do: other
+
+  defp intergenic_family_label(:expression), do: "Expression control"
+  defp intergenic_family_label(:transfer), do: "Transfer"
+  defp intergenic_family_label(:duplication), do: "Duplication"
+
+  defp intergenic_count(blocks) do
+    blocks.expression
+    |> length()
+    |> Kernel.+(length(blocks.transfer))
+    |> Kernel.+(length(blocks.duplication))
+  end
+
+  defp parse_positive_index(index) when is_binary(index) do
+    case Integer.parse(index) do
+      {value, _rest} when value >= 0 -> value
+      _ -> 0
+    end
+  end
+
+  defp replicon_views(preview, custom_gene_specs) do
+    base_chromosome_count = preview.chromosome_gene_count - length(custom_gene_specs)
+
+    chromosome =
+      %{
+        id: "chromosome",
+        label: "Chromosome",
+        tone: "core",
+        genes:
+          preview.genome.chromosome
+          |> Enum.with_index(1)
+          |> Enum.map(fn {gene, index} ->
+            gene_view(
+              gene,
+              index,
+              "chromosome",
+              "Chromosome",
+              "G#{index}",
+              index > base_chromosome_count
+            )
+          end)
+      }
+
+    plasmids =
+      preview.genome.plasmids
+      |> Enum.with_index(1)
+      |> Enum.map(fn {genes, index} ->
+        %{
+          id: "plasmid_#{index}",
+          label: "Plasmid #{index}",
+          tone: "plasmid",
+          genes:
+            genes
+            |> Enum.with_index(1)
+            |> Enum.map(fn {gene, gene_index} ->
+              gene_view(
+                gene,
+                gene_index,
+                "plasmid_#{index}",
+                "Plasmid #{index}",
+                "P#{index}.#{gene_index}",
+                false
+              )
+            end)
+        }
+      end)
+
+    prophages =
+      preview.genome.prophages
+      |> Enum.with_index(1)
+      |> Enum.map(fn {genes, index} ->
+        %{
+          id: "prophage_#{index}",
+          label: "Prophage #{index}",
+          tone: "prophage",
+          genes:
+            genes
+            |> Enum.with_index(1)
+            |> Enum.map(fn {gene, gene_index} ->
+              gene_view(
+                gene,
+                gene_index,
+                "prophage_#{index}",
+                "Prophage #{index}",
+                "Phi#{index}.#{gene_index}",
+                false
+              )
+            end)
+        }
+      end)
+
+    [chromosome | plasmids ++ prophages]
+  end
+
+  defp gene_view(%Gene{} = gene, index, replicon_id, replicon_label, label, is_custom) do
+    %{
+      index: index,
+      replicon_id: replicon_id,
+      replicon_label: replicon_label,
+      label: if(is_custom, do: "Custom #{label}", else: label),
+      codon_count: length(gene.codons),
+      domain_count: length(gene.domains),
+      domains: domain_views(gene),
+      intergenic_blocks: Map.get(gene, :intergenic_blocks, empty_intergenic_blocks()),
+      is_custom: is_custom,
+      raw_gene: gene,
+      behavior_copy: behavior_copy(replicon_id, is_custom)
+    }
+  end
+
+  defp selected_gene_view(preview, custom_gene_specs, selected_replicon_id, selected_gene_index) do
+    preview
+    |> replicon_views(custom_gene_specs)
+    |> find_gene_view(selected_replicon_id, selected_gene_index)
+  end
+
+  defp find_gene_view(replicons, selected_replicon_id, selected_gene_index) do
+    replicons
+    |> Enum.find(&(&1.id == selected_replicon_id))
+    |> case do
+      nil -> nil
+      replicon -> Enum.find(replicon.genes, &(&1.index == selected_gene_index))
+    end
+  end
+
+  defp behavior_copy("chromosome", true),
+    do:
+      "Custom chromosome cassette. It will inherit vertically from the home seed and can alter phenotype immediately."
+
+  defp behavior_copy("chromosome", false),
+    do: "Baseline chromosome cassette derived from the phenotype-first seed configuration."
+
+  defp behavior_copy(replicon_id, _is_custom) do
+    cond do
+      String.starts_with?(replicon_id, "plasmid") ->
+        "Accessory plasmid cassette. It remains mobile and actively participates in transfer logic."
+
+      String.starts_with?(replicon_id, "prophage") ->
+        "Integrated prophage cassette. It stays latent until future induction or transfer pathways activate it."
+
+      true ->
+        "Genome cassette."
+    end
+  end
+
+  defp domain_summary(%Domain{type: :substrate_binding, params: params}) do
+    "Target metabolite #{params.target_metabolite_id} · Km #{format_float(params.km, 2)} · breadth #{format_float(params.specificity_breadth, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: :catalytic_site, params: params}) do
+    "Reaction #{params.reaction_class} · kcat #{format_float(params.kcat, 2)} · signal #{params.signal_key}"
+  end
+
+  defp domain_summary(%Domain{type: :transmembrane_anchor, params: params}) do
+    "Hydrophobicity #{format_float(params.hydrophobicity, 2)} · #{params.n_passes} membrane passes"
+  end
+
+  defp domain_summary(%Domain{type: :channel_pore, params: params}) do
+    "Selectivity #{format_float(params.selectivity, 2)} · gating #{format_float(params.gating_threshold, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: :energy_coupling, params: params}) do
+    "ATP cost #{format_float(params.atp_cost, 2)} · PMF #{format_float(params.pmf_coupling, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: :dna_binding, params: params}) do
+    "Promoter specificity #{format_float(params.promoter_specificity, 2)} · affinity #{format_float(params.binding_affinity, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: :regulator_output, params: params}) do
+    "Mode #{params.mode} · cooperativity #{format_float(params.cooperativity, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: :ligand_sensor, params: params}) do
+    "Signal #{params.signal_key} · threshold #{format_float(params.threshold, 2)} · curve #{params.response_curve}"
+  end
+
+  defp domain_summary(%Domain{type: :structural_fold, params: params}) do
+    "Stability #{format_float(params.stability, 2)} · multimerization #{params.multimerization_n}"
+  end
+
+  defp domain_summary(%Domain{type: :surface_tag, params: params}) do
+    "Surface identity #{params.tag_class}"
+  end
+
+  defp domain_summary(%Domain{type: :repair_fidelity, params: params}) do
+    "Repair class #{params.repair_class} · efficiency #{format_float(params.efficiency, 2)}"
+  end
+
+  defp domain_summary(%Domain{type: type}) do
+    "#{domain_label(type)} domain stored in the genome. Detailed runtime aggregation is deferred."
   end
 
   defp selected_description(options, selected_id) do
@@ -656,11 +1385,20 @@ defmodule ArkeaWeb.SeedLabLive do
     ]
   end
 
+  defp domain_label(:dna_binding), do: "DNA Binding"
+
   defp domain_label(type) when is_atom(type) do
     type
     |> Atom.to_string()
     |> String.replace("_", " ")
     |> String.split()
     |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp domain_type_from_id(domain_id) when is_binary(domain_id) do
+    domain_id
+    |> String.to_existing_atom()
+  rescue
+    ArgumentError -> :substrate_binding
   end
 end

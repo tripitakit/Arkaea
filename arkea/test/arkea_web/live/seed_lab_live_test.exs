@@ -44,6 +44,36 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     {:ok, view, _html} = live(conn, ~p"/seed-lab")
 
     view
+    |> element("button[phx-click=append_domain][phx-value-type=substrate_binding]")
+    |> render_click()
+
+    view
+    |> element("button[phx-click=append_domain][phx-value-type=dna_binding]")
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=expression][phx-value-module=sigma_promoter]"
+    )
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=transfer][phx-value-module=orit_site]"
+    )
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=duplication][phx-value-module=repeat_array]"
+    )
+    |> render_click()
+
+    view
+    |> element("button[phx-click=commit_custom_gene]")
+    |> render_click()
+
+    view
     |> form("form.seed-form", %{
       "seed" => %{
         "starter_archetype" => "mesophilic_soil",
@@ -54,6 +84,10 @@ defmodule ArkeaWeb.SeedLabLiveTest do
         "seed_name" => "Soil Pioneer"
       }
     })
+    |> render_change()
+
+    view
+    |> form("form.seed-form")
     |> render_submit()
 
     {path, _flash} = assert_redirect(view)
@@ -67,6 +101,18 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     assert blueprint.player_id == PrototypePlayer.id()
     assert blueprint.name == "Soil Pioneer"
+
+    assert blueprint.phenotype_spec["custom_genes"] == [
+             %{
+               "domains" => ["substrate_binding", "dna_binding"],
+               "intergenic" => %{
+                 "expression" => ["sigma_promoter"],
+                 "transfer" => ["orit_site"],
+                 "duplication" => ["repeat_array"]
+               }
+             }
+           ]
+
     assert player_biotope.player_id == PrototypePlayer.id()
     assert player_biotope.biotope_id == biotope_id
     assert player_biotope.role == "home"
@@ -92,7 +138,10 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     assert html =~ "Arkeon seed locked"
     assert html =~ "Locked Seed"
-    assert html =~ "This read-only atlas is the foundation for the future advanced editor"
+
+    assert html =~
+             "This committed atlas is now read-only, but gene composition and intergenic blocks remain inspectable."
+
     assert html =~ "Arkeon phenotype portrait"
     assert html =~ ~s(href="/biotopes/#{biotope_id}")
     assert html =~ "<fieldset disabled"
@@ -115,6 +164,61 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     refute changed_html =~ "Mutation Attempt"
     assert Repo.aggregate(ArkeonBlueprint, :count) == 1
     assert Repo.aggregate(PlayerBiotope, :count) == 1
+  end
+
+  test "seed lab custom gene editor composes domains and intergenic blocks", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/seed-lab")
+
+    assert html =~ "Chromosome atlas"
+    assert html =~ "Custom chromosome gene designer"
+    assert html =~ "Expression control"
+    assert html =~ "Transfer"
+    assert html =~ "Duplication"
+
+    view
+    |> element("button[phx-click=append_domain][phx-value-type=substrate_binding]")
+    |> render_click()
+
+    view
+    |> element("button[phx-click=append_domain][phx-value-type=dna_binding]")
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=expression][phx-value-module=sigma_promoter]"
+    )
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=transfer][phx-value-module=orit_site]"
+    )
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click=toggle_intergenic][phx-value-family=duplication][phx-value-module=repeat_array]"
+    )
+    |> render_click()
+
+    html_before_commit = render(view)
+    assert html_before_commit =~ "expr:sigma"
+    assert html_before_commit =~ "xfer:oriT"
+    assert html_before_commit =~ "dup:repeat"
+
+    view
+    |> element("button[phx-click=commit_custom_gene]")
+    |> render_click()
+
+    html_after_commit = render(view)
+    assert html_after_commit =~ "Custom gene 1"
+    assert html_after_commit =~ "Custom G2"
+    assert html_after_commit =~ "Custom chromosome cassette"
+    assert html_after_commit =~ "Substrate Binding"
+    assert html_after_commit =~ "DNA Binding"
+    assert html_after_commit =~ "expr:sigma"
+    assert html_after_commit =~ "xfer:oriT"
+    assert html_after_commit =~ "dup:repeat"
   end
 
   defp cleanup_owned_biotopes do

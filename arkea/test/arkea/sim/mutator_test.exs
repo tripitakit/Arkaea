@@ -28,6 +28,22 @@ defmodule Arkea.Sim.MutatorTest do
     Genome.new([g1, g2])
   end
 
+  defp duplication_hotspot_genome do
+    hotspot_gene =
+      gene_with_n_domains(3)
+      |> with_intergenic(%{duplication: ["repeat_array", "duplication_hotspot"]})
+
+    Genome.new([hotspot_gene])
+  end
+
+  defp with_intergenic(gene, overrides) do
+    %{gene | intergenic_blocks: Map.merge(empty_intergenic_blocks(), overrides)}
+  end
+
+  defp empty_intergenic_blocks do
+    %{expression: [], transfer: [], duplication: []}
+  end
+
   defp fresh_rng do
     Mutator.init_seed("test-biotope-seed")
   end
@@ -163,8 +179,37 @@ defmodule Arkea.Sim.MutatorTest do
     assert successful != [], "Should produce at least one mutation in 50 attempts"
   end
 
+  test "duplication-biased intergenic blocks increase duplication frequency" do
+    baseline_genome = single_gene_genome(3)
+    hotspot_genome = duplication_hotspot_genome()
+
+    baseline_dup_fraction = duplication_fraction(baseline_genome, 4_000)
+    hotspot_dup_fraction = duplication_fraction(hotspot_genome, 4_000)
+
+    assert hotspot_dup_fraction > baseline_dup_fraction + 0.05,
+           "expected hotspot genome duplication fraction #{hotspot_dup_fraction} to exceed baseline #{baseline_dup_fraction}"
+  end
+
   # ---------------------------------------------------------------------------
   # Private
+
+  defp duplication_fraction(genome, samples) do
+    rng = fresh_rng()
+
+    {duplications, total, _rng} =
+      Enum.reduce(1..samples, {0, 0, rng}, fn _, {dup_count, total_count, acc_rng} ->
+        case Mutator.generate(genome, acc_rng) do
+          {:ok, mutation, rng1} ->
+            is_dup = if mutation_type(mutation) == :duplication, do: 1, else: 0
+            {dup_count + is_dup, total_count + 1, rng1}
+
+          {:skip, rng1} ->
+            {dup_count, total_count, rng1}
+        end
+      end)
+
+    duplications / max(total, 1)
+  end
 
   defp mutation_type(%Arkea.Genome.Mutation.Substitution{}), do: :substitution
   defp mutation_type(%Arkea.Genome.Mutation.Indel{}), do: :indel

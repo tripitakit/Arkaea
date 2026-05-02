@@ -28,17 +28,19 @@ defmodule Arkea.Game.PlayerAssets do
   @spec active_home(binary()) :: PlayerBiotope.t() | nil
   def active_home(player_id) when is_binary(player_id) do
     Repo.one(
-      from row in PlayerBiotope,
+      from(row in PlayerBiotope,
         where: row.player_id == ^player_id and row.role == "home"
+      )
     )
   end
 
   @spec active_home_with_blueprint(binary()) :: PlayerBiotope.t() | nil
   def active_home_with_blueprint(player_id) when is_binary(player_id) do
     Repo.one(
-      from row in PlayerBiotope,
+      from(row in PlayerBiotope,
         where: row.player_id == ^player_id and row.role == "home",
         preload: [:source_blueprint]
+      )
     )
   end
 
@@ -46,8 +48,9 @@ defmodule Arkea.Game.PlayerAssets do
   def controls_biotope?(player_id, biotope_id)
       when is_binary(player_id) and is_binary(biotope_id) do
     Repo.exists?(
-      from row in PlayerBiotope,
+      from(row in PlayerBiotope,
         where: row.player_id == ^player_id and row.biotope_id == ^biotope_id
+      )
     )
   end
 
@@ -130,7 +133,18 @@ defmodule Arkea.Game.PlayerAssets do
       "metabolism_profile" => spec.metabolism_profile,
       "membrane_profile" => spec.membrane_profile,
       "regulation_profile" => spec.regulation_profile,
-      "mobile_module" => spec.mobile_module
+      "mobile_module" => spec.mobile_module,
+      "custom_genes" =>
+        Enum.map(spec.custom_genes, fn gene ->
+          %{
+            "domains" => gene.domains,
+            "intergenic" => %{
+              "expression" => gene.intergenic.expression,
+              "transfer" => gene.intergenic.transfer,
+              "duplication" => gene.intergenic.duplication
+            }
+          }
+        end)
     }
   end
 end

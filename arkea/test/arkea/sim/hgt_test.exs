@@ -52,12 +52,29 @@ defmodule Arkea.Sim.HGTTest do
 
   defp chromosome_gene, do: Gene.from_domains([cat_domain()])
 
+  defp chromosome_gene_with_transfer(module_id) do
+    chromosome_gene()
+    |> with_intergenic(%{transfer: [module_id]})
+  end
+
   defp donor_genome(plasmid) do
     Genome.new([chromosome_gene()], plasmids: [plasmid])
   end
 
   defp recipient_genome do
     Genome.new([chromosome_gene()])
+  end
+
+  defp recipient_genome_with_hotspot do
+    Genome.new([chromosome_gene_with_transfer("integration_hotspot")])
+  end
+
+  defp conjugative_plasmid_with_orit do
+    plasmid_gene =
+      Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
+      |> with_intergenic(%{transfer: ["orit_site"]})
+
+    [plasmid_gene]
   end
 
   defp surface_phase do
@@ -73,6 +90,24 @@ defmodule Arkea.Sim.HGTTest do
 
   defp make_founder(genome, abundance) do
     Lineage.new_founder(genome, %{surface: abundance}, 0)
+  end
+
+  defp with_intergenic(gene, overrides) do
+    %{gene | intergenic_blocks: Map.merge(empty_intergenic_blocks(), overrides)}
+  end
+
+  defp empty_intergenic_blocks do
+    %{expression: [], transfer: [], duplication: []}
+  end
+
+  defp count_hgt_children(lineages, ticks, seed) do
+    rng = Mutator.init_seed(seed)
+
+    Enum.reduce(1..ticks, {0, rng}, fn tick, {acc_children, acc_rng} ->
+      {_updated, children, new_rng} = HGT.step(:surface, lineages, tick, acc_rng)
+      {acc_children + length(children), new_rng}
+    end)
+    |> elem(0)
   end
 
   # ---------------------------------------------------------------------------
@@ -221,5 +256,23 @@ defmodule Arkea.Sim.HGTTest do
 
     assert final_abundance < initial_abundance,
            "Expected prophage induction to reduce abundance below #{initial_abundance}, got #{final_abundance}"
+  end
+
+  test "oriT and integration hotspots increase transfer throughput" do
+    baseline_lineages = [
+      make_founder(donor_genome(conjugative_plasmid()), 200),
+      make_founder(recipient_genome(), 200)
+    ]
+
+    boosted_lineages = [
+      make_founder(donor_genome(conjugative_plasmid_with_orit()), 200),
+      make_founder(recipient_genome_with_hotspot(), 200)
+    ]
+
+    baseline_children = count_hgt_children(baseline_lineages, 5_000, "hgt-baseline")
+    boosted_children = count_hgt_children(boosted_lineages, 5_000, "hgt-boosted")
+
+    assert boosted_children > baseline_children,
+           "expected transfer-biased genomes to outproduce baseline HGT events, got #{boosted_children} <= #{baseline_children}"
   end
 end

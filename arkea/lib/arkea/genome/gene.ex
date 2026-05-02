@@ -63,11 +63,18 @@ defmodule Arkea.Genome.Gene do
   @max_codons 207
 
   typedstruct enforce: true do
-    field :id, binary()
-    field :codons, [Codon.t()]
-    field :promoter_block, [Codon.t()] | nil, default: nil
-    field :regulatory_block, [Codon.t()] | nil, default: nil
-    field :domains, [Domain.t()]
+    field(:id, binary())
+    field(:codons, [Codon.t()])
+    field(:promoter_block, [Codon.t()] | nil, default: nil)
+    field(:regulatory_block, [Codon.t()] | nil, default: nil)
+
+    field(
+      :intergenic_blocks,
+      %{expression: [binary()], transfer: [binary()], duplication: [binary()]},
+      default: %{expression: [], transfer: [], duplication: []}
+    )
+
+    field(:domains, [Domain.t()])
   end
 
   @doc "Phase 1 fixed length of `parameter_codons` per domain (= 20)."
@@ -108,6 +115,7 @@ defmodule Arkea.Genome.Gene do
       codons: codons,
       promoter_block: nil,
       regulatory_block: nil,
+      intergenic_blocks: %{expression: [], transfer: [], duplication: []},
       domains: domains
     }
   end
@@ -132,6 +140,7 @@ defmodule Arkea.Genome.Gene do
          codons: codons,
          promoter_block: nil,
          regulatory_block: nil,
+         intergenic_blocks: %{expression: [], transfer: [], duplication: []},
          domains: domains
        }}
     end
@@ -166,6 +175,7 @@ defmodule Arkea.Genome.Gene do
         codons: codons,
         promoter_block: promoter,
         regulatory_block: regulatory,
+        intergenic_blocks: intergenic_blocks,
         domains: domains
       })
       when is_binary(id) do
@@ -174,7 +184,8 @@ defmodule Arkea.Genome.Gene do
       domains != [] and
       Enum.all?(domains, &Domain.valid?/1) and
       validate_optional_block(promoter) and
-      validate_optional_block(regulatory)
+      validate_optional_block(regulatory) and
+      valid_intergenic_blocks?(intergenic_blocks)
   end
 
   def valid?(_), do: false
@@ -190,6 +201,7 @@ defmodule Arkea.Genome.Gene do
       not Enum.all?(gene.domains, &Domain.valid?/1) -> {:error, :invalid_domain}
       not validate_optional_block(gene.promoter_block) -> {:error, :invalid_promoter_block}
       not validate_optional_block(gene.regulatory_block) -> {:error, :invalid_regulatory_block}
+      not valid_intergenic_blocks?(gene.intergenic_blocks) -> {:error, :invalid_intergenic_blocks}
       true -> :ok
     end
   end
@@ -233,4 +245,16 @@ defmodule Arkea.Genome.Gene do
   end
 
   defp validate_optional_block(_), do: false
+
+  defp valid_intergenic_blocks?(%{
+         expression: expression,
+         transfer: transfer,
+         duplication: duplication
+       }) do
+    Enum.all?([expression, transfer, duplication], fn values ->
+      is_list(values) and Enum.all?(values, &is_binary/1)
+    end)
+  end
+
+  defp valid_intergenic_blocks?(_), do: false
 end

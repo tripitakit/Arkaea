@@ -48,23 +48,13 @@ defmodule Arkea.Sim.Mutator do
   alias Arkea.Genome.Mutation.Inversion
   alias Arkea.Genome.Mutation.Substitution
   alias Arkea.Genome.Mutation.Translocation
+  alias Arkea.Sim.Intergenic
 
   @domain_size 23
 
   @base_rate 0.01
   @divisor 50.0
   @max_probability 0.95
-
-  # Cumulative weights for mutation-type selection.
-  # Layout: {cumulative_threshold, type_atom}
-  # Thresholds must sum to 100.
-  @type_weights [
-    {70, :substitution},
-    {85, :indel},
-    {93, :duplication},
-    {98, :inversion},
-    {100, :translocation}
-  ]
 
   @type rng_state :: :rand.state()
 
@@ -96,8 +86,8 @@ defmodule Arkea.Sim.Mutator do
   """
   @spec generate(Genome.t(), rng_state()) ::
           {:ok, Arkea.Genome.Mutation.t(), rng_state()} | {:skip, rng_state()}
-  def generate(%Genome{chromosome: chromosome} = _genome, rng) when chromosome != [] do
-    {type, rng1} = sample_type(rng)
+  def generate(%Genome{chromosome: chromosome} = genome, rng) when chromosome != [] do
+    {type, rng1} = sample_type(genome, rng)
     generate_of_type(type, chromosome, rng1)
   end
 
@@ -128,13 +118,28 @@ defmodule Arkea.Sim.Mutator do
 
   # Sample a mutation type according to the cumulative weight table.
   # Returns {type_atom, new_rng}.
-  defp sample_type(rng) do
+  defp sample_type(genome, rng) do
+    type_weights = type_weights_for(genome)
     {n, rng1} = :rand.uniform_s(100, rng)
 
     type =
-      Enum.find_value(@type_weights, :substitution, fn {threshold, t} -> n <= threshold && t end)
+      Enum.find_value(type_weights, :substitution, fn {threshold, t} -> n <= threshold && t end)
 
     {type, rng1}
+  end
+
+  defp type_weights_for(%Genome{} = genome) do
+    duplication_bonus = Intergenic.duplication_bonus(genome)
+    substitution_weight = 70 - duplication_bonus
+    duplication_weight = 8 + duplication_bonus
+
+    [
+      {substitution_weight, :substitution},
+      {substitution_weight + 15, :indel},
+      {substitution_weight + 15 + duplication_weight, :duplication},
+      {substitution_weight + 15 + duplication_weight + 5, :inversion},
+      {100, :translocation}
+    ]
   end
 
   # ---------------------------------------------------------------------------
@@ -205,7 +210,7 @@ defmodule Arkea.Sim.Mutator do
   end
 
   defp generate_of_type(:duplication, chromosome, rng) do
-    {gene, rng1} = pick_random(chromosome, rng)
+    {gene, rng1} = pick_weighted_random(chromosome, &Intergenic.duplication_weight/1, rng)
     n_domains = div(length(gene.codons), @domain_size)
     {dom_idx, rng2} = :rand.uniform_s(n_domains, rng1)
     dom_idx = dom_idx - 1
@@ -297,6 +302,27 @@ defmodule Arkea.Sim.Mutator do
     n = length(list)
     {idx, rng1} = :rand.uniform_s(n, rng)
     {Enum.at(list, idx - 1), rng1}
+  end
+
+  defp pick_weighted_random(list, weight_fun, rng) when is_list(list) and list != [] do
+    weighted =
+      Enum.map(list, fn item ->
+        {item, max(weight_fun.(item), 1)}
+      end)
+
+    total_weight = Enum.sum_by(weighted, fn {_item, weight} -> weight end)
+    {n, rng1} = :rand.uniform_s(total_weight, rng)
+
+    item =
+      Enum.reduce_while(weighted, n, fn {candidate, weight}, remaining ->
+        if remaining <= weight do
+          {:halt, candidate}
+        else
+          {:cont, remaining - weight}
+        end
+      end)
+
+    {item, rng1}
   end
 
   # Pick a codon different from `exclude`. Returns {codon, new_rng}.

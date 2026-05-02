@@ -376,6 +376,62 @@ defmodule Arkea.Sim.TickTest do
            "genome with catalytic_site should have higher base_growth_rate than one without"
   end
 
+  test "sigma promoter raises growth delta under nutrient-rich conditions" do
+    phase =
+      :surface
+      |> Phase.new(dilution_rate: 0.05)
+      |> Phase.update_metabolite(:glucose, 100.0)
+
+    plain = Lineage.new_founder(promoter_test_genome(false), %{surface: 20}, 0)
+    promoted = Lineage.new_founder(promoter_test_genome(true), %{surface: 20}, 0)
+
+    state =
+      BiotopeState.new_from_opts(
+        id: Arkea.UUID.v4(),
+        archetype: :eutrophic_pond,
+        phases: [phase],
+        dilution_rate: 0.05,
+        lineages: [plain, promoted]
+      )
+
+    expressed =
+      state
+      |> Tick.step_metabolism()
+      |> Tick.step_expression()
+
+    plain_delta = get_in(expressed.growth_delta_by_lineage, [plain.id, :surface])
+    promoted_delta = get_in(expressed.growth_delta_by_lineage, [promoted.id, :surface])
+
+    assert promoted_delta > plain_delta
+  end
+
+  test "metabolite riboswitch softens starvation penalties" do
+    phase = Phase.new(:surface, dilution_rate: 0.05)
+
+    plain = Lineage.new_founder(riboswitch_test_genome(false), %{surface: 20}, 0)
+    gated = Lineage.new_founder(riboswitch_test_genome(true), %{surface: 20}, 0)
+
+    state =
+      BiotopeState.new_from_opts(
+        id: Arkea.UUID.v4(),
+        archetype: :oligotrophic_lake,
+        phases: [phase],
+        dilution_rate: 0.05,
+        lineages: [plain, gated]
+      )
+
+    expressed =
+      state
+      |> Tick.step_metabolism()
+      |> Tick.step_expression()
+
+    plain_delta = get_in(expressed.growth_delta_by_lineage, [plain.id, :surface])
+    gated_delta = get_in(expressed.growth_delta_by_lineage, [gated.id, :surface])
+
+    assert gated_delta > plain_delta
+    assert gated_delta < 0
+  end
+
   # ---------------------------------------------------------------------------
   # Property: step_expression produces non-nil deltas for all lineages
 
@@ -407,6 +463,43 @@ defmodule Arkea.Sim.TickTest do
     domain = Domain.new([0, 0, 0], List.duplicate(0, 20))
     gene = Gene.from_domains([domain])
     Genome.new([gene])
+  end
+
+  defp promoter_test_genome(with_promoter?) do
+    substrate = Domain.new([0, 0, 0], List.duplicate(0, 20))
+    catalytic = Domain.new([0, 0, 1], List.duplicate(19, 20))
+    gene = Gene.from_domains([substrate, catalytic])
+
+    gene =
+      if with_promoter? do
+        with_intergenic(gene, %{expression: ["sigma_promoter"]})
+      else
+        gene
+      end
+
+    Genome.new([gene])
+  end
+
+  defp riboswitch_test_genome(with_riboswitch?) do
+    costly_domain = Domain.new([0, 0, 4], List.duplicate(19, 20))
+    gene = Gene.from_domains([costly_domain])
+
+    gene =
+      if with_riboswitch? do
+        with_intergenic(gene, %{expression: ["metabolite_riboswitch"]})
+      else
+        gene
+      end
+
+    Genome.new([gene])
+  end
+
+  defp with_intergenic(gene, overrides) do
+    %{gene | intergenic_blocks: Map.merge(empty_intergenic_blocks(), overrides)}
+  end
+
+  defp empty_intergenic_blocks do
+    %{expression: [], transfer: [], duplication: []}
   end
 
   defp simple_state do

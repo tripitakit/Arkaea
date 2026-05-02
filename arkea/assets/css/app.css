@@ -1236,6 +1236,174 @@ body {
   gap: 1rem;
 }
 
+.seed-atlas__copy,
+.seed-editor__copy {
+  color: var(--sim-muted);
+  line-height: 1.55;
+}
+
+.seed-editor {
+  display: grid;
+  gap: 1rem;
+}
+
+.seed-editor__panel,
+.seed-custom-gene-list,
+.seed-gene-inspector {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.seed-editor__draft-title {
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.seed-editor__draft {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.seed-editor__draft-empty {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  color: var(--sim-muted);
+  font-size: 0.76rem;
+}
+
+.seed-editor__palette {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.seed-palette-button {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(8, 15, 24, 0.58);
+  color: #f8fafc;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.seed-palette-button:hover:not([disabled]) {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.35);
+}
+
+.seed-palette-button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.seed-palette-button--latent {
+  border-style: dashed;
+}
+
+.seed-palette-button__title {
+  font-weight: 700;
+}
+
+.seed-palette-button__meta {
+  color: var(--sim-muted);
+  font-size: 0.75rem;
+}
+
+.seed-intergenic-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.seed-intergenic-group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.seed-intergenic-group__buttons,
+.seed-editor__actions,
+.seed-intergenic-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.seed-intergenic-button,
+.seed-intergenic-chip,
+.seed-custom-gene__remove {
+  border-radius: 999px;
+  font-size: 0.74rem;
+}
+
+.seed-intergenic-button {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(8, 15, 24, 0.56);
+  color: #cbd5e1;
+}
+
+.seed-intergenic-button--active {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f8fafc;
+}
+
+.seed-intergenic-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background: rgba(8, 51, 68, 0.34);
+  color: #a5f3fc;
+}
+
+.seed-custom-gene {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem 0.85rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(8, 15, 24, 0.48);
+}
+
+.seed-custom-gene__header,
+.seed-gene-inspector__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.seed-custom-gene__title,
+.seed-gene-inspector__title {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.seed-custom-gene__remove {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(251, 113, 133, 0.24);
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecdd3;
+}
+
+.seed-custom-gene__meta,
+.seed-gene-inspector__meta {
+  color: var(--sim-muted);
+  font-size: 0.76rem;
+}
+
 .seed-replicon {
   display: grid;
   gap: 0.75rem;
@@ -1290,6 +1458,28 @@ body {
 .seed-gene {
   display: grid;
   gap: 0.35rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 0.9rem;
+  background: transparent;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.seed-gene:hover {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.24);
+  background: rgba(8, 15, 24, 0.34);
+}
+
+.seed-gene--selected {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.seed-gene--custom {
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
 }
 
 .seed-gene__bar {
@@ -1299,6 +1489,10 @@ body {
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.12);
   background: rgba(8, 15, 24, 0.72);
+}
+
+.seed-gene__bar--draft {
+  min-height: 1.15rem;
 }
 
 .seed-domain {
@@ -1371,6 +1565,37 @@ body {
 .seed-domain-legend__swatch--structure { background: #cbd5e1; }
 .seed-domain-legend__swatch--other { background: #64748b; }
 
+.seed-gene-inspector__blocks,
+.seed-domain-stack {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.seed-domain-card {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(8, 15, 24, 0.48);
+}
+
+.seed-domain-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.seed-domain-card__title {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.seed-domain-card__copy {
+  color: var(--sim-muted);
+  line-height: 1.5;
+}
+
 @keyframes sim-rise-in {
   from {
     opacity: 0;
@@ -1397,6 +1622,10 @@ body {
 
   .seed-choice-grid,
   .seed-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .seed-editor__palette {
     grid-template-columns: 1fr;
   }
 
@@ -1435,6 +1664,12 @@ body {
     min-width: 8.6rem;
     max-width: 9.8rem;
     padding: 0.7rem 0.75rem;
+  }
+
+  .seed-custom-gene__header,
+  .seed-gene-inspector__header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .sim-phase-kpis,

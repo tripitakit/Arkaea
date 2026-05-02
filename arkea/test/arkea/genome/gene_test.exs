@@ -59,6 +59,29 @@ defmodule Arkea.Genome.GeneTest do
     refute Gene.valid?(nil)
   end
 
+  test "from_domains/1 initializes empty intergenic blocks" do
+    gene =
+      Gene.from_domains([
+        Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
+      ])
+
+    assert gene.intergenic_blocks == %{expression: [], transfer: [], duplication: []}
+    assert Gene.valid?(gene)
+    assert Gene.validate(gene) == :ok
+  end
+
+  test "validate/1 rejects malformed intergenic blocks" do
+    gene =
+      Gene.from_domains([
+        Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
+      ])
+
+    invalid_gene = %{gene | intergenic_blocks: %{expression: ["sigma_promoter"], transfer: []}}
+
+    refute Gene.valid?(invalid_gene)
+    assert Gene.validate(invalid_gene) == {:error, :invalid_intergenic_blocks}
+  end
+
   # ---------------------------------------------------------------------------
   # Property: from_codons source of truth
 
