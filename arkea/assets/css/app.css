@@ -30,21 +30,21 @@
   --color-base-200: oklch(25.26% 0.014 253.1);
   --color-base-300: oklch(20.15% 0.012 254.09);
   --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
+  --color-primary: oklch(62% 0.19 235);
+  --color-primary-content: oklch(96% 0.018 235);
+  --color-secondary: oklch(62% 0.19 235);
+  --color-secondary-content: oklch(96% 0.018 235);
+  --color-accent: oklch(70% 0.15 70);
+  --color-accent-content: oklch(15% 0.04 70);
   --color-neutral: oklch(37% 0.044 257.287);
   --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
+  --color-info: oklch(62% 0.19 235);
   --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
+  --color-success: oklch(65% 0.18 145);
+  --color-success-content: oklch(15% 0.06 145);
+  --color-warning: oklch(70% 0.15 70);
+  --color-warning-content: oklch(15% 0.04 70);
+  --color-error: oklch(60% 0.22 22);
   --color-error-content: oklch(96% 0.015 12.422);
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
@@ -105,16 +105,34 @@
 /* This file is for your main application CSS */
 
 :root {
-  --sim-bg: #071018;
-  --sim-bg-deep: #030712;
-  --sim-panel: rgba(8, 15, 24, 0.82);
-  --sim-panel-border: rgba(148, 163, 184, 0.18);
+  --sim-bg: oklch(13% 0.012 253);
+  --sim-bg-deep: oklch(9% 0.008 254);
+  --sim-panel: oklch(16% 0.013 253 / 88%);
+  --sim-panel-border: oklch(55% 0.01 253 / 18%);
   --sim-copy: #e2e8f0;
   --sim-muted: #94a3b8;
   --sim-teal: #14b8a6;
   --sim-sky: #38bdf8;
   --sim-gold: #f59e0b;
   --sim-rust: #f97316;
+  /* Semantic biology accents */
+  --bio-growth: oklch(65% 0.18 145);
+  --bio-stress: oklch(60% 0.22 22);
+  --bio-signal: oklch(70% 0.15 70);
+  --bio-metabolite: oklch(62% 0.19 235);
+  /* Spacing system */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  /* Typography scale */
+  --text-xs: 0.68rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.84rem;
+  --text-md: 0.98rem;
+  --text-lg: 1.15rem;
 }
 
 body {
@@ -153,29 +171,6 @@ body {
   pointer-events: none;
 }
 
-.sim-shell__aurora {
-  position: absolute;
-  width: 34rem;
-  height: 34rem;
-  filter: blur(60px);
-  opacity: 0.4;
-  z-index: 1;
-  animation: sim-aurora-float 18s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.sim-shell__aurora--west {
-  top: -12rem;
-  left: -10rem;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.24), transparent 70%);
-}
-
-.sim-shell__aurora--east {
-  right: -12rem;
-  bottom: -14rem;
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.24), transparent 70%);
-  animation-delay: -9s;
-}
 
 .sim-loading {
   position: relative;
@@ -211,10 +206,8 @@ body {
   padding: 1.5rem 1.6rem;
   border: 1px solid var(--sim-panel-border);
   border-radius: 1.6rem;
-  background:
-    linear-gradient(135deg, rgba(8, 15, 24, 0.96), rgba(10, 18, 28, 0.82)),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 16rem);
-  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.45);
+  background: var(--sim-panel);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.25);
   animation: sim-rise-in 600ms ease-out both;
 }
 
@@ -273,12 +266,15 @@ body {
   font-size: 1rem;
   font-weight: 700;
   color: #f8fafc;
+  font-variant-numeric: tabular-nums;
 }
 
 .sim-stat-chip--gold .sim-stat-chip__value { color: #fcd34d; }
-.sim-stat-chip--teal .sim-stat-chip__value { color: #5eead4; }
-.sim-stat-chip--sky .sim-stat-chip__value { color: #7dd3fc; }
-.sim-stat-chip--amber .sim-stat-chip__value { color: #fdba74; }
+.sim-stat-chip--teal .sim-stat-chip__value { color: var(--bio-metabolite); }
+.sim-stat-chip--sky .sim-stat-chip__value { color: var(--bio-metabolite); }
+.sim-stat-chip--amber .sim-stat-chip__value { color: var(--bio-signal); }
+.sim-stat-chip--green .sim-stat-chip__value { color: var(--bio-growth); }
+.sim-stat-chip--red .sim-stat-chip__value { color: var(--bio-stress); }
 .sim-stat-chip--slate .sim-stat-chip__value { color: #e2e8f0; }
 
 .sim-main-grid {
@@ -297,14 +293,239 @@ body {
   grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.8fr) minmax(18rem, 0.8fr);
 }
 
+/* ── Biotope viewport dense layout ── */
+
+.biotope-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 1.5rem);
+  overflow: hidden;
+}
+
+.biotope-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  height: 48px;
+  flex: 0 0 48px;
+  background: var(--sim-panel);
+  border: 1px solid var(--sim-panel-border);
+  border-radius: 1rem;
+  margin-top: var(--space-3);
+  overflow: hidden;
+}
+
+.biotope-header__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.biotope-header__name {
+  font-weight: 700;
+  font-size: var(--text-md);
+  color: #f8fafc;
+  white-space: nowrap;
+  margin-right: var(--space-2);
+}
+
+.biotope-header__chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  overflow: hidden;
+  flex: 1;
+}
+
+.sim-header-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 999px;
+  background: oklch(20% 0.01 253 / 60%);
+  border: 1px solid var(--sim-panel-border);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.sim-header-chip__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sim-muted);
+}
+
+.sim-header-chip__value {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-header-chip--teal .sim-header-chip__value { color: var(--bio-metabolite); }
+.sim-header-chip--green .sim-header-chip__value { color: var(--bio-growth); }
+.sim-header-chip--amber .sim-header-chip__value { color: var(--bio-signal); }
+.sim-header-chip--gold .sim-header-chip__value { color: #fcd34d; }
+.sim-header-chip--red .sim-header-chip__value { color: var(--bio-stress); }
+
+.biotope-header__detail-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--sim-panel-border);
+  background: transparent;
+  color: var(--sim-muted);
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.biotope-header__detail-btn:hover {
+  color: #f8fafc;
+  border-color: oklch(55% 0.01 253 / 40%);
+}
+
+.biotope-grid {
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--space-3);
+}
+
+.biotope-canvas-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.biotope-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: oklch(30% 0.01 253) transparent;
+}
+
+/* ── Inline-KPI phase tabs ── */
+
+.sim-phase-tabs--inline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-2);
+}
+
+.sim-phase-tab--inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid transparent;
+  border-radius: 0 0.75rem 0.75rem 0;
+  background: transparent;
+  color: #e2e8f0;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sim-phase-tab--inline:hover {
+  background: oklch(20% 0.01 253 / 40%);
+}
+
+.sim-phase-tab--inline.active {
+  border-left-color: var(--bio-metabolite);
+  background: oklch(20% 0.01 253 / 50%);
+}
+
+.sim-phase-tab--inline .label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  min-width: 7rem;
+}
+
+.sim-phase-tab--inline .meta {
+  font-size: var(--text-xs);
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Chemistry heatmap ── */
+
+.sim-heatmap {
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  width: 100%;
+}
+
+.sim-heatmap thead th {
+  padding: 2px 3px;
+  text-align: center;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.6rem;
+  border-bottom: 1px solid var(--sim-panel-border);
+}
+
+.sim-heatmap thead th:first-child {
+  text-align: left;
+}
+
+.sim-heatmap tbody td:first-child {
+  padding: 3px 6px 3px 0;
+  color: #e2e8f0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sim-heatmap__cell {
+  background: color-mix(in oklab, var(--bio-metabolite) calc(var(--fill, 0) * 55%), transparent);
+  text-align: right;
+  padding: 3px 3px;
+  font-variant-numeric: tabular-nums;
+  color: oklch(calc(90% - var(--fill, 0) * 40%) 0.01 253);
+  font-size: 0.6rem;
+  min-width: 2rem;
+}
+
+.sim-heatmap__cell:empty {
+  background: oklch(18% 0.008 253);
+}
+
+/* ── Compact bottom tabs ── */
+
+.biotope-bottom-tabs {
+  flex: 0 0 auto;
+}
+
+.biotope-bottom-tabs .tab {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* ── Topology modal ── */
+
+.biotope-modal {
+  max-width: 32rem;
+}
+
 .sim-card {
   border-radius: 1.4rem;
   border: 1px solid var(--sim-panel-border);
-  background:
-    linear-gradient(180deg, rgba(8, 15, 24, 0.9), rgba(8, 15, 24, 0.74)),
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.06), transparent 12rem);
-  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.3);
-  padding: 1.15rem;
+  background: var(--sim-panel);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.18);
+  padding: var(--space-3);
   animation: sim-rise-in 700ms ease-out both;
 }
 
@@ -505,6 +726,7 @@ body {
   font-size: 0.98rem;
   font-weight: 700;
   color: #f8fafc;
+  font-variant-numeric: tabular-nums;
 }
 
 .sim-token-cloud,
@@ -728,7 +950,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1rem;
+  padding: 0.5rem 0.9rem;
   border-radius: 1rem;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(8, 15, 24, 0.72);
@@ -1391,17 +1613,17 @@ body {
 
 .seed-editor__palette {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
 }
 
 .seed-palette-button {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.15rem;
   width: 100%;
-  padding: 0.85rem 0.9rem;
+  padding: 0.5rem 0.6rem;
   text-align: left;
-  border-radius: 0.95rem;
+  border-radius: 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(8, 15, 24, 0.58);
   color: #f8fafc;
@@ -1594,7 +1816,7 @@ body {
 
 .seed-gene__bar {
   display: flex;
-  min-height: 1rem;
+  min-height: 0.6rem;
   overflow: hidden;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.12);
@@ -1718,16 +1940,27 @@ body {
   }
 }
 
-@keyframes sim-aurora-float {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(1.5rem, 1rem, 0) scale(1.05); }
-}
 
 @media (max-width: 1100px) {
   .sim-hero,
   .sim-main-grid,
   .sim-lower-grid {
     grid-template-columns: 1fr;
+  }
+
+  .biotope-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .biotope-shell {
+    height: auto;
+    overflow: visible;
+  }
+
+  .biotope-right-col {
+    overflow-y: visible;
   }
 
   .seed-choice-grid,

@@ -4,7 +4,7 @@
 
 Persistent shared simulation of proto-bacterial organism evolution. Players create or resume an account, design an *Arkeon* seed (cellular structure + genome), and start colonization in a controlled biotope inside an ecosystem that evolves 24/7 server-side. Target audience: biologists, microbiologists, geneticists, molecular biologists.
 
-**Status**: phases `0–11` completed. Operational web shell with player access, `World`, `Seed Lab`, authoritative biotope viewport, runtime persistence/recovery, and the “Chronicles” scenario reproduced on the prototype.
+**Status**: phases `0–11` completed + UI Evolution ✅. Operational web shell with player access, `World`, `Seed Lab`, authoritative biotope viewport, runtime persistence/recovery, and the “Chronicles” scenario reproduced on the prototype. Minimal scientifically-correct interface: `biotope-grid` layout (55fr/45fr, viewport-height), 13-metabolite chemistry heatmap, Shannon diversity H′, and PixiJS event animations (born/extinct/HGT).
 
 **Stack**: Elixir + Phoenix (LiveView + Channels) · PostgreSQL via Ecto · PixiJS for the 2D WebGL view · prototype on DigitalOcean VPS.
 

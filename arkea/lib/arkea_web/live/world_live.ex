@@ -28,8 +28,6 @@ defmodule ArkeaWeb.WorldLive do
   def render(assigns) do
     ~H"""
     <div class="sim-shell" data-view="world">
-      <div class="sim-shell__aurora sim-shell__aurora--west"></div>
-      <div class="sim-shell__aurora sim-shell__aurora--east"></div>
       <div class="sim-shell__grid"></div>
       <div class="sim-shell__content">
         <GameChrome.top_nav active={:world} player_name={@player.display_name} />
@@ -44,11 +42,12 @@ defmodule ArkeaWeb.WorldLive do
           </div>
 
           <div class="sim-stat-strip">
-            <.stat_chip label="active biotopes" value={@overview.active_count} tone="gold" />
-            <.stat_chip label="player-owned" value={@overview.owned_count} tone="teal" />
+            <.stat_chip label="active" value={@overview.active_count} tone="gold" />
+            <.stat_chip label="owned" value={@overview.owned_count} tone="teal" />
             <.stat_chip label="wild" value={@overview.wild_count} tone="sky" />
-            <.stat_chip label="edges" value={@overview.edge_count} tone="amber" />
-            <.stat_chip label="max tick" value={@overview.max_tick} tone="slate" />
+            <.stat_chip label="archetypes" value={length(@overview.archetype_breakdown)} tone="amber" />
+            <.stat_chip label="edges" value={@overview.edge_count} tone="slate" />
+            <.stat_chip label="tick" value={@overview.max_tick} tone="slate" />
           </div>
         </section>
 
@@ -112,45 +111,24 @@ defmodule ArkeaWeb.WorldLive do
             <section class="sim-card">
               <div class="sim-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">Onboarding</div>
-                  <h2 class="sim-card__title">Starter ecotypes</h2>
-                </div>
-                <div class="sim-card__meta">Tier 1</div>
-              </div>
-
-              <div class="world-mini-list">
-                <div :for={ecotype <- @starter_ecotypes} class="world-mini-list__item">
-                  <div class="world-mini-list__title">{ecotype.label}</div>
-                  <div class="world-mini-list__copy">{ecotype.strapline}</div>
-                </div>
-              </div>
-            </section>
-
-            <section class="sim-card">
-              <div class="sim-card__header">
-                <div>
                   <div class="sim-card__eyebrow">Operator</div>
                   <h2 class="sim-card__title">{@player.display_name}</h2>
                 </div>
                 <div class="sim-card__meta">
                   <%= if @overview.owned_count > 0 do %>
-                    home live
+                    {pluralize(@overview.owned_count, "biotope")} owned
                   <% else %>
                     no home yet
                   <% end %>
                 </div>
               </div>
 
-              <p class="sim-muted">
-                This player can provision one starter home biotope from the seed lab, then jump into the detailed biotope viewport for realtime evolution.
-              </p>
-
-              <div class="world-cta-stack mt-4">
+              <div class="world-cta-stack">
                 <.link href={~p"/seed-lab"} class="sim-action-button sim-action-button--wide">
                   <%= if @overview.owned_count > 0 do %>
-                    Reopen seed lab
-                  <% else %>
                     Open seed lab
+                  <% else %>
+                    Provision starter home
                   <% end %>
                 </.link>
 
@@ -162,6 +140,29 @@ defmodule ArkeaWeb.WorldLive do
                   Inspect active biotope
                 </.link>
               </div>
+
+              <%= if @overview.archetype_breakdown != [] do %>
+                <div class="mt-4">
+                  <div class="sim-card__eyebrow mb-2">Archetype distribution</div>
+                  <div style="display: flex; height: 0.5rem; border-radius: 999px; overflow: hidden; gap: 2px;">
+                    <div
+                      :for={{archetype, count} <- @overview.archetype_breakdown}
+                      style={"flex: #{count}; background: #{archetype_color(archetype)}; min-width: 4px;"}
+                      title={"#{archetype_label(archetype)}: #{count}"}
+                    ></div>
+                  </div>
+                  <div class="sim-token-cloud mt-2">
+                    <span
+                      :for={{archetype, count} <- @overview.archetype_breakdown}
+                      class="sim-token sim-token--ghost"
+                      style={"border-left: 3px solid #{archetype_color(archetype)}; border-radius: 0 999px 999px 0; padding-left: 0.5rem;"}
+                    >
+                      <span class="sim-token__label" style="font-size: 0.68rem;">{archetype_label(archetype)}</span>
+                      <span class="sim-token__value">{count}</span>
+                    </span>
+                  </div>
+                </div>
+              <% end %>
             </section>
           </div>
         </div>
@@ -184,22 +185,26 @@ defmodule ArkeaWeb.WorldLive do
                   <th>Biotope</th>
                   <th>Status</th>
                   <th>Zone</th>
-                  <th>Population</th>
+                  <th>N (total)</th>
                   <th>Tick</th>
-                  <th>Arcs</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 <%= if @overview.biotopes == [] do %>
                   <tr>
-                    <td colspan="7" class="sim-table__empty">No active biotopes.</td>
+                    <td colspan="6" class="sim-table__empty">No active biotopes.</td>
                   </tr>
                 <% else %>
                   <tr :for={biotope <- @overview.biotopes}>
                     <td>
-                      <div class="world-table__title">{archetype_label(biotope.archetype)}</div>
-                      <div class="sim-lineage-id__sub">{short_id(biotope.id)}</div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style={"display: inline-block; width: 3px; height: 2rem; border-radius: 999px; background: #{archetype_color(biotope.archetype)}; flex-shrink: 0;"}></span>
+                        <div>
+                          <div class="world-table__title">{archetype_label(biotope.archetype)}</div>
+                          <div class="sim-lineage-id__sub">{short_id(biotope.id)}</div>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <span class={[
@@ -209,13 +214,12 @@ defmodule ArkeaWeb.WorldLive do
                         {ownership_label(biotope.ownership)}
                       </span>
                     </td>
-                    <td>{zone_label(biotope.zone)}</td>
-                    <td>{format_population(biotope.total_population)}</td>
-                    <td>{biotope.tick_count}</td>
-                    <td>{length(biotope.neighbor_ids)}</td>
+                    <td style="color: var(--sim-muted); font-size: var(--text-sm);">{zone_label(biotope.zone)}</td>
+                    <td style="font-variant-numeric: tabular-nums;">{format_population(biotope.total_population)}</td>
+                    <td style="font-variant-numeric: tabular-nums; color: var(--sim-muted);">{biotope.tick_count}</td>
                     <td>
                       <.link href={~p"/biotopes/#{biotope.id}"} class="world-table__link">
-                        Open viewport
+                        <span class="hero-arrow-top-right-on-square w-4 h-4"></span>
                       </.link>
                     </td>
                   </tr>
@@ -293,4 +297,8 @@ defmodule ArkeaWeb.WorldLive do
   defp archetype_color(:marine_sediment), do: "#fb7185"
   defp archetype_color(:hydrothermal_vent), do: "#f97316"
   defp archetype_color(:acid_mine_drainage), do: "#ef4444"
+  defp archetype_color(_), do: "#94a3b8"
+
+  defp pluralize(1, noun), do: "1 #{noun}"
+  defp pluralize(n, noun), do: "#{n} #{noun}s"
 end

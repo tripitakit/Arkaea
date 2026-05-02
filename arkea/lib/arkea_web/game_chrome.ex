@@ -14,23 +14,56 @@ defmodule ArkeaWeb.GameChrome do
       </div>
 
       <div class="game-nav__links">
-        <.link href={~p"/world"} class={nav_class(@active == :world)}>
+        <.link
+          href={~p"/world"}
+          class={nav_class(@active == :world)}
+          aria-current={if @active == :world, do: "page", else: false}
+        >
           World
         </.link>
-        <.link href={~p"/seed-lab"} class={nav_class(@active == :seed_lab)}>
+        <.link
+          href={~p"/seed-lab"}
+          class={nav_class(@active == :seed_lab)}
+          aria-current={if @active == :seed_lab, do: "page", else: false}
+        >
           Seed lab
         </.link>
 
-        <span :if={@active == :biotope} class={nav_class(true)}>
-          {@biotope_label || "Biotope view"}
+        <span
+          :if={@active == :biotope}
+          class={nav_class(true)}
+          aria-current="page"
+          style="font-size: var(--text-sm);"
+        >
+          {@biotope_label || "Biotope"}
         </span>
       </div>
 
-      <div :if={@player_name} class="game-nav__operator">
-        Operator <span>{@player_name}</span>
-        <.link href={~p"/players/log-out"} class="game-nav__link">
-          Log out
-        </.link>
+      <div :if={@player_name} class="dropdown dropdown-end">
+        <div
+          tabindex="0"
+          role="button"
+          class="game-nav__operator"
+          style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;"
+        >
+          <span>{@player_name}</span>
+          <span class="hero-chevron-down w-3 h-3" style="color: var(--sim-muted);"></span>
+        </div>
+        <ul
+          tabindex="0"
+          class="dropdown-content menu menu-sm"
+          style="z-index: 100; background: var(--sim-panel); border: 1px solid var(--sim-panel-border); border-radius: 0.75rem; padding: 0.5rem; min-width: 10rem; margin-top: 0.25rem; box-shadow: 0 8px 24px rgba(2,6,23,0.3);"
+        >
+          <li>
+            <.link
+              href={~p"/players/log-out"}
+              style="color: var(--sim-muted); font-size: var(--text-sm); padding: 0.5rem 0.75rem; border-radius: 0.5rem;"
+            >
+              <span class="hero-arrow-right-on-rectangle w-4 h-4"></span>
+              Log out
+            </.link>
+          </li>
+        </ul>
       </div>
     </nav>
     """

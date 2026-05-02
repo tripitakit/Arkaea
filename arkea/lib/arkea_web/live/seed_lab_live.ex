@@ -28,6 +28,7 @@ defmodule ArkeaWeb.SeedLabLive do
        gene_editor_error: nil,
        selected_replicon_id: "chromosome",
        selected_gene_index: 1,
+       inspector_expanded: false,
        page_title: "Arkea Seed Lab"
      )
      |> apply_form(SeedLab.form_defaults())}
@@ -161,6 +162,10 @@ defmodule ArkeaWeb.SeedLabLive do
      )}
   end
 
+  def handle_event("toggle_inspector", _params, socket) do
+    {:noreply, assign(socket, inspector_expanded: not socket.assigns.inspector_expanded)}
+  end
+
   def handle_event("provision_seed", %{"seed" => params}, socket) do
     if socket.assigns.seed_locked? do
       {:noreply,
@@ -184,8 +189,6 @@ defmodule ArkeaWeb.SeedLabLive do
   def render(assigns) do
     ~H"""
     <div class="sim-shell" data-view="seed-lab">
-      <div class="sim-shell__aurora sim-shell__aurora--west"></div>
-      <div class="sim-shell__aurora sim-shell__aurora--east"></div>
       <div class="sim-shell__grid"></div>
       <div class="sim-shell__content">
         <GameChrome.top_nav active={:seed_lab} player_name={@player.display_name} />
@@ -208,7 +211,7 @@ defmodule ArkeaWeb.SeedLabLive do
           </div>
         </section>
 
-        <div class="sim-main-grid mt-6">
+        <div class="sim-main-grid mt-6" style="grid-template-columns: minmax(0, 0.9fr) minmax(21rem, 1.1fr);">
           <section class="sim-card seed-form-card">
             <div class="sim-card__header">
               <div>
@@ -363,28 +366,38 @@ defmodule ArkeaWeb.SeedLabLive do
                 <div class="sim-card__meta">{preview_ecotype_label(@preview)}</div>
               </div>
 
-              <div class="sim-phase-kpis">
+              <div class="sim-phase-kpis" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
                 <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">growth</span>
+                  <span class="sim-mini-stat__label">µ (h⁻¹)</span>
                   <span class="sim-mini-stat__value">
                     {format_float(@preview.phenotype.base_growth_rate, 2)}
                   </span>
                 </div>
                 <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">repair</span>
+                  <span class="sim-mini-stat__label">ε (repair)</span>
                   <span class="sim-mini-stat__value">
                     {format_float(@preview.phenotype.repair_efficiency, 2)}
                   </span>
                 </div>
                 <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">ATP cost</span>
+                  <span class="sim-mini-stat__label">E (ATP)</span>
                   <span class="sim-mini-stat__value">
                     {format_float(@preview.phenotype.energy_cost, 2)}
                   </span>
                 </div>
                 <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">TM anchors</span>
+                  <span class="sim-mini-stat__label">n_TM</span>
                   <span class="sim-mini-stat__value">{@preview.phenotype.n_transmembrane}</span>
+                </div>
+                <div class="sim-mini-stat">
+                  <span class="sim-mini-stat__label">σ affinity</span>
+                  <span class="sim-mini-stat__value">
+                    {format_float(@preview.phenotype.dna_binding_affinity, 2)}
+                  </span>
+                </div>
+                <div class="sim-mini-stat">
+                  <span class="sim-mini-stat__label">QS signals</span>
+                  <span class="sim-mini-stat__value">{length(@preview.phenotype.qs_produces)}</span>
                 </div>
               </div>
 
@@ -423,12 +436,26 @@ defmodule ArkeaWeb.SeedLabLive do
                 seed_locked?={@seed_locked?}
               />
 
-              <.gene_inspector
-                preview={@preview}
-                custom_gene_specs={@custom_gene_specs}
-                selected_replicon_id={@selected_replicon_id}
-                selected_gene_index={@selected_gene_index}
-              />
+              <div>
+                <button
+                  type="button"
+                  class="sim-card__eyebrow mb-2"
+                  phx-click="toggle_inspector"
+                  style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; color: #67e8f9;"
+                >
+                  Gene inspector
+                  <span>{if @inspector_expanded, do: "−", else: "+"}</span>
+                </button>
+
+                <%= if @inspector_expanded do %>
+                  <.gene_inspector
+                    preview={@preview}
+                    custom_gene_specs={@custom_gene_specs}
+                    selected_replicon_id={@selected_replicon_id}
+                    selected_gene_index={@selected_gene_index}
+                  />
+                <% end %>
+              </div>
             </section>
 
             <section class="sim-card">

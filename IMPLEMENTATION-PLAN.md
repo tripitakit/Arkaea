@@ -4,7 +4,7 @@
 
 **Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
-**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · Fase 11 ✅ (vedi §1bis). **Progetto completato.**
+**Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · Fase 11 ✅ · UI Evolution ✅ (vedi §1bis). **Progetto completato.**
 
 ---
 
@@ -24,7 +24,7 @@ Questo documento definisce **come** costruire il sistema: la scelta architettura
 
 ## 1bis. Stato dell'implementazione
 
-> Aggiornato: 2026-05-02. Fase 11 già su `master`; in questo aggiornamento il piano viene riallineato anche al flusso di accesso player autenticato e alla shell di simulazione condivisa.
+> Aggiornato: 2026-05-02. Tutte le 12 fasi (0–11) e il refactoring UI Evolution sono su `master`. Il piano è allineato alla shell completa inclusa l'interfaccia minimale scientificamente corretta.
 
 ### Fase 0 — Bootstrap ✅ completata (commit `86a3ef2`)
 
@@ -463,6 +463,70 @@ Invarianti coperti (§6.2):
 - `phase_color` in `sim_live.ex` (CC 10 → map lookup); 6 nesting depth in `migration.ex` (helper estratti: `plan_phase_transfer`, `distribute_by_scores`, `move_pool_key`, `apply_lineage_delta`, `correct_last_float`, semplificazione `allocate_integer_by_weights`); alias order in `application.ex` e `store.ex`; nesting in `recovery.ex` (`recover_one`)
 
 **Suite finale**: `mix format` · `MIX_ENV=test mix ecto.migrate` · `mix ecto.migrate` · `mix assets.build` · `mix test` → **124 properties, 237 tests, 0 failures**
+
+---
+
+### Fase 11 — Caso d'uso "Cronache" abbreviato ✅ completata (commit `bd72aed`)
+
+Riproduzione dello stress test di DESIGN_STRESS-TEST.md su scala prototipo: da seed, in alcune ore di tick reale, emergono resistenza, biofilm, induzione profago e colonizzazione competitiva tra biotopi. Tutti i 15 blocchi del design attraversati nel runtime operativo.
+
+**Suite finale**: `mix compile` + `mix test` → **124 properties, 237 tests, 0 failures**
+
+---
+
+### UI Evolution — refactoring post Fase 11 ✅ (commit corrente)
+
+**Obiettivo**: interfaccia minimale, scientificamente corretta, compatta e funzionale per biologi/microbiologi esperti — nessun rumore decorativo, unità SI, densità informativa massima, zero scroll verticale a 1440px.
+
+**P1 — Design token cleanup + rimozione aurora** (`app.css`):
+- Variabili semantiche biologiche: `--bio-growth` (oklch verde), `--bio-stress` (rosso), `--bio-signal` (ambra), `--bio-metabolite` (blu); sistema spaziatura `--space-1..6`; scala tipografica `--text-xs..lg`
+- Rimozione `.sim-shell__aurora` e keyframe `sim-aurora-float` (GPU-heavy, nessun valore informativo)
+- `.sim-card`: background uniforme (no radial-gradient), box-shadow ridotta del 40%
+- `font-variant-numeric: tabular-nums` su tutti i valori numerici
+
+**P2 — Biotope viewport restructure** (`sim_live.ex` + `app.css`):
+- Layout `biotope-shell` → `biotope-header` (48px) + `biotope-grid` (`55fr 45fr`, `height: calc(100vh - 92px)`)
+- Colonna destra `overflow-y: auto` — elimina il secondo grid fuori viewport a 1440px
+- Topology panel spostato in `<dialog>` modal HTML (trigger: gear button nell'header)
+- Event log + operator panel raggruppati in tab daisyUI `tabs-box` (Events / Interventions)
+
+**P3 — Phase inline-KPI tabs + lineage table compatta** (`sim_live.ex`):
+- Phase tabs inline con T (°C), pH, N per ogni fase; bordo sinistro attivo via CSS
+- Tabella lignaggi ridotta a 7 colonne: ID · Cluster · Phase dom. · N · µ (h⁻¹) · ε · Born
+- Sorting client-less via `phx-click="sort_lineages"` per 4 campi
+- Shannon diversity H′ = Σ −p·ln(p) aggiunto ai KPI del phase inspector
+- Label ambientali con unità SI: `T (°C)`, `Osm (mOsm/L)`, `D (%/tick)`, `µ (h⁻¹)`
+
+**P4 — Chemistry heatmap** (`sim_live.ex` + `app.css`):
+- 13 metaboliti canonici × N fasi; intensità via `color-mix(in oklab, var(--bio-metabolite) calc(var(--fill) * 55%), transparent)`
+- Sostituisce i token cloud che mostravano solo il top-4
+
+**P5 — PixiJS improvements** (`biotope_scene.js`):
+- Event queue per animazioni transitorie: `lineage_born` (cerchio espandente verde), `lineage_extinct` (rosso collassante), `hgt_transfer` (arco ambra)
+- Forme per cluster: biofilm → rettangolo, motile → ellisse allungata, altri → cerchio
+- Overlay ridotto a solo `tick ${n}`; label fase con `T ${T}°C · pH ${ph} · D ${D}%/tick`; `MAX_PHASE_PARTICLES` 72 → 60
+
+**P6 — World overview + Seed Lab** (`world_live.ex`, `seed_lab_live.ex`):
+- World: archetype breakdown bar proporzionale nella sidebar; colonne tabella semplificate; nodi world map compatti
+- Seed Lab: gene inspector collassato di default (`toggle_inspector`), domain palette 3 colonne, KPI con σ affinity e QS signals
+
+**P7 — Nav + flash polish** (`game_chrome.ex`, `core_components.ex`):
+- Logout → daisyUI `dropdown` con chevron sul player name; `aria-current="page"` sui link attivi
+- Flash info → `role="status"` (era `role="alert"`); nav padding: `0.9rem 1rem` → `0.5rem 0.9rem`
+
+**File modificati**:
+
+| File | Priorità |
+|---|---|
+| `arkea/assets/css/app.css` | P1–P4, P6, P7 |
+| `arkea/lib/arkea_web/live/sim_live.ex` | P2–P4 |
+| `arkea/assets/js/hooks/biotope_scene.js` | P5 |
+| `arkea/lib/arkea_web/live/world_live.ex` | P6 |
+| `arkea/lib/arkea_web/live/seed_lab_live.ex` | P6 |
+| `arkea/lib/arkea_web/game_chrome.ex` | P7 |
+| `arkea/lib/arkea_web/components/core_components.ex` | P7 |
+
+**Compilazione finale**: `mix compile` → clean, 0 warning, 0 errori.
 
 ---
 

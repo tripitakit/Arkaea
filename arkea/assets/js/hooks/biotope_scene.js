@@ -2,15 +2,15 @@ import { Application, Container, Graphics, Text } from "pixi.js"
 
 const H_MARGIN = 26
 const V_MARGIN = 22
-const TOP_OVERLAY_GUTTER = 42
-const BOTTOM_OVERLAY_GUTTER = 34
+const TOP_OVERLAY_GUTTER = 32
+const BOTTOM_OVERLAY_GUTTER = 20
 const BAND_GAP = 10
-const MAX_PHASE_PARTICLES = 72
+const MAX_PHASE_PARTICLES = 60
 
 const textStyle = {
   fill: "#f8fafc",
   fontFamily: "Azeret Mono, IBM Plex Mono, Iosevka, ui-monospace, monospace",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: "600",
   letterSpacing: 0.9,
 }
@@ -18,7 +18,7 @@ const textStyle = {
 const subtextStyle = {
   fill: "#94a3b8",
   fontFamily: "Azeret Mono, IBM Plex Mono, Iosevka, ui-monospace, monospace",
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: "500",
   letterSpacing: 0.6,
 }
@@ -28,10 +28,12 @@ export const BiotopeScene = {
     this.snapshot = null
     this.phaseBounds = []
     this.animatedNodes = []
+    this.eventQueue = []
     this.destroyed = false
 
     this.handleSnapshot = (payload) => this.applySnapshot(payload)
     this.handleEvent("biotope_snapshot", this.handleSnapshot)
+    this.handleEvent("biotope_event", (payload) => this.applyBiotopeEvent(payload))
 
     try {
       await this.initApp()
@@ -84,12 +86,14 @@ export const BiotopeScene = {
     this.layers = {
       backdrop: new Container(),
       particles: new Container(),
+      events: new Container(),
       labels: new Container(),
       overlay: new Container(),
     }
 
     this.app.stage.addChild(this.layers.backdrop)
     this.app.stage.addChild(this.layers.particles)
+    this.app.stage.addChild(this.layers.events)
     this.app.stage.addChild(this.layers.labels)
     this.app.stage.addChild(this.layers.overlay)
 
@@ -131,6 +135,18 @@ export const BiotopeScene = {
     this.ensureCanvasMounted()
     this.snapshot = snapshot
     this.draw()
+  },
+
+  applyBiotopeEvent(payload) {
+    if (!payload || !this.phaseBounds.length) return
+
+    this.eventQueue.push({
+      type: payload.type,
+      phase: payload.phase,
+      tick: payload.tick,
+      frame: 0,
+      maxFrames: payload.type === "hgt_transfer" ? 20 : 30,
+    })
   },
 
   ensureCanvasMounted() {
@@ -232,9 +248,9 @@ export const BiotopeScene = {
     })
   },
 
-  drawPhaseBand(phaseBound, index) {
+  drawPhaseBand(phaseBound) {
     const band = new Graphics()
-    const alpha = phaseBound.isSelected ? 0.2 : 0.13
+    const alpha = phaseBound.isSelected ? 0.22 : 0.13
     const strokeAlpha = phaseBound.isSelected ? 0.9 : 0.45
     const strokeWidth = phaseBound.isSelected ? 2.8 : 1.2
     const radius = 18
@@ -242,6 +258,14 @@ export const BiotopeScene = {
     band.roundRect(phaseBound.x, phaseBound.y, phaseBound.width, phaseBound.height, radius)
     band.fill({ color: phaseBound.color, alpha })
     band.stroke({ color: phaseBound.color, alpha: strokeAlpha, width: strokeWidth })
+
+    // Selected phase: 2px top highlight line
+    if (phaseBound.isSelected) {
+      const hl = new Graphics()
+      hl.roundRect(phaseBound.x + 2, phaseBound.y, phaseBound.width - 4, 2, 1)
+      hl.fill({ color: phaseBound.color, alpha: 0.9 })
+      this.layers.backdrop.addChild(hl)
+    }
 
     this.layers.backdrop.addChild(band)
   },
@@ -282,12 +306,26 @@ export const BiotopeScene = {
         const rng = mulberry32(hashString(seed))
         const x = phaseBound.x + 18 + rng() * Math.max(phaseBound.width - 36, 10)
         const y = phaseBound.y + 22 + rng() * Math.max(phaseBound.height - 44, 10)
-        const radius = 1.6 + rng() * 3.6
+        const baseRadius = 1.6 + rng() * 3.2
 
         const particle = new Graphics()
         particle.x = x
         particle.y = y
-        particle.circle(0, 0, radius)
+
+        // Cluster-based shape variation
+        switch (lineage.cluster) {
+          case "biofilm":
+            // Rounded square
+            particle.rect(-baseRadius * 0.8, -baseRadius * 0.8, baseRadius * 1.6, baseRadius * 1.6)
+            break
+          case "motile":
+            // Elongated ellipse
+            particle.ellipse(0, 0, baseRadius * 1.5, baseRadius * 0.6)
+            break
+          default:
+            particle.circle(0, 0, baseRadius)
+        }
+
         particle.fill({ color: lineage.color, alpha: 1 })
         particle.alpha = 0.86
 
@@ -309,43 +347,38 @@ export const BiotopeScene = {
     })
 
     title.x = phaseBound.x + 14
-    title.y = phaseBound.y + 12
+    title.y = phaseBound.y + 10
+
+    const temp = phaseBound.temperature != null ? `${phaseBound.temperature}°C` : "—"
+    const ph = phaseBound.ph != null ? `pH ${phaseBound.ph}` : ""
+    const dil = phaseBound.dilutionRate != null ? `D ${Math.round(phaseBound.dilutionRate * 100)}%/tick` : ""
 
     const detail = new Text({
-      text: `pH ${phaseBound.ph} · dil ${Math.round((phaseBound.dilutionRate || 0) * 100)}% · lin ${phaseBound.lineageCount}`,
+      text: `T ${temp} · ${ph} · ${dil}`,
       style: subtextStyle,
     })
 
     detail.x = phaseBound.x + 14
-    detail.y = phaseBound.y + 30
+    detail.y = phaseBound.y + 26
 
     this.layers.labels.addChild(title)
     this.layers.labels.addChild(detail)
   },
 
-  drawOverlay(width, height) {
+  drawOverlay(width) {
     const overlayText = new Text({
-      text: `${this.snapshot.archetype} · tick ${this.snapshot.tick}`,
+      text: `tick ${this.snapshot.tick}`,
       style: {
         ...subtextStyle,
-        fill: "#cbd5e1",
+        fill: "#64748b",
       },
     })
 
     overlayText.anchor.set(1, 0)
     overlayText.x = width - 18
-    overlayText.y = 14
-
-    const footer = new Text({
-      text: "Procedural render derived from authoritative phase aggregates",
-      style: subtextStyle,
-    })
-
-    footer.x = 18
-    footer.y = height - 18
+    overlayText.y = 12
 
     this.layers.overlay.addChild(overlayText)
-    this.layers.overlay.addChild(footer)
   },
 
   animate() {
@@ -359,6 +392,52 @@ export const BiotopeScene = {
       entry.node.alpha = alpha
       entry.node.scale.set(scale)
     })
+
+    // Process event animations
+    if (this.eventQueue.length > 0) {
+      this.layers.events.removeChildren()
+      this.eventQueue = this.eventQueue.filter((entry) => {
+        this.drawEventAnimation(entry)
+        entry.frame += 1
+        return entry.frame < entry.maxFrames
+      })
+    }
+  },
+
+  drawEventAnimation(entry) {
+    if (!this.phaseBounds.length) return
+
+    const phaseBound = this.phaseBounds.find((pb) => pb.name === entry.phase) || this.phaseBounds[0]
+    const progress = entry.frame / entry.maxFrames
+    const rng = mulberry32(hashString(`${entry.phase}:${entry.tick}:${entry.frame}`))
+    const cx = phaseBound.x + 20 + rng() * (phaseBound.width - 40)
+    const cy = phaseBound.y + 15 + rng() * (phaseBound.height - 30)
+
+    const g = new Graphics()
+
+    if (entry.type === "lineage_born") {
+      const radius = progress * 20
+      const alpha = clamp(1 - progress * 1.2, 0, 1)
+      g.circle(cx, cy, radius)
+      g.stroke({ color: 0x4ade80, alpha, width: 1.5 })
+    } else if (entry.type === "lineage_extinct") {
+      const radius = clamp((1 - progress) * 16, 0, 16)
+      const alpha = clamp(1 - progress * 1.5, 0, 1)
+      g.circle(cx, cy, radius)
+      g.stroke({ color: 0xf87171, alpha, width: 1.5 })
+    } else if (entry.type === "hgt_transfer") {
+      const rng2 = mulberry32(hashString(`${entry.phase}:${entry.tick}:end`))
+      const ex = phaseBound.x + 20 + rng2() * (phaseBound.width - 40)
+      const ey = phaseBound.y + 15 + rng2() * (phaseBound.height - 30)
+      const alpha = clamp(1 - progress * 1.6, 0, 1)
+      g.moveTo(cx, cy).lineTo(
+        cx + (ex - cx) * progress,
+        cy + (ey - cy) * progress
+      )
+      g.stroke({ color: 0xfb923c, alpha, width: 1 })
+    }
+
+    this.layers.events.addChild(g)
   },
 
   findPhaseAt(event) {
@@ -407,9 +486,11 @@ function clamp(value, min, max) {
 }
 
 function formatCompact(value) {
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1)}M`
+  }
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}k`
   }
-
   return `${value}`
 }

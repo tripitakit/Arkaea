@@ -4,7 +4,7 @@
 
 **References**: [DESIGN.en.md](DESIGN.en.md), [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md)
 **Date**: 2026-04-26
-**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · Phase 9 ✅ · Phase 10 ✅ · Phase 11 ✅ (see §1bis). **Project completed.**
+**Status**: Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Phase 7 ✅ · Phase 8 ✅ · Phase 9 ✅ · Phase 10 ✅ · Phase 11 ✅ · UI Evolution ✅ (see §1bis). **Project completed.**
 
 ---
 
@@ -24,7 +24,7 @@ This document defines **how** to build the system: the main architectural choice
 
 ## 1bis. Implementation status
 
-> Updated: 2026-05-02. Phase 11 was already on `master`; this pass also realigns the plan to the authenticated player access flow and the shared-simulation shell.
+> Updated: 2026-05-02. All 12 phases (0–11) and the UI Evolution refactoring are on `master`. The plan is aligned to the complete shell including the minimal scientifically-correct interface.
 
 Completed phases on `master` as of 2026-05-01:
 - Phase 0: Bootstrap Phoenix scaffold (commit `86a3ef2`)
@@ -177,6 +177,70 @@ Completed phases on `master` as of 2026-05-01:
 - The future advanced genome editor should operate on the persisted blueprint layer (`arkeon_blueprints`), not directly on live biotope state
 
 **Final suite**: `mix format` + `MIX_ENV=test mix ecto.migrate` + `mix ecto.migrate` + `mix assets.build` + `mix test` → **124 properties, 237 tests, 0 failures**
+
+---
+
+### Phase 11 — Abridged "Chronicles" use case ✅ completed (commit `bd72aed`)
+
+Reproduced the DESIGN_STRESS-TEST.md stress test at prototype scale: from seed, over a few real-time hours of ticks, antibiotic resistance, biofilm, prophage induction, and competitive colonization between biotopes all emerge. All 15 design blocks traversed in the operational runtime.
+
+**Final suite**: `mix compile` + `mix test` → **124 properties, 237 tests, 0 failures**
+
+---
+
+### UI Evolution — post-Phase-11 refactoring ✅ (current commit)
+
+**Goal**: minimal, scientifically correct, compact, and functional interface for expert biologists/microbiologists — no decorative noise, SI units throughout, maximum information density, zero vertical scroll at 1440px.
+
+**P1 — Design token cleanup + aurora removal** (`app.css`):
+- Semantic biology variables: `--bio-growth` (oklch green), `--bio-stress` (red), `--bio-signal` (amber), `--bio-metabolite` (blue); spacing system `--space-1..6`; typographic scale `--text-xs..lg`
+- Removed `.sim-shell__aurora` and `sim-aurora-float` keyframe (GPU-heavy, no informational value)
+- `.sim-card`: uniform background (no radial-gradient), box-shadow reduced 40%
+- `font-variant-numeric: tabular-nums` on all numeric values
+
+**P2 — Biotope viewport restructure** (`sim_live.ex` + `app.css`):
+- Layout `biotope-shell` → `biotope-header` (48px) + `biotope-grid` (`55fr 45fr`, `height: calc(100vh - 92px)`)
+- Right column `overflow-y: auto` — eliminates the off-viewport second grid at 1440px
+- Topology panel moved into an HTML `<dialog>` modal (trigger: gear button in header)
+- Event log + operator panel grouped in a daisyUI `tabs-box` (Events / Interventions)
+
+**P3 — Phase inline-KPI tabs + compact lineage table** (`sim_live.ex`):
+- Inline phase tabs showing T (°C), pH, N per phase; active left-border via CSS
+- Lineage table reduced to 7 columns: ID · Cluster · Dom. phase · N · µ (h⁻¹) · ε · Born
+- Client-less sorting via `phx-click="sort_lineages"` for 4 fields
+- Shannon diversity H′ = Σ −p·ln(p) added to the phase inspector KPIs
+- Environmental labels with SI units: `T (°C)`, `Osm (mOsm/L)`, `D (%/tick)`, `µ (h⁻¹)`
+
+**P4 — Chemistry heatmap** (`sim_live.ex` + `app.css`):
+- 13 canonical metabolites × N phases; intensity via `color-mix(in oklab, var(--bio-metabolite) calc(var(--fill) * 55%), transparent)`
+- Replaces token clouds that showed only the top-4
+
+**P5 — PixiJS improvements** (`biotope_scene.js`):
+- Event queue for transient animations: `lineage_born` (green expanding circle), `lineage_extinct` (red collapsing), `hgt_transfer` (amber arc)
+- Cluster shapes: biofilm → rectangle, motile → elongated ellipse, others → circle
+- Overlay reduced to `tick ${n}` only; phase label with `T ${T}°C · pH ${ph} · D ${D}%/tick`; `MAX_PHASE_PARTICLES` 72 → 60
+
+**P6 — World overview + Seed Lab** (`world_live.ex`, `seed_lab_live.ex`):
+- World: proportional archetype breakdown bar in sidebar; simplified table columns; compact world-map nodes
+- Seed Lab: gene inspector collapsed by default (`toggle_inspector`), 3-column domain palette, KPIs with σ affinity and QS signals
+
+**P7 — Nav + flash polish** (`game_chrome.ex`, `core_components.ex`):
+- Logout → daisyUI `dropdown` with chevron on player name; `aria-current="page"` on active links
+- Info flash → `role="status"` (was `role="alert"`); nav padding: `0.9rem 1rem` → `0.5rem 0.9rem`
+
+**Files modified**:
+
+| File | Priority |
+|---|---|
+| `arkea/assets/css/app.css` | P1–P4, P6, P7 |
+| `arkea/lib/arkea_web/live/sim_live.ex` | P2–P4 |
+| `arkea/assets/js/hooks/biotope_scene.js` | P5 |
+| `arkea/lib/arkea_web/live/world_live.ex` | P6 |
+| `arkea/lib/arkea_web/live/seed_lab_live.ex` | P6 |
+| `arkea/lib/arkea_web/game_chrome.ex` | P7 |
+| `arkea/lib/arkea_web/components/core_components.ex` | P7 |
+
+**Final build**: `mix compile` → clean, 0 warnings, 0 errors.
 
 ---
 

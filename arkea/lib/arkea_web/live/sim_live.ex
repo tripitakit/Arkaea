@@ -41,6 +41,8 @@ defmodule ArkeaWeb.SimLive do
        running: false,
        scene_snapshot_json: "{}",
        not_found?: false,
+       lineage_sort: :abundance,
+       bottom_tab: :events,
        page_title: "Arkea Biotope"
      )}
   end
@@ -113,6 +115,16 @@ defmodule ArkeaWeb.SimLive do
     {:noreply, socket}
   end
 
+  def handle_event("sort_lineages", %{"by" => field}, socket) do
+    sort = if field in ~w[abundance growth repair born], do: String.to_existing_atom(field), else: :abundance
+    {:noreply, assign(socket, lineage_sort: sort)}
+  end
+
+  def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    tab_atom = if tab == "interventions", do: :interventions, else: :events
+    {:noreply, assign(socket, bottom_tab: tab_atom)}
+  end
+
   def handle_event("apply_intervention", params, socket) do
     case socket.assigns.sim_state do
       %BiotopeState{id: biotope_id} ->
@@ -146,8 +158,6 @@ defmodule ArkeaWeb.SimLive do
   def render(assigns) do
     ~H"""
     <div class="sim-shell" data-selected-phase={atom_to_string(@selected_phase_name)}>
-      <div class="sim-shell__aurora sim-shell__aurora--west"></div>
-      <div class="sim-shell__aurora sim-shell__aurora--east"></div>
       <div class="sim-shell__grid"></div>
       <div class="sim-shell__content">
         <GameChrome.top_nav
@@ -162,34 +172,45 @@ defmodule ArkeaWeb.SimLive do
           <% is_nil(@sim_state) -> %>
             <.loading_view />
           <% true -> %>
-            <.sim_header sim_state={@sim_state} running={@running} />
-
-            <div class="sim-main-grid mt-6">
-              <.scene_panel
+            <div class="biotope-shell">
+              <.biotope_header
                 sim_state={@sim_state}
-                selected_phase_name={@selected_phase_name}
-                scene_snapshot_json={@scene_snapshot_json}
+                running={@running}
+                intervention_status={@intervention_status}
               />
 
-              <div class="sim-sidebar">
-                <.phase_inspector
-                  sim_state={@sim_state}
-                  selected_phase_name={@selected_phase_name}
-                />
-                <.topology_panel sim_state={@sim_state} />
-                <.operator_panel
-                  selected_phase_name={@selected_phase_name}
-                  operator_log={@operator_log}
-                  operator_error={@operator_error}
-                  intervention_status={@intervention_status}
-                />
-              </div>
-            </div>
+              <div class="biotope-grid">
+                <div class="biotope-canvas-col">
+                  <.scene_panel
+                    sim_state={@sim_state}
+                    selected_phase_name={@selected_phase_name}
+                    scene_snapshot_json={@scene_snapshot_json}
+                  />
+                </div>
 
-            <div class="sim-lower-grid mt-6">
-              <.lineage_table sim_state={@sim_state} phenotype_cache={@phenotype_cache} />
-              <.chemistry_panel sim_state={@sim_state} />
-              <.event_log_panel event_log={@event_log} />
+                <div class="biotope-right-col">
+                  <.phase_inspector
+                    sim_state={@sim_state}
+                    selected_phase_name={@selected_phase_name}
+                  />
+                  <.lineage_table
+                    sim_state={@sim_state}
+                    phenotype_cache={@phenotype_cache}
+                    lineage_sort={@lineage_sort}
+                  />
+                  <.chemistry_panel sim_state={@sim_state} />
+                  <.bottom_tabs
+                    event_log={@event_log}
+                    operator_log={@operator_log}
+                    operator_error={@operator_error}
+                    intervention_status={@intervention_status}
+                    selected_phase_name={@selected_phase_name}
+                    active_tab={@bottom_tab}
+                  />
+                </div>
+              </div>
+
+              <.topology_modal sim_state={@sim_state} />
             </div>
         <% end %>
       </div>
@@ -228,62 +249,64 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
-  defp sim_header(assigns) do
+  defp biotope_header(assigns) do
     total_population = BiotopeState.total_abundance(assigns.sim_state)
     lineage_count = length(assigns.sim_state.lineages)
+    phase_count = length(assigns.sim_state.phases)
+    budget_label = if assigns.intervention_status.allowed?, do: "open", else: "locked"
 
     assigns =
       assign(assigns,
         total_population: total_population,
-        lineage_count: lineage_count
+        lineage_count: lineage_count,
+        phase_count: phase_count,
+        budget_label: budget_label
       )
 
     ~H"""
-    <section class="sim-hero">
-      <div>
-        <div class="sim-hero__eyebrow">Arkea prototype · phase 9 console</div>
-        <h1 class="sim-hero__title">Procedural biotope viewport</h1>
-        <p class="sim-hero__copy">
-          The canvas is a derived scene for one selected biotope. Population, chemistry and migration-facing phases remain authoritative on the server.
-        </p>
+    <header class="biotope-header">
+      <span
+        class="biotope-header__dot"
+        style={"background: #{archetype_color(@sim_state.archetype)}"}
+      ></span>
+      <span class="biotope-header__name">{phase_label(@sim_state.archetype)}</span>
+      <div class="biotope-header__chips">
+        <.header_chip label="tick" value={@sim_state.tick_count} tone="gold" />
+        <.header_chip label="lineages" value={@lineage_count} tone="teal" />
+        <.header_chip label="N" value={format_compact(@total_population)} tone="teal" />
+        <.header_chip label="phases" value={@phase_count} tone="slate" />
+        <.header_chip label="stream" value={if(@running, do: "live", else: "shell")} tone={if @running, do: "green", else: "amber"} />
+        <.header_chip label="budget" value={@budget_label} tone={if @intervention_status.allowed?, do: "green", else: "amber"} />
       </div>
-
-      <div class="sim-stat-strip">
-        <.stat_chip label="tick" value={@sim_state.tick_count} tone="gold" />
-        <.stat_chip label="lineages" value={@lineage_count} tone="teal" />
-        <.stat_chip label="population" value={@total_population} tone="sky" />
-        <.stat_chip label="archetype" value={phase_label(@sim_state.archetype)} tone="slate" />
-        <.stat_chip label="stream" value={if(@running, do: "live", else: "shell")} tone="amber" />
-      </div>
-    </section>
+      <button
+        type="button"
+        class="biotope-header__detail-btn"
+        onclick="document.getElementById('topology-modal').showModal()"
+        title="Topology details"
+      >
+        <span class="hero-cog-6-tooth w-4 h-4"></span>
+      </button>
+    </header>
     """
   end
 
-  defp stat_chip(assigns) do
+  defp header_chip(assigns) do
     ~H"""
-    <div class={["sim-stat-chip", "sim-stat-chip--#{@tone}"]}>
-      <span class="sim-stat-chip__label">{@label}</span>
-      <span class="sim-stat-chip__value">{@value}</span>
-    </div>
+    <span class={["sim-header-chip", "sim-header-chip--#{@tone}"]}>
+      <span class="sim-header-chip__label">{@label}</span>
+      <span class="sim-header-chip__value">{@value}</span>
+    </span>
     """
   end
 
   defp scene_panel(assigns) do
-    phase_count = length(assigns.sim_state.phases)
-
-    assigns = assign(assigns, phase_count: phase_count)
-
     ~H"""
-    <section class="sim-card sim-scene-card">
-      <div class="sim-card__header">
-        <div>
-          <div class="sim-card__eyebrow">Biotope viewport</div>
-          <h2 class="sim-card__title">PixiJS scene hook</h2>
-        </div>
-        <div class="sim-card__meta">{@phase_count} phase pockets</div>
-      </div>
-
-      <div class="sim-scene-frame">
+    <section class="sim-card sim-scene-card" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+      <div
+        class="sim-scene-frame"
+        style="flex: 1; min-height: 0;"
+        title="Procedural render derived from authoritative phase aggregates. Click a band to select the phase."
+      >
         <div
           id="biotope-scene"
           class="sim-scene-canvas"
@@ -294,47 +317,21 @@ defmodule ArkeaWeb.SimLive do
         </div>
       </div>
 
-      <div class="sim-scene-legend">
-        <div class="sim-scene-legend__item">
-          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--band"></span>
-          <span>
-            Band = phase pocket; its height tracks aggregate population in that compartment.
-          </span>
-        </div>
-        <div class="sim-scene-legend__item">
-          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--dot"></span>
-          <span>
-            Dot = lineage fraction; anchors stay stable across ticks unless the phase itself expands or contracts.
-          </span>
-        </div>
-        <div class="sim-scene-legend__item">
-          <span class="sim-scene-legend__swatch sim-scene-legend__swatch--focus"></span>
-          <span>Bright outline = phase currently focused by the player.</span>
-        </div>
-      </div>
-
-      <div class="sim-phase-tabs">
+      <div class="sim-phase-tabs--inline">
         <button
           :for={phase <- @sim_state.phases}
           type="button"
           phx-click="select_phase"
           phx-value-phase={Atom.to_string(phase.name)}
-          class={[
-            "sim-phase-tab",
-            @selected_phase_name == phase.name && "sim-phase-tab--active"
-          ]}
+          class={["sim-phase-tab--inline", @selected_phase_name == phase.name && "active"]}
           data-phase={Atom.to_string(phase.name)}
         >
           <span class="sim-phase-tab__swatch" style={"background: #{phase_color(phase.name)}"}></span>
-          <span>{phase_label(phase.name)}</span>
-          <span class="sim-phase-tab__count">
-            {phase_population(@sim_state.lineages, phase.name)}
+          <span class="label">{phase_label(phase.name)}</span>
+          <span class="meta">
+            T {format_float(phase.temperature, 1)}°C &nbsp;pH {format_float(phase.ph, 1)} &nbsp;N {format_compact(phase_population(@sim_state.lineages, phase.name))}
           </span>
         </button>
-      </div>
-
-      <div class="sim-scene-note">
-        Click a rendered band or a phase tab to focus the inspector. The viewport remains an aggregate phase view; direct single-cell picking stays intentionally unavailable.
       </div>
     </section>
     """
@@ -342,10 +339,10 @@ defmodule ArkeaWeb.SimLive do
 
   defp phase_inspector(assigns) do
     phase = selected_phase(assigns.sim_state, assigns.selected_phase_name)
+    phase_lineages = phase && Enum.filter(assigns.sim_state.lineages, &(Lineage.abundance_in(&1, phase.name) > 0))
     total_population = phase && phase_population(assigns.sim_state.lineages, phase.name)
-    richness = phase && phase_richness(assigns.sim_state.lineages, phase.name)
-    top_metabolites = phase && top_entries(phase.metabolite_pool, 4)
-    signal_load = phase && round_metric(sum_pool(phase.signal_pool))
+    richness = phase && length(phase_lineages)
+    shannon = phase && shannon_diversity(phase_lineages, phase.name)
     phage_load = phase && round_metric(sum_pool(phase.phage_pool))
 
     assigns =
@@ -353,8 +350,7 @@ defmodule ArkeaWeb.SimLive do
         phase: phase,
         total_population: total_population,
         richness: richness,
-        top_metabolites: top_metabolites,
-        signal_load: signal_load,
+        shannon: shannon,
         phage_load: phage_load
       )
 
@@ -371,16 +367,16 @@ defmodule ArkeaWeb.SimLive do
 
         <div class="sim-phase-kpis">
           <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">population</span>
-            <span class="sim-mini-stat__value">{@total_population}</span>
+            <span class="sim-mini-stat__label">N</span>
+            <span class="sim-mini-stat__value">{format_compact(@total_population)}</span>
           </div>
           <div class="sim-mini-stat">
             <span class="sim-mini-stat__label">richness</span>
             <span class="sim-mini-stat__value">{@richness}</span>
           </div>
           <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">signals</span>
-            <span class="sim-mini-stat__value">{@signal_load}</span>
+            <span class="sim-mini-stat__label">H′ (Shannon)</span>
+            <span class="sim-mini-stat__value">{@shannon}</span>
           </div>
           <div class="sim-mini-stat">
             <span class="sim-mini-stat__label">phages</span>
@@ -389,24 +385,10 @@ defmodule ArkeaWeb.SimLive do
         </div>
 
         <div class="sim-phase-environment">
-          <.env_reading label="temperature" value={format_float(@phase.temperature, 1) <> " °C"} />
+          <.env_reading label="T (°C)" value={format_float(@phase.temperature, 1)} />
           <.env_reading label="pH" value={format_float(@phase.ph, 1)} />
-          <.env_reading label="osmolarity" value={format_float(@phase.osmolarity, 0) <> " mOsm"} />
-          <.env_reading label="dilution" value={format_float(@phase.dilution_rate * 100.0, 1) <> "%"} />
-        </div>
-
-        <div>
-          <div class="sim-card__eyebrow mb-2">Dominant metabolites</div>
-          <%= if @top_metabolites == [] do %>
-            <p class="sim-muted">No metabolite pool registered for this phase.</p>
-          <% else %>
-            <div class="sim-token-cloud">
-              <span :for={{metabolite, conc} <- @top_metabolites} class="sim-token">
-                <span class="sim-token__label">{metabolite}</span>
-                <span class="sim-token__value">{format_float(conc, 1)}</span>
-              </span>
-            </div>
-          <% end %>
+          <.env_reading label="Osm (mOsm/L)" value={format_float(@phase.osmolarity, 0)} />
+          <.env_reading label="D (%/tick)" value={format_float(@phase.dilution_rate * 100.0, 1)} />
         </div>
       <% else %>
         <div class="sim-card__header">
@@ -415,7 +397,6 @@ defmodule ArkeaWeb.SimLive do
             <h2 id="phase-inspector-title" class="sim-card__title">No phase available</h2>
           </div>
         </div>
-
         <p class="sim-muted">
           This biotope does not currently expose any authoritative phase pocket.
         </p>
@@ -433,7 +414,7 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
-  defp topology_panel(assigns) do
+  defp topology_modal(assigns) do
     owner =
       case assigns.sim_state.owner_player_id do
         nil -> "wild"
@@ -443,42 +424,81 @@ defmodule ArkeaWeb.SimLive do
     assigns = assign(assigns, owner: owner)
 
     ~H"""
-    <section class="sim-card">
-      <div class="sim-card__header">
-        <div>
-          <div class="sim-card__eyebrow">Topology</div>
-          <h2 class="sim-card__title">Network-facing metadata</h2>
+    <dialog id="topology-modal" class="modal">
+      <div class="modal-box biotope-modal" style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);">
+        <form method="dialog">
+          <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <div class="sim-card__eyebrow mb-1">Topology</div>
+        <h3 class="sim-card__title mb-4">Network-facing metadata</h3>
+
+        <div class="sim-topology-grid">
+          <.env_reading label="biotope" value={short_id(@sim_state.id)} />
+          <.env_reading label="zone" value={phase_label(@sim_state.zone)} />
+          <.env_reading
+            label="coords"
+            value={format_float(@sim_state.x, 1) <> ", " <> format_float(@sim_state.y, 1)}
+          />
+          <.env_reading label="owner" value={@owner} />
         </div>
-        <div class="sim-card__meta">{length(@sim_state.neighbor_ids)} outgoing arcs</div>
+
+        <div class="mt-3">
+          <div class="sim-card__eyebrow mb-2">Neighbor ids ({length(@sim_state.neighbor_ids)})</div>
+          <%= if @sim_state.neighbor_ids == [] do %>
+            <p class="sim-muted">No migration edge attached yet.</p>
+          <% else %>
+            <div class="sim-token-cloud">
+              <span :for={nid <- @sim_state.neighbor_ids} class="sim-token sim-token--ghost">
+                {short_id(nid)}
+              </span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+    """
+  end
+
+  defp bottom_tabs(assigns) do
+    ~H"""
+    <section class="sim-card biotope-bottom-tabs">
+      <div role="tablist" class="tabs tabs-box">
+        <button
+          role="tab"
+          class={["tab", @active_tab == :events && "tab-active"]}
+          phx-click="switch_tab"
+          phx-value-tab="events"
+        >
+          Events
+        </button>
+        <button
+          role="tab"
+          class={["tab", @active_tab == :interventions && "tab-active"]}
+          phx-click="switch_tab"
+          phx-value-tab="interventions"
+        >
+          Interventions
+        </button>
       </div>
 
-      <div class="sim-topology-grid">
-        <.env_reading label="biotope" value={short_id(@sim_state.id)} />
-        <.env_reading label="zone" value={phase_label(@sim_state.zone)} />
-        <.env_reading
-          label="coords"
-          value={format_float(@sim_state.x, 1) <> ", " <> format_float(@sim_state.y, 1)}
-        />
-        <.env_reading label="owner" value={@owner} />
-      </div>
-
-      <div>
-        <div class="sim-card__eyebrow mb-2">Neighbor ids</div>
-        <%= if @sim_state.neighbor_ids == [] do %>
-          <p class="sim-muted">No migration edge is attached to this seed biotope yet.</p>
+      <div class="mt-3">
+        <%= if @active_tab == :events do %>
+          <.event_log_content event_log={@event_log} />
         <% else %>
-          <div class="sim-token-cloud">
-            <span :for={neighbor_id <- @sim_state.neighbor_ids} class="sim-token sim-token--ghost">
-              {short_id(neighbor_id)}
-            </span>
-          </div>
+          <.operator_content
+            selected_phase_name={@selected_phase_name}
+            operator_log={@operator_log}
+            operator_error={@operator_error}
+            intervention_status={@intervention_status}
+          />
         <% end %>
       </div>
     </section>
     """
   end
 
-  defp operator_panel(assigns) do
+  defp operator_content(assigns) do
     phase_actions_disabled =
       not assigns.intervention_status.owner? or
         not assigns.intervention_status.allowed? or
@@ -494,31 +514,16 @@ defmodule ArkeaWeb.SimLive do
       )
 
     ~H"""
-    <section class="sim-card">
-      <div class="sim-card__header">
-        <div>
-          <div class="sim-card__eyebrow">Operator console</div>
-          <h2 class="sim-card__title">Authoritative interventions</h2>
-        </div>
-        <div class="sim-card__meta">{phase_label(@selected_phase_name)}</div>
-      </div>
-
-      <p class="sim-muted mb-4">
-        Actions mutate the authoritative biotope immediately, then write audit
-        and budget records for the current player.
-      </p>
-
-      <div class="sim-operator-status">
+    <div>
+      <div class="sim-operator-status mb-3">
         <%= cond do %>
           <% not @intervention_status.owner? -> %>
-            <span class="sim-token sim-token--ghost">
-              Read-only: this biotope is not controlled by the current player.
-            </span>
+            <span class="sim-token sim-token--ghost">Read-only · not owner</span>
           <% @intervention_status.allowed? -> %>
-            <span class="sim-token">Intervention slot open</span>
+            <span class="sim-token">Slot open · {phase_label(@selected_phase_name)}</span>
           <% true -> %>
             <span class="sim-token sim-token--ghost">
-              Budget locked for {format_duration(@intervention_status.remaining_seconds)}.
+              Locked {format_duration(@intervention_status.remaining_seconds)}
             </span>
         <% end %>
       </div>
@@ -530,6 +535,7 @@ defmodule ArkeaWeb.SimLive do
           phx-click="apply_intervention"
           phx-value-kind="nutrient_pulse"
           disabled={@phase_actions_disabled}
+          phx-confirm={"Pulse nutrients into #{phase_label(@selected_phase_name)}?"}
         >
           Pulse nutrients
         </button>
@@ -539,6 +545,7 @@ defmodule ArkeaWeb.SimLive do
           phx-click="apply_intervention"
           phx-value-kind="plasmid_inoculation"
           disabled={@phase_actions_disabled}
+          phx-confirm={"Inoculate plasmid into #{phase_label(@selected_phase_name)}?"}
         >
           Inoculate plasmid
         </button>
@@ -549,37 +556,59 @@ defmodule ArkeaWeb.SimLive do
           phx-value-kind="mixing_event"
           phx-value-scope="biotope"
           disabled={@biotope_actions_disabled}
+          phx-confirm="Trigger mixing event for the whole biotope?"
         >
           Trigger mixing event
         </button>
       </div>
 
       <%= if @operator_error do %>
-        <p class="sim-muted mt-4">{@operator_error}</p>
+        <p class="sim-muted mt-3">{@operator_error}</p>
       <% end %>
 
-      <div class="mt-4">
-        <div class="sim-card__eyebrow mb-2">Executed interventions</div>
-        <%= if @operator_log == [] do %>
-          <p class="sim-muted">No interventions executed in this session yet.</p>
-        <% else %>
-          <div class="space-y-2">
-            <div :for={entry <- @operator_log} class="sim-operator-entry">
-              <div>
-                <div class="sim-operator-entry__kind">{entry.kind}</div>
-                <div class="sim-operator-entry__scope">{entry.scope}</div>
-              </div>
-              <div class="sim-operator-entry__tick">tick {entry.tick || "?"}</div>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </section>
+      <%= if @operator_log != [] do %>
+        <div class="mt-3">
+          <div class="sim-card__eyebrow mb-2">Recent interventions</div>
+          <table class="sim-table">
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Scope</th>
+                <th>Tick</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={entry <- @operator_log}>
+                <td style="font-size: var(--text-sm)">{entry.kind}</td>
+                <td style="font-size: var(--text-sm); color: var(--sim-muted)">{entry.scope}</td>
+                <td style="font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--sim-muted)">{entry.tick || "?"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </div>
     """
   end
 
   defp lineage_table(assigns) do
-    lineages = Enum.sort_by(assigns.sim_state.lineages, &Lineage.total_abundance/1, :desc)
+    lineages =
+      case assigns.lineage_sort do
+        :growth ->
+          Enum.sort_by(assigns.sim_state.lineages, fn l ->
+            phenotype = Map.get(assigns.phenotype_cache, l.id)
+            if phenotype, do: phenotype.base_growth_rate, else: 0.0
+          end, :desc)
+        :repair ->
+          Enum.sort_by(assigns.sim_state.lineages, fn l ->
+            phenotype = Map.get(assigns.phenotype_cache, l.id)
+            if phenotype, do: phenotype.repair_efficiency, else: 0.0
+          end, :desc)
+        :born ->
+          Enum.sort_by(assigns.sim_state.lineages, & &1.created_at_tick, :asc)
+        _ ->
+          Enum.sort_by(assigns.sim_state.lineages, &Lineage.total_abundance/1, :desc)
+      end
 
     max_abundance =
       lineages |> Enum.map(&Lineage.total_abundance/1) |> Enum.max(fn -> 1 end) |> max(1)
@@ -587,33 +616,48 @@ defmodule ArkeaWeb.SimLive do
     assigns = assign(assigns, sorted_lineages: lineages, max_abundance: max_abundance)
 
     ~H"""
-    <section class="sim-card sim-card--wide">
+    <section class="sim-card">
       <div class="sim-card__header">
         <div>
           <div class="sim-card__eyebrow">Lineages</div>
           <h2 class="sim-card__title">Population board</h2>
         </div>
-        <div class="sim-card__meta">sorted by abundance</div>
+        <div class="sim-card__meta">{length(@sorted_lineages)}</div>
       </div>
 
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto" style="max-height: 20rem; overflow-y: auto;">
         <table class="sim-table">
           <thead>
             <tr>
-              <th>Lineage</th>
+              <th>ID</th>
               <th>Cluster</th>
-              <th>Phase split</th>
-              <th>Abundance</th>
-              <th>Growth</th>
-              <th>Repair</th>
-              <th>Plasm.</th>
-              <th>Born</th>
+              <th>Phase</th>
+              <th>
+                <button type="button" phx-click="sort_lineages" phx-value-by="abundance">
+                  N <%= if @lineage_sort == :abundance, do: "↓" %>
+                </button>
+              </th>
+              <th>
+                <button type="button" phx-click="sort_lineages" phx-value-by="growth">
+                  µ (h⁻¹) <%= if @lineage_sort == :growth, do: "↓" %>
+                </button>
+              </th>
+              <th>
+                <button type="button" phx-click="sort_lineages" phx-value-by="repair">
+                  ε <%= if @lineage_sort == :repair, do: "↓" %>
+                </button>
+              </th>
+              <th>
+                <button type="button" phx-click="sort_lineages" phx-value-by="born">
+                  Born <%= if @lineage_sort == :born, do: "↑" %>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
             <%= if @sorted_lineages == [] do %>
               <tr>
-                <td colspan="8" class="sim-table__empty">No lineages present.</td>
+                <td colspan="7" class="sim-table__empty">No lineages present.</td>
               </tr>
             <% else %>
               <.lineage_row
@@ -635,155 +679,125 @@ defmodule ArkeaWeb.SimLive do
     phenotype = Map.get(assigns.phenotype_cache, lineage.id)
     abundance = Lineage.total_abundance(lineage)
     pct = Float.round(min(abundance / assigns.max_abundance * 100.0, 100.0), 1)
-    plasmid_count = if lineage.genome, do: length(lineage.genome.plasmids), else: 0
+
+    cluster = phenotype_cluster(phenotype)
+    cluster_color = cluster_badge_color(cluster)
 
     assigns =
       assign(assigns,
         short_id: short_id(lineage.id),
-        short_parent: short_parent(lineage.parent_id),
         abundance: abundance,
         pct: pct,
         growth_str: (phenotype && format_float(phenotype.base_growth_rate, 2)) || "—",
         repair_str: (phenotype && format_float(phenotype.repair_efficiency, 2)) || "—",
-        plasmid_str: if(plasmid_count > 0, do: to_string(plasmid_count), else: "—"),
         color: lineage_color(lineage.id, phenotype),
-        cluster: phenotype_cluster(phenotype),
+        cluster: cluster,
+        cluster_color: cluster_color,
         dominant_phase: dominant_phase_label(lineage)
       )
 
     ~H"""
-    <tr>
-      <td>
+    <tr style="height: 2rem;">
+      <td style="padding: 0.45rem 0.5rem;">
         <div class="sim-lineage-id">
           <span class="sim-lineage-swatch" style={"background: #{@color}"}></span>
-          <div>
-            <div class="sim-lineage-id__main">{@short_id}</div>
-            <div class="sim-lineage-id__sub">parent {@short_parent}</div>
-          </div>
+          <span class="sim-lineage-id__main">{@short_id}</span>
         </div>
       </td>
-      <td>
-        <div class="sim-cluster-tag">{@cluster}</div>
+      <td style="padding: 0.45rem 0.5rem;">
+        <span class={"badge badge-xs #{@cluster_color}"}>{@cluster}</span>
       </td>
-      <td>
-        <div class="sim-phase-split">
-          <span class="sim-phase-split__dominant">{@dominant_phase}</span>
-          <div class="sim-phase-split__chips">
-            <span
-              :for={{phase_name, count} <- sorted_phase_abundances(@lineage)}
-              :if={count > 0}
-              class="sim-phase-chip"
-            >
-              {phase_label(phase_name)} {count}
-            </span>
-          </div>
-        </div>
+      <td style="padding: 0.45rem 0.5rem; color: var(--sim-muted); font-size: var(--text-sm);">
+        {@dominant_phase}
       </td>
-      <td>
+      <td style="padding: 0.45rem 0.5rem;">
         <div class="sim-abundance-bar">
-          <div class="sim-abundance-bar__track">
-            <div
-              class="sim-abundance-bar__fill"
-              style={"width: #{@pct}%; background: #{@color}"}
-            />
+          <div class="sim-abundance-bar__track" style="min-width: 3rem;">
+            <div class="sim-abundance-bar__fill" style={"width: #{@pct}%; background: #{@color}"} />
           </div>
-          <span class="sim-abundance-bar__value">{@abundance}</span>
+          <span class="sim-abundance-bar__value" style="font-size: var(--text-sm);">{@abundance}</span>
         </div>
       </td>
-      <td>{@growth_str}</td>
-      <td>{@repair_str}</td>
-      <td>{@plasmid_str}</td>
-      <td>{@lineage.created_at_tick}</td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">{@growth_str}</td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">{@repair_str}</td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm); color: var(--sim-muted);">{@lineage.created_at_tick}</td>
     </tr>
     """
   end
 
   defp chemistry_panel(assigns) do
+    chem = chemistry_matrix(assigns.sim_state)
+    assigns = assign(assigns, chem: chem)
+
     ~H"""
     <section class="sim-card">
       <div class="sim-card__header">
         <div>
           <div class="sim-card__eyebrow">Chemistry</div>
-          <h2 class="sim-card__title">Phase pools</h2>
+          <h2 class="sim-card__title">Metabolite pools</h2>
         </div>
-        <div class="sim-card__meta">{length(@sim_state.phases)} authoritative pockets</div>
+        <div class="sim-card__meta">{length(@sim_state.phases)} phases × {length(@chem.metabolites)} metabolites</div>
       </div>
 
-      <div class="space-y-3">
-        <.phase_pool :for={phase <- @sim_state.phases} phase={phase} lineages={@sim_state.lineages} />
-      </div>
+      <%= if @chem.rows == [] do %>
+        <p class="sim-muted">No phase pools available.</p>
+      <% else %>
+        <div class="overflow-x-auto">
+          <table class="sim-heatmap">
+            <thead>
+              <tr>
+                <th></th>
+                <th :for={m <- @chem.metabolites}>{met_abbr(m)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={row <- @chem.rows}>
+                <td>{phase_label(row.phase)}</td>
+                <td
+                  :for={{conc, max_c} <- Enum.zip(row.concentrations, @chem.max_per_met)}
+                  class="sim-heatmap__cell"
+                  style={"--fill: #{Float.round(if(max_c > 0, do: conc / max_c, else: 0.0), 2)}"}
+                >
+                  {if conc > 0, do: format_μm(conc)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sim-token-cloud mt-3">
+          <span :for={phase <- @sim_state.phases} class="sim-token sim-token--ghost">
+            <span class="sim-token__label">{phase_label(phase.name)}</span>
+            <span class="sim-token__value">
+              sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(sum_pool(phase.phage_pool))}
+            </span>
+          </span>
+        </div>
+      <% end %>
     </section>
     """
   end
 
-  defp phase_pool(assigns) do
-    top_metabolites = top_entries(assigns.phase.metabolite_pool, 4)
-    signal_load = round_metric(sum_pool(assigns.phase.signal_pool))
-    phage_load = round_metric(sum_pool(assigns.phase.phage_pool))
-    abundance = phase_population(assigns.lineages, assigns.phase.name)
-
-    assigns =
-      assign(assigns,
-        top_metabolites: top_metabolites,
-        signal_load: signal_load,
-        phage_load: phage_load,
-        abundance: abundance
-      )
-
+  defp event_log_content(assigns) do
     ~H"""
-    <div class="sim-phase-pool">
-      <div class="sim-phase-pool__header">
-        <div class="sim-phase-pool__title">
-          <span class="sim-phase-mark" style={"background: #{phase_color(@phase.name)}"}></span>
-          {phase_label(@phase.name)}
-        </div>
-        <div class="sim-phase-pool__meta">
-          N {@abundance} · sig {@signal_load} · phage {@phage_load}
-        </div>
-      </div>
-
-      <%= if @top_metabolites == [] do %>
-        <p class="sim-muted">No metabolite pool tracked.</p>
+    <div>
+      <%= if @event_log == [] do %>
+        <p class="sim-muted">Awaiting broadcast events from the biotope server.</p>
       <% else %>
-        <div class="sim-token-cloud">
-          <span :for={{metabolite, conc} <- @top_metabolites} class="sim-token sim-token--ghost">
-            <span class="sim-token__label">{metabolite}</span>
-            <span class="sim-token__value">{format_float(conc, 1)}</span>
-          </span>
+        <div class="space-y-1" id="event-log-scroll" phx-hook="EventLogScroll">
+          <.event_entry :for={event <- @event_log} event={event} />
         </div>
       <% end %>
     </div>
     """
   end
 
-  defp event_log_panel(assigns) do
-    ~H"""
-    <section class="sim-card">
-      <div class="sim-card__header">
-        <div>
-          <div class="sim-card__eyebrow">Events</div>
-          <h2 class="sim-card__title">Recent simulation log</h2>
-        </div>
-        <div class="sim-card__meta">last {length(@event_log)}</div>
-      </div>
-
-      <%= if @event_log == [] do %>
-        <p class="sim-muted">Awaiting broadcast events from the biotope server.</p>
-      <% else %>
-        <div class="space-y-2">
-          <.event_entry :for={event <- @event_log} event={event} />
-        </div>
-      <% end %>
-    </section>
-    """
-  end
-
   defp event_entry(assigns) do
-    {icon, tone, label, short_lineage, tick} = format_event(assigns.event)
+    {icon_class, tone, label, short_lineage, tick} = format_event(assigns.event)
 
     assigns =
       assign(assigns,
-        icon: icon,
+        icon_class: icon_class,
         tone: tone,
         label: label,
         short_lineage: short_lineage,
@@ -791,8 +805,10 @@ defmodule ArkeaWeb.SimLive do
       )
 
     ~H"""
-    <div class="sim-event-entry">
-      <span class={["sim-event-entry__icon", "sim-event-entry__icon--#{@tone}"]}>{@icon}</span>
+    <div class="sim-event-entry" style="padding: 0.5rem 0.75rem;">
+      <span class={["sim-event-entry__icon w-4 h-4 flex-shrink-0", "sim-event-entry__icon--#{@tone}"]}>
+        <span class={@icon_class}></span>
+      </span>
       <div class="sim-event-entry__body">
         <div class="sim-event-entry__label">{@label}</div>
         <div class="sim-event-entry__meta">
@@ -922,27 +938,27 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp format_event(%{type: :lineage_born, payload: %{lineage_id: id, tick: tick}}) do
-    {"◉", "green", "Lineage born", short_id(id), tick}
+    {"hero-plus-circle", "green", "Lineage born", short_id(id), tick}
   end
 
   defp format_event(%{type: :lineage_extinct, payload: %{lineage_id: id, tick: tick}}) do
-    {"○", "red", "Lineage extinct", short_id(id), tick}
+    {"hero-minus-circle", "red", "Lineage extinct", short_id(id), tick}
   end
 
   defp format_event(%{type: :hgt_transfer, payload: %{lineage_id: id, tick: tick}}) do
-    {"⇢", "amber", "Horizontal transfer", short_id(id), tick}
+    {"hero-arrows-right-left", "amber", "Horizontal transfer", short_id(id), tick}
   end
 
   defp format_event(%{type: :intervention, payload: payload}) do
     kind = Map.get(payload, :kind) || Map.get(payload, "kind") || "intervention"
     lineage_id = Map.get(payload, :lineage_id) || Map.get(payload, "lineage_id") || ""
     tick = Map.get(payload, :tick) || Map.get(payload, "tick") || "?"
-    {"✦", "sky", intervention_label(kind), short_id(lineage_id), tick}
+    {"hero-beaker", "teal", intervention_label(kind), short_id(lineage_id), tick}
   end
 
   defp format_event(%{type: type, payload: payload}) do
-    {"·", "slate", phase_label(type), short_id(Map.get(payload, :lineage_id, "")),
-     Map.get(payload, :tick, "?")}
+    {"hero-ellipsis-horizontal", "slate", phase_label(type),
+     short_id(Map.get(payload, :lineage_id, "")), Map.get(payload, :tick, "?")}
   end
 
   defp intervention_command(%{"kind" => kind} = params, selected_phase_name) do
@@ -1056,17 +1072,7 @@ defmodule ArkeaWeb.SimLive do
     Map.new(map, fn {phase_name, count} -> {Atom.to_string(phase_name), count} end)
   end
 
-  defp top_entries(map, limit) when is_map(map) do
-    map
-    |> Enum.filter(fn {_key, value} -> value > 0 end)
-    |> Enum.sort_by(fn {_key, value} -> value end, :desc)
-    |> Enum.take(limit)
-  end
-
   defp sum_pool(map) when is_map(map), do: Enum.sum(Map.values(map))
-
-  defp short_parent(nil), do: "seed"
-  defp short_parent(parent_id), do: short_id(parent_id)
 
   defp short_id(""), do: ""
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
@@ -1156,4 +1162,99 @@ defmodule ArkeaWeb.SimLive do
 
   defp round_metric(value) when is_integer(value), do: value
   defp round_metric(value) when is_float(value), do: Float.round(value, 2)
+
+  @metabolites ~w[glucose acetate lactate oxygen no3 so4 h2s nh3 h2 po4 co2 ch4 iron]a
+
+  defp chemistry_matrix(%BiotopeState{phases: phases}) do
+    rows =
+      Enum.map(phases, fn phase ->
+        concs = Enum.map(@metabolites, fn m -> Map.get(phase.metabolite_pool, m, 0.0) end)
+        %{phase: phase.name, concentrations: concs}
+      end)
+
+    max_per_met =
+      Enum.map(0..(length(@metabolites) - 1), fn i ->
+        rows |> Enum.map(&Enum.at(&1.concentrations, i)) |> Enum.max()
+      end)
+
+    %{rows: rows, metabolites: @metabolites, max_per_met: max_per_met}
+  end
+
+  defp shannon_diversity([], _phase_name), do: 0.0
+
+  defp shannon_diversity(lineages, phase_name) do
+    counts = Enum.map(lineages, &Lineage.abundance_in(&1, phase_name))
+    total = Enum.sum(counts)
+
+    if total == 0 do
+      0.0
+    else
+      counts
+      |> Enum.filter(&(&1 > 0))
+      |> Enum.map(fn c ->
+        p = c / total
+        -p * :math.log(p)
+      end)
+      |> Enum.sum()
+      |> Float.round(2)
+    end
+  end
+
+  @met_abbrs %{
+    glucose: "Glc",
+    acetate: "Ace",
+    lactate: "Lac",
+    oxygen: "O₂",
+    no3: "NO₃",
+    so4: "SO₄",
+    h2s: "H₂S",
+    nh3: "NH₃",
+    h2: "H₂",
+    po4: "PO₄",
+    co2: "CO₂",
+    ch4: "CH₄",
+    iron: "Fe"
+  }
+
+  defp met_abbr(metabolite), do: Map.get(@met_abbrs, metabolite, to_string(metabolite))
+
+  defp format_μm(value) when is_float(value) and value >= 1000.0,
+    do: "#{:erlang.float_to_binary(value / 1000.0, decimals: 1)}m"
+
+  defp format_μm(value) when is_float(value) and value >= 0.1,
+    do: :erlang.float_to_binary(value, decimals: 1)
+
+  defp format_μm(value) when is_float(value),
+    do: :erlang.float_to_binary(value, decimals: 2)
+
+  defp format_μm(value) when is_integer(value), do: format_μm(value * 1.0)
+
+  defp format_compact(n) when n >= 1_000_000,
+    do: "#{Float.round(n / 1_000_000.0, 1)}M"
+
+  defp format_compact(n) when n >= 1_000,
+    do: "#{Float.round(n / 1_000.0, 1)}k"
+
+  defp format_compact(n), do: to_string(n)
+
+  @archetype_colors %{
+    eutrophic_pond: "#22c55e",
+    oligotrophic_lake: "#38bdf8",
+    mesophilic_soil: "#a16207",
+    methanogenic_bog: "#7c3aed",
+    saline_estuary: "#0891b2",
+    marine_sediment: "#1d4ed8",
+    hydrothermal_vent: "#dc2626",
+    acid_mine_drainage: "#ca8a04"
+  }
+
+  defp archetype_color(archetype) do
+    Map.get(@archetype_colors, archetype, "#94a3b8")
+  end
+
+  defp cluster_badge_color("biofilm"), do: "badge-warning"
+  defp cluster_badge_color("motile"), do: "badge-info"
+  defp cluster_badge_color("stress-tolerant"), do: "badge-error"
+  defp cluster_badge_color("generalist"), do: "badge-neutral"
+  defp cluster_badge_color(_), do: "badge-ghost"
 end
