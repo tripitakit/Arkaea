@@ -12,9 +12,12 @@ defmodule ArkeaWeb.PlayerAccessController do
     case Accounts.register_player(params) do
       {:ok, player} ->
         conn
-        |> put_flash(:info, "Player created. Seed lab is ready.")
+        |> put_flash(
+          :info,
+          "Player created. Design the seed and choose the first biotope to colonize."
+        )
         |> PlayerAuth.log_in_player(player)
-        |> redirect(to: ~p"/world")
+        |> redirect(to: ~p"/seed-lab")
 
       {:error, changeset} ->
         conn

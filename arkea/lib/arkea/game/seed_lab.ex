@@ -1,6 +1,6 @@
 defmodule Arkea.Game.SeedLab do
   @moduledoc """
-  Prototype seed-builder and home-biotope provisioning flow.
+  Seed-builder and explicit home-biotope provisioning flow.
 
   The current version is intentionally lightweight:
 
@@ -237,8 +237,8 @@ defmodule Arkea.Game.SeedLab do
   }
 
   @defaults %{
-    "seed_name" => "Aster-Seed",
-    "starter_archetype" => "eutrophic_pond",
+    "seed_name" => "",
+    "starter_archetype" => "",
     "metabolism_profile" => "balanced",
     "membrane_profile" => "porous",
     "regulation_profile" => "responsive",
@@ -438,6 +438,11 @@ defmodule Arkea.Game.SeedLab do
     errors =
       %{}
       |> maybe_put_error(:seed_name, String.trim(spec.seed_name) == "", "Seed name is required.")
+      |> maybe_put_error(
+        :starter_archetype,
+        not spec.starter_selected?,
+        "Choose the first biotope to colonize."
+      )
       |> maybe_put_error(
         :seed_name,
         String.length(spec.seed_name) > 40,
@@ -927,7 +932,9 @@ defmodule Arkea.Game.SeedLab do
 
   defp normalize_params(params) do
     merged = Map.merge(@defaults, Map.new(params))
-    starter = safe_option_id(merged["starter_archetype"], @starter_ecotypes, "eutrophic_pond")
+    starter = safe_option_id(merged["starter_archetype"], @starter_ecotypes, "")
+    starter_selected? = starter != ""
+    preview_starter = if starter_selected?, do: starter, else: "eutrophic_pond"
     metabolism = safe_option_id(merged["metabolism_profile"], @metabolism_profiles, "balanced")
     membrane = safe_option_id(merged["membrane_profile"], @membrane_profiles, "porous")
     regulation = safe_option_id(merged["regulation_profile"], @regulation_profiles, "responsive")
@@ -941,7 +948,9 @@ defmodule Arkea.Game.SeedLab do
 
     %{
       seed_name: merged["seed_name"] |> to_string() |> String.trim(),
-      starter_archetype: starter |> starter_ecotype() |> Map.fetch!(:archetype),
+      starter_archetype: preview_starter |> starter_ecotype() |> Map.fetch!(:archetype),
+      starter_choice_id: starter,
+      starter_selected?: starter_selected?,
       metabolism_profile: metabolism,
       membrane_profile: membrane,
       regulation_profile: regulation,

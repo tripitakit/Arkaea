@@ -20,7 +20,9 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     {:ok, view, _html} = live(conn, ~p"/seed-lab")
 
     assert render(view) =~ "Seed lab"
-    assert render(view) =~ "Eutrophic pond"
+    assert render(view) =~ "Choose a starter biotope"
+    assert render(view) =~ "Unnamed seed"
+    assert render(view) =~ "Choose a starter biotope archetype to preview insertion coordinates"
 
     html =
       view
@@ -38,6 +40,28 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     assert html =~ "Lake Prime"
     assert html =~ "Oligotrophic lake"
+    assert html =~ "Spawn zone"
+    assert html =~ "phases"
+  end
+
+  test "seed lab requires an explicit biotope choice before colonization", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/seed-lab")
+
+    html =
+      view
+      |> form("form.seed-form", %{
+        "seed" => %{
+          "metabolism_profile" => "balanced",
+          "membrane_profile" => "porous",
+          "regulation_profile" => "responsive",
+          "mobile_module" => "none",
+          "seed_name" => "Explicit Choice Only"
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Choose the first biotope to colonize."
+    assert html =~ "Choose a starter biotope"
   end
 
   test "seed lab provisions one owned home biotope and redirects to its viewport", %{conn: conn} do

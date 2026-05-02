@@ -17,7 +17,15 @@ defmodule Arkea.Game.PlayerInterventionsTest do
   end
 
   test "player intervention mutates the authoritative biotope and consumes the local budget" do
-    {:ok, biotope_id} = SeedLab.provision_home(SeedLab.form_defaults())
+    {:ok, biotope_id} =
+      SeedLab.provision_home(
+        SeedLab.form_defaults()
+        |> Map.merge(%{
+          "seed_name" => "Intervention Seed",
+          "starter_archetype" => "eutrophic_pond"
+        })
+      )
+
     before_state = BiotopeServer.get_state(biotope_id)
 
     before_glucose =

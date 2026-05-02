@@ -18,7 +18,7 @@ defmodule ArkeaWeb.PageControllerTest do
     assert redirected_to(conn) == "/world"
   end
 
-  test "POST /players/register creates a player, starts a session, and enters the world", %{
+  test "POST /players/register creates a player, starts a session, and enters the seed lab", %{
     conn: conn
   } do
     conn =
@@ -26,7 +26,7 @@ defmodule ArkeaWeb.PageControllerTest do
         "player" => %{"display_name" => "Ada", "email" => "Ada@Example.com"}
       })
 
-    assert redirected_to(conn) == "/world"
+    assert redirected_to(conn) == "/seed-lab"
 
     player_id = get_session(conn, :player_id)
     assert %{display_name: "Ada", email: "ada@example.com"} = Accounts.get_player(player_id)

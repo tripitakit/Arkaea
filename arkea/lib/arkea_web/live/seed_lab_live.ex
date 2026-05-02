@@ -216,11 +216,7 @@ defmodule ArkeaWeb.SeedLabLive do
                 <h2 class="sim-card__title">Phenotype + genome engineering</h2>
               </div>
               <div class="sim-card__meta">
-                <%= if @can_provision_home? do %>
-                  home slot open
-                <% else %>
-                  seed locked after colonization
-                <% end %>
+                {builder_status(@seed_locked?, @seed_ready?, @home_slot_open?)}
               </div>
             </div>
 
@@ -261,7 +257,7 @@ defmodule ArkeaWeb.SeedLabLive do
                 </div>
 
                 <div class="seed-field">
-                  <div class="seed-field__label">Starter ecotype</div>
+                  <div class="seed-field__label">Biotope archetype to colonize</div>
                   <div class="seed-choice-grid">
                     <label
                       :for={ecotype <- @starter_ecotypes}
@@ -324,15 +320,15 @@ defmodule ArkeaWeb.SeedLabLive do
                 <button
                   type="submit"
                   class="sim-action-button seed-submit"
-                  disabled={!@can_provision_home?}
+                  disabled={!@seed_ready?}
                 >
-                  Provision home biotope
+                  Colonize selected biotope
                 </button>
                 <p class="sim-muted">
                   <%= if @seed_locked? do %>
                     The committed seed stays readable here, but its phenotype and genome options are frozen after first colonization.
                   <% else %>
-                    Provisioning starts a player-owned runtime biotope and redirects straight into the detailed viewport.
+                    The player must name the seed and explicitly choose the first biotope archetype before colonization can start.
                   <% end %>
                 </p>
               </div>
@@ -362,9 +358,9 @@ defmodule ArkeaWeb.SeedLabLive do
               <div class="sim-card__header">
                 <div>
                   <div class="sim-card__eyebrow">Preview</div>
-                  <h2 class="sim-card__title">{@preview.spec.seed_name}</h2>
+                  <h2 class="sim-card__title">{preview_seed_name(@preview)}</h2>
                 </div>
-                <div class="sim-card__meta">{@preview.ecotype.label}</div>
+                <div class="sim-card__meta">{preview_ecotype_label(@preview)}</div>
               </div>
 
               <div class="sim-phase-kpis">
@@ -395,11 +391,7 @@ defmodule ArkeaWeb.SeedLabLive do
               <div class="seed-preview-copy">
                 <div class="world-mini-list__title">{@preview.playstyle}</div>
                 <div class="world-mini-list__copy">
-                  Spawn zone {zone_label(@preview.ecotype.zone)} · phases {Enum.map_join(
-                    @preview.phase_names,
-                    ", ",
-                    &phase_label/1
-                  )}
+                  {preview_world_copy(@preview)}
                 </div>
               </div>
             </section>
@@ -462,34 +454,46 @@ defmodule ArkeaWeb.SeedLabLive do
                   <div class="sim-card__eyebrow">World insertion</div>
                   <h2 class="sim-card__title">Home placement</h2>
                 </div>
-                <div class="sim-card__meta">{@preview.phase_count} phases</div>
+                <div class="sim-card__meta">
+                  <%= if starter_selected?(@preview) do %>
+                    {@preview.phase_count} phases
+                  <% else %>
+                    starter choice required
+                  <% end %>
+                </div>
               </div>
 
-              <div class="sim-topology-grid">
-                <.env_reading
-                  label="coords"
-                  value={format_float(elem(@preview.spawn_coords, 0), 1) <> ", " <> format_float(elem(@preview.spawn_coords, 1), 1)}
-                />
-                <.env_reading label="neighbors" value={length(@preview.neighbor_ids)} />
-              </div>
+              <%= if starter_selected?(@preview) do %>
+                <div class="sim-topology-grid">
+                  <.env_reading
+                    label="coords"
+                    value={format_float(elem(@preview.spawn_coords, 0), 1) <> ", " <> format_float(elem(@preview.spawn_coords, 1), 1)}
+                  />
+                  <.env_reading label="neighbors" value={length(@preview.neighbor_ids)} />
+                </div>
 
-              <div>
-                <div class="sim-card__eyebrow mb-2">Outgoing arcs</div>
-                <%= if @preview.neighbor_ids == [] do %>
-                  <p class="sim-muted">
-                    No active biotopes detected yet. This home will start as an isolated prototype node.
-                  </p>
-                <% else %>
-                  <div class="sim-token-cloud">
-                    <span
-                      :for={neighbor_id <- @preview.neighbor_ids}
-                      class="sim-token sim-token--ghost"
-                    >
-                      {String.slice(neighbor_id, 0, 8)}
-                    </span>
-                  </div>
-                <% end %>
-              </div>
+                <div>
+                  <div class="sim-card__eyebrow mb-2">Outgoing arcs</div>
+                  <%= if @preview.neighbor_ids == [] do %>
+                    <p class="sim-muted">
+                      No active biotopes detected yet. This home will start as an isolated prototype node.
+                    </p>
+                  <% else %>
+                    <div class="sim-token-cloud">
+                      <span
+                        :for={neighbor_id <- @preview.neighbor_ids}
+                        class="sim-token sim-token--ghost"
+                      >
+                        {String.slice(neighbor_id, 0, 8)}
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="sim-muted">
+                  Choose a starter biotope archetype to preview insertion coordinates, nearby arcs, and the phase layout of the first controlled colony.
+                </p>
+              <% end %>
             </section>
           </div>
         </div>
@@ -965,6 +969,8 @@ defmodule ArkeaWeb.SeedLabLive do
           form: to_form(locked_params, as: :seed),
           preview: preview,
           can_provision_home?: false,
+          home_slot_open?: false,
+          seed_ready?: false,
           seed_locked?: true,
           home_biotope_id: biotope_id,
           seed_params: locked_params,
@@ -980,12 +986,15 @@ defmodule ArkeaWeb.SeedLabLive do
           |> Map.merge(Map.new(params))
 
         preview = SeedLab.preview(merged, socket.assigns.player)
+        home_slot_open? = SeedLab.can_provision_home?(socket.assigns.player)
 
         socket
         |> assign(
           form: to_form(merged, as: :seed),
           preview: preview,
-          can_provision_home?: SeedLab.can_provision_home?(socket.assigns.player),
+          can_provision_home?: home_slot_open?,
+          home_slot_open?: home_slot_open?,
+          seed_ready?: home_slot_open? and seed_ready_for_provision?(preview),
           seed_locked?: false,
           home_biotope_id: nil,
           seed_params: merged,
@@ -1021,6 +1030,38 @@ defmodule ArkeaWeb.SeedLabLive do
 
     apply_form(socket, params)
   end
+
+  defp seed_ready_for_provision?(preview) do
+    preview.spec.seed_name != "" and starter_selected?(preview)
+  end
+
+  defp starter_selected?(preview) do
+    Map.get(preview.spec, :starter_selected?, false)
+  end
+
+  defp preview_seed_name(preview) do
+    case preview.spec.seed_name do
+      "" -> "Unnamed seed"
+      name -> name
+    end
+  end
+
+  defp preview_ecotype_label(preview) do
+    if starter_selected?(preview), do: preview.ecotype.label, else: "Choose a starter biotope"
+  end
+
+  defp preview_world_copy(preview) do
+    if starter_selected?(preview) do
+      "Spawn zone #{zone_label(preview.ecotype.zone)} · phases #{Enum.map_join(preview.phase_names, ", ", &phase_label/1)}"
+    else
+      "Choose the first biotope archetype to colonize. World placement and phase layout preview unlock after that selection."
+    end
+  end
+
+  defp builder_status(true, _seed_ready?, _home_slot_open?), do: "seed locked after colonization"
+  defp builder_status(false, true, _home_slot_open?), do: "home slot open"
+  defp builder_status(false, false, true), do: "design seed + choose biotope"
+  defp builder_status(false, false, false), do: "home slot unavailable"
 
   defp focus_chromosome_tail(socket) do
     assign(socket,
