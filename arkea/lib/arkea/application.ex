@@ -8,7 +8,6 @@ defmodule Arkea.Application do
   alias Arkea.Persistence.Recovery
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
   alias Arkea.Sim.Migration.Coordinator, as: MigrationCoordinator
-  alias Arkea.Sim.SeedScenario
   alias Arkea.Sim.WorldClock
 
   @impl true
@@ -44,7 +43,7 @@ defmodule Arkea.Application do
     if Arkea.Persistence.enabled?() do
       [
         Arkea.Oban,
-        {Recovery, seed_if_empty?: true}
+        Recovery
       ]
     else
       []
@@ -52,15 +51,6 @@ defmodule Arkea.Application do
   end
 
   defp runtime_children do
-    base_children = [MigrationCoordinator, WorldClock]
-
-    if Arkea.Persistence.enabled?() do
-      base_children
-    else
-      [
-        {Task, fn -> SeedScenario.start_default() end}
-        | base_children
-      ]
-    end
+    [MigrationCoordinator, WorldClock]
   end
 end

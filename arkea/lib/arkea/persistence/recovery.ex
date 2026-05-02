@@ -16,7 +16,6 @@ defmodule Arkea.Persistence.Recovery do
   alias Arkea.Repo
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
   alias Arkea.Sim.BiotopeState
-  alias Arkea.Sim.SeedScenario
 
   @type recovery_result :: {:ok, %{started: non_neg_integer(), skipped: non_neg_integer()}}
 
@@ -68,18 +67,17 @@ defmodule Arkea.Persistence.Recovery do
   end
 
   @impl GenServer
-  def init(opts) do
-    seed_if_empty? = Keyword.get(opts, :seed_if_empty?, true)
-    {:ok, %{seed_if_empty?: seed_if_empty?, last_result: recover_all(seed_if_empty?)}}
+  def init(_opts) do
+    {:ok, %{last_result: recover_all()}}
   end
 
   @impl GenServer
-  def handle_call(:recover_now, _from, %{seed_if_empty?: seed_if_empty?} = state) do
-    result = recover_all(seed_if_empty?)
+  def handle_call(:recover_now, _from, state) do
+    result = recover_all()
     {:reply, result, %{state | last_result: result}}
   end
 
-  defp recover_all(seed_if_empty?) do
+  defp recover_all do
     ids = recoverable_ids()
 
     result =
@@ -96,10 +94,6 @@ defmodule Arkea.Persistence.Recovery do
             acc
         end
       end)
-
-    if result.started == 0 and seed_if_empty? do
-      _ = SeedScenario.start_default()
-    end
 
     {:ok, result}
   end
