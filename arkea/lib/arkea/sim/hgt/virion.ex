@@ -30,6 +30,17 @@ defmodule Arkea.Sim.HGT.Virion do
   - `created_at_tick` — tick of birth.
   - `decay_age` — number of ticks the virion has been free. Used by
     `Phage.decay_step/2` to scale the per-tick decay probability.
+
+  - `payload_kind` (Phase 16) — `:phage` (default; lysogenic /lytic
+    decision on infection), `:generalized_transduction` (capsid
+    mis-packaged a random chromosomal fragment; on infection runs
+    positional allelic replacement instead of prophage integration),
+    or `:specialized_transduction` (excision-error during induction
+    packaged the prophage plus adjacent chromosomal genes; on
+    infection integrates the cassette *and* swaps the carried
+    chromosomal genes by position). Generalised transduction is
+    implemented in Phase 16; specialised transduction is reserved
+    for a follow-up.
   """
 
   use TypedStruct
@@ -45,6 +56,7 @@ defmodule Arkea.Sim.HGT.Virion do
     field :origin_lineage_id, binary() | nil
     field :created_at_tick, non_neg_integer()
     field :decay_age, non_neg_integer(), default: 0
+    field :payload_kind, atom(), default: :phage
   end
 
   @doc """
@@ -74,7 +86,8 @@ defmodule Arkea.Sim.HGT.Virion do
       methylation_profile: Keyword.get(opts, :methylation_profile, []),
       origin_lineage_id: Keyword.get(opts, :origin_lineage_id),
       created_at_tick: created_at_tick,
-      decay_age: Keyword.get(opts, :decay_age, 0)
+      decay_age: Keyword.get(opts, :decay_age, 0),
+      payload_kind: Keyword.get(opts, :payload_kind, :phage)
     }
   end
 
@@ -85,13 +98,15 @@ defmodule Arkea.Sim.HGT.Virion do
         genes: genes,
         abundance: abundance,
         decay_age: decay_age,
-        created_at_tick: tick
+        created_at_tick: tick,
+        payload_kind: kind
       }) do
     is_binary(id) and is_list(genes) and genes != [] and
       Enum.all?(genes, &Gene.valid?/1) and
       is_integer(abundance) and abundance >= 0 and
       is_integer(decay_age) and decay_age >= 0 and
-      is_integer(tick) and tick >= 0
+      is_integer(tick) and tick >= 0 and
+      kind in [:phage, :generalized_transduction, :specialized_transduction]
   end
 
   def valid?(_), do: false

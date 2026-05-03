@@ -58,21 +58,24 @@ defmodule Arkea.Sim.HGT do
   # Public API
 
   @doc """
-  True if the plasmid (list of genes) is conjugative.
+  True if the plasmid is conjugative.
 
-  A plasmid is conjugative when it contains at least one gene with at least one
-  `:transmembrane_anchor` domain (pilus-like proxy, DESIGN.md Block 5).
+  Accepts either a `Genome.plasmid()` map or a raw gene list (legacy).
+  A plasmid is conjugative when it contains at least one gene with at
+  least one `:transmembrane_anchor` domain (pilus-like proxy, DESIGN.md
+  Block 5).
   """
-  @spec conjugative?([Gene.t()]) :: boolean()
-  def conjugative?(plasmid_genes) when is_list(plasmid_genes) do
-    conjugation_strength(plasmid_genes) > 0
-  end
+  @spec conjugative?(Genome.plasmid() | [Gene.t()]) :: boolean()
+  def conjugative?(plasmid), do: conjugation_strength(plasmid) > 0
 
   @doc """
-  Conjugation strength: total count of `:transmembrane_anchor` domains in the
-  plasmid. Zero for non-conjugative plasmids.
+  Conjugation strength: total count of `:transmembrane_anchor` domains
+  in the plasmid. Zero for non-conjugative plasmids. Accepts either a
+  `Genome.plasmid()` map or a raw gene list (legacy).
   """
-  @spec conjugation_strength([Gene.t()]) :: non_neg_integer()
+  @spec conjugation_strength(Genome.plasmid() | [Gene.t()]) :: non_neg_integer()
+  def conjugation_strength(%{genes: genes}) when is_list(genes), do: conjugation_strength(genes)
+
   def conjugation_strength(plasmid_genes) when is_list(plasmid_genes) do
     Enum.sum_by(plasmid_genes, fn gene ->
       Enum.count(gene.domains, fn domain -> domain.type == :transmembrane_anchor end)
@@ -289,12 +292,12 @@ defmodule Arkea.Sim.HGT do
     raw |> max(0.0) |> min(@p_conj_max)
   end
 
-  # True when the recipient already carries a plasmid with the same gene_count
-  # as the donor plasmid (heuristic identity check).
-  defp recipient_has_plasmid?(recipient, donor_plasmid) do
-    target_count = length(donor_plasmid)
-
-    Enum.any?(recipient.genome.plasmids, fn p -> length(p) == target_count end)
+  # True when the recipient already carries a plasmid identical to the
+  # donor plasmid by Phase-16 incompatibility (`inc_group`). Same group
+  # ⇒ would displace, so we suppress the transfer to avoid creating a
+  # transconjugant identical to the donor.
+  defp recipient_has_plasmid?(recipient, %{inc_group: inc} = _donor_plasmid) do
+    Enum.any?(recipient.genome.plasmids, fn p -> p.inc_group == inc end)
   end
 
   # Execute a confirmed plasmid transfer: create a child lineage for the

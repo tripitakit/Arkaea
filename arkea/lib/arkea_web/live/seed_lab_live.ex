@@ -1209,13 +1209,13 @@ defmodule ArkeaWeb.SeedLabLive do
     plasmids =
       preview.genome.plasmids
       |> Enum.with_index(1)
-      |> Enum.map(fn {genes, index} ->
+      |> Enum.map(fn {plasmid, index} ->
         %{
           id: "plasmid_#{index}",
           label: "Plasmid #{index}",
           tone: "plasmid",
           genes:
-            genes
+            plasmid.genes
             |> Enum.with_index(1)
             |> Enum.map(fn {gene, gene_index} ->
               gene_view(

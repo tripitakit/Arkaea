@@ -63,11 +63,17 @@ defmodule Arkea.Sim.Intergenic do
   @doc """
   Multiplicative transfer bias for a donor/recipient pair.
 
+  Accepts either a `Genome.plasmid()` map or a raw gene list (legacy).
+
   - `oriT_site` on the transferred plasmid is the strongest donor-side boost
   - `oriT_site` elsewhere in the donor genome gives a weaker mobilisable-cargo boost
   - `integration_hotspot` in the recipient genome improves establishment odds
   """
-  @spec transfer_probability_multiplier(Genome.t(), Genome.t(), [Gene.t()]) :: float()
+  @spec transfer_probability_multiplier(Genome.t(), Genome.t(), Genome.plasmid() | [Gene.t()]) ::
+          float()
+  def transfer_probability_multiplier(donor, recipient, %{genes: genes}) when is_list(genes),
+    do: transfer_probability_multiplier(donor, recipient, genes)
+
   def transfer_probability_multiplier(
         %Genome{} = donor_genome,
         %Genome{} = recipient_genome,

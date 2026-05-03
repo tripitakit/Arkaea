@@ -434,6 +434,17 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **End-to-end RAS test**: seed scenario with a hydrolase-bearing population (β-lactamase-like) + β-lactam pulse shows progressive detoxification of the pool over time (test in `xenobiotic_test.exs`).
 - **Audit log**: `:xenobiotic_pulse` events recorded as intervention payload (existing). Phase 16 will wire per-lineage drug-driven death events.
 
+##### Phase 16 — Advanced plasmid traits and transduction
+
+- **Refactor `Genome.plasmids`** (`Genome.plasmid()` map): each plasmid now carries `genes`, `inc_group`, `copy_number`, `oriT_present` derived generatively from the genes themselves. `Genome.normalize_plasmid/1` is idempotent on already-formed maps and automatically wraps legacy gene lists. `Genome.new/2` and `Genome.add_plasmid/2` accept both forms.
+- **`inc_group`** (`0..@inc_group_modulus-1` with `@inc_group_modulus = 7`): hash of the plasmid genes' codons modulo 7. `Genome.add_plasmid/2` applies **automatic displacement**: adding a plasmid with the same `inc_group` as a resident replaces the resident (Novick 1987 incompatibility, simplified). `set_plasmids/2` for wholesale replacement without displacement.
+- **`copy_number`** (`1..@max_copy_number` with `@max_copy_number = 10`): `1 + count(:dna_binding domains)` clamped. Tighter repressor binding ⇒ stricter replication control ⇒ higher steady-state copy number (San Millán & MacLean 2018).
+- **Burden scaled by copy_number** (`Tick.compute_growth_deltas_v5`): `plasmid_burden = Σ (length(plasmid.genes) × plasmid.copy_number × 0.3)`. High-copy plasmids amplify the cost; the gene-dosage benefit will be wired in Phase 17 via kcat scaling.
+- **`oriT_present`**: `true` if at least one gene of the plasmid carries an intergenic block `orit_site`. `Intergenic.transfer_probability_multiplier/3` consumes the flag as a donor-side boost.
+- **Generalised transduction** (`Virion.payload_kind :: :phage | :generalized_transduction | :specialized_transduction`): `HGT.Phage.lytic_burst/5` with probability `@transduction_probability = 0.05` mis-packages a random chromosomal gene into a transducing virion (`@transducing_burst_fraction = 0.03` of the burst size). The virion travels through `phage_pool` like a normal phage virion; in `infection_step/4` the branch on `payload_kind` reroutes delivery towards positional allelic replacement (no lysogenic integration). Specialised transduction is declared in the schema (`:specialized_transduction`) but the mis-excision path will be wired in Phase 17.
+- **Behaviour `Arkea.Sim.HGT.Channel`**: new formal interface `step/4 :: {lineages, phase, children, rng}` + callback `name/0`. Implemented by `HGT.Channel.Transformation` (Phase 13) and `HGT.Phage` (Phase 12 + 16). Conjugation (`HGT.step/4`) retains the legacy signature for now; behaviour conformance deferred to Phase 17.
+- **Audit log**: the `audit_log` schema accepts atom-typed events via the catchall `Atom.to_string`; new Phase 16+ event types (`:transformation_event`, `:transduction_event`, `:plasmid_displaced`, `:rm_digestion`) can flow transparently. Explicit emission of these events in the channels will be wired in Phase 17 together with `:error_catastrophe_death` and `:bacteriocin_kill`.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).

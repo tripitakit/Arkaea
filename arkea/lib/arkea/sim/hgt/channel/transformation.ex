@@ -44,6 +44,8 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
     abundance conservation across the gate.
   """
 
+  @behaviour Arkea.Sim.HGT.Channel
+
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome
@@ -51,6 +53,9 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
   alias Arkea.Sim.HGT.Defense
   alias Arkea.Sim.HGT.DnaFragment
   alias Arkea.Sim.Phenotype
+
+  @impl true
+  def name, do: :transformation
 
   @uptake_base 0.0006
   @p_uptake_max 0.20
@@ -68,6 +73,7 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
 
   Pure.
   """
+  @impl true
   @spec step(
           [Lineage.t()],
           Phase.t(),

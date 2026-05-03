@@ -725,12 +725,12 @@ defmodule Arkea.Game.SeedLab do
 
     plasmids =
       Enum.with_index(genome.plasmids, 1)
-      |> Enum.map(fn {genes, index} ->
+      |> Enum.map(fn {plasmid, index} ->
         %{
           scope: "Plasmid",
           label: "Mobile plasmid #{index}",
           domains:
-            genes
+            plasmid.genes
             |> List.flatten()
             |> Enum.flat_map(&Enum.map(&1.domains, fn d -> domain_label(d.type) end))
         }

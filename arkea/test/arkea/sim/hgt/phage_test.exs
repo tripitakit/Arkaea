@@ -67,9 +67,12 @@ defmodule Arkea.Sim.HGT.PhageTest do
       assert virion.abundance <= Phage.max_burst_size()
       # Host abundance dropped by the lysis fraction (~50%).
       assert Lineage.abundance_in(l_out, :surface) < 200
-      # Phase pool now carries the virion.
-      assert map_size(p_out.phage_pool) == 1
+      # Phase pool carries at least the main phage virion (Phase 16:
+      # may also carry a generalised-transducing virion produced
+      # alongside the burst with a small per-burst probability).
+      assert map_size(p_out.phage_pool) in 1..2
       assert Map.has_key?(p_out.phage_pool, virion.id)
+      assert virion.payload_kind == :phage
       # DNA fragment deposited in dna_pool — keyed by fragment UUID,
       # carrying the donor's chromosome and audit-traceable to the lysed
       # lineage.
@@ -175,6 +178,49 @@ defmodule Arkea.Sim.HGT.PhageTest do
       assert ls == [lineage]
       assert p == phase
       assert children == []
+    end
+
+    test "generalised transduction virions trigger allelic replacement" do
+      # Build a transducing virion directly (skipping the lytic burst RNG)
+      # carrying a distinguishable donor gene (structural_fold). Recipient
+      # has a 1-gene chromosome with a different domain (catalytic_site).
+      donor_gene = Gene.from_domains([structural_domain(), surface_domain()])
+      recipient = founder(Genome.new([chromosome_gene()]), 200)
+
+      transducing_virion =
+        Virion.new(
+          id: Arkea.UUID.v4(),
+          genes: [donor_gene],
+          abundance: 200,
+          surface_signature: nil,
+          methylation_profile: [],
+          origin_lineage_id: "donor",
+          created_at_tick: 0,
+          payload_kind: :generalized_transduction
+        )
+
+      phase = surface_phase() |> Phase.add_virion(transducing_virion)
+      rng = Mutator.init_seed("phage-transduction-allelic")
+
+      {_lineages, _phase, children, _rng} =
+        Enum.reduce(1..20, {[recipient], phase, [], rng}, fn _i,
+                                                             {ls, ph, acc_children, acc_rng} ->
+          {ls_out, ph_out, new_children, rng_out} =
+            Phage.infection_step(ls, ph, 1, acc_rng)
+
+          {ls_out, ph_out, acc_children ++ new_children, rng_out}
+        end)
+
+      # With high virion abundance, R-M trivial (no enzymes), competence
+      # not required for transduction → expect at least one transformant
+      # carrying the donor gene at the chromosome position.
+      assert length(children) > 0
+
+      child = hd(children)
+
+      assert Enum.any?(child.genome.chromosome, fn g ->
+               g.id == donor_gene.id or g == donor_gene
+             end)
     end
 
     test "high-abundance virions produce at least one infection event over many ticks" do

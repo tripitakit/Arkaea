@@ -32,6 +32,8 @@ defmodule Arkea.Sim.HGT.Phage do
   Wommack & Colwell 2000).
   """
 
+  @behaviour Arkea.Sim.HGT.Channel
+
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome
@@ -40,9 +42,25 @@ defmodule Arkea.Sim.HGT.Phage do
   alias Arkea.Sim.HGT.Virion
   alias Arkea.Sim.Phenotype
 
+  @impl true
+  def name, do: :phage_infection
+
+  @impl true
+  def step(lineages, phase, tick, rng), do: infection_step(lineages, phase, tick, rng)
+
   @burst_size_min 10
   @burst_size_max 500
   @burst_default 30
+
+  # Phase 16 — generalised transduction.
+  # Probability that a lytic burst also packages a chromosomal fragment
+  # in some of its capsids: ~0.3% in real biology (Chen et al. 2018).
+  # We collapse it to a single transducing virion per burst with this
+  # probability — the abundance of that virion is a small fraction of
+  # the main burst, mirroring the rare-but-non-zero rate observed in
+  # vivo.
+  @transduction_probability 0.05
+  @transducing_burst_fraction 0.03
 
   # Per-tick decay applied on top of phase dilution. The full decay rate is
   # `@base_decay + @age_decay × decay_age`, clamped to 1.0. With the
@@ -123,21 +141,83 @@ defmodule Arkea.Sim.HGT.Phage do
           surface_signature: surface_signature,
           methylation_profile: methylation,
           origin_lineage_id: lineage.id,
-          created_at_tick: tick
+          created_at_tick: tick,
+          payload_kind: :phage
         )
 
-      new_phase =
-        phase
-        |> Phase.add_virion(virion)
-        |> deposit_dna_fragment(lineage, lost, tick)
+      {phase_with_phage, rng1} = {Phase.add_virion(phase, virion), rng}
+
+      # Phase 16: with probability @transduction_probability, the burst
+      # also mis-packages a chromosomal fragment into a small fraction
+      # of its capsids — generalised transduction. The transducing
+      # virion travels through the same `Phase.phage_pool`, but its
+      # `payload_kind` flag re-routes infection through allelic
+      # replacement instead of prophage integration.
+      {phase_after_transduction, rng2} =
+        maybe_emit_transducing_virion(
+          phase_with_phage,
+          lineage,
+          cassette,
+          burst_size,
+          surface_signature,
+          methylation,
+          tick,
+          rng1
+        )
+
+      new_phase = deposit_dna_fragment(phase_after_transduction, lineage, lost, tick)
 
       new_lineage =
         lineage
         |> drop_cassette(cassette_index)
         |> decrement_abundance(phase.name, lost)
 
-      {new_lineage, new_phase, virion, rng}
+      {new_lineage, new_phase, virion, rng2}
     end
+  end
+
+  defp maybe_emit_transducing_virion(
+         phase,
+         %Lineage{} = lineage,
+         _cassette,
+         burst_size,
+         surface_signature,
+         methylation,
+         tick,
+         rng
+       ) do
+    {roll, rng1} = :rand.uniform_s(rng)
+
+    cond do
+      roll >= @transduction_probability ->
+        {phase, rng1}
+
+      lineage.genome.chromosome == [] ->
+        {phase, rng1}
+
+      true ->
+        {gene, rng2} = pick_random_gene(lineage.genome.chromosome, rng1)
+        transducing_size = max(round(burst_size * @transducing_burst_fraction), 1)
+
+        td_virion =
+          Virion.new(
+            id: Arkea.UUID.v4(),
+            genes: [gene],
+            abundance: transducing_size,
+            surface_signature: surface_signature,
+            methylation_profile: methylation,
+            origin_lineage_id: lineage.id,
+            created_at_tick: tick,
+            payload_kind: :generalized_transduction
+          )
+
+        {Phase.add_virion(phase, td_virion), rng2}
+    end
+  end
+
+  defp pick_random_gene(genes, rng) when is_list(genes) and genes != [] do
+    {idx_one_based, rng1} = :rand.uniform_s(length(genes), rng)
+    {Enum.at(genes, idx_one_based - 1), rng1}
   end
 
   @doc """
@@ -340,7 +420,65 @@ defmodule Arkea.Sim.HGT.Phage do
         {ls, new_phase, children, rng1}
 
       {:passed, rng1} ->
-        decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+        case virion.payload_kind do
+          :phage ->
+            decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+
+          :generalized_transduction ->
+            run_transducing_integration(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+
+          # Specialised transduction: Phase 16 stretch goal — the
+          # virion carries the prophage cassette plus adjacent
+          # chromosomal genes. We integrate the cassette as a normal
+          # prophage (existing path) and additionally allelic-replace
+          # the carried chromosomal genes by position.
+          :specialized_transduction ->
+            decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+        end
+    end
+  end
+
+  # Generalised transduction: virion mis-packaged a chromosomal gene.
+  # On entry the recipient swaps the gene at the matching position
+  # in its own chromosome (positional homologous recombination,
+  # mirrors `HGT.Channel.Transformation`). No prophage integration.
+  defp run_transducing_integration(phage_id, virion, recipient, tick, {ls, ph, children, rng}) do
+    case virion.genes do
+      [donor_gene | _] ->
+        do_transducing_swap(phage_id, donor_gene, recipient, tick, {ls, ph, children, rng})
+
+      _ ->
+        {ls, consume_one_virion(ph, phage_id), children, rng}
+    end
+  end
+
+  defp do_transducing_swap(phage_id, donor_gene, recipient, tick, {ls, ph, children, rng}) do
+    chromosome = recipient.genome.chromosome
+    n = length(chromosome)
+
+    if n == 0 do
+      {ls, consume_one_virion(ph, phage_id), children, rng}
+    else
+      {idx, rng1} = :rand.uniform_s(n, rng)
+      idx = idx - 1
+
+      new_chromosome = List.replace_at(chromosome, idx, donor_gene)
+
+      new_genome =
+        Genome.new(new_chromosome,
+          plasmids: recipient.genome.plasmids,
+          prophages: recipient.genome.prophages
+        )
+
+      child_tick = max(tick + 1, recipient.created_at_tick + 1)
+      child_abundances = %{ph.name => 5}
+      child = Lineage.new_child(recipient, new_genome, child_abundances, child_tick)
+
+      updated_recipient = decrement_abundance(recipient, ph.name, 5)
+      new_lineages = replace_lineage(ls, recipient.id, updated_recipient)
+      new_phase = consume_one_virion(ph, phage_id)
+
+      {new_lineages, new_phase, [child | children], rng1}
     end
   end
 

@@ -876,9 +876,15 @@ defmodule Arkea.Sim.Tick do
     net =
       (atp_yield - phenotype.energy_cost * 5.0 + expression_mods.energy_relief) * sigma
 
-    # Phase 6: plasmid replication cost (0.3 ATP per plasmid gene)
-    plasmid_gene_count = Enum.sum_by(genome.plasmids, &length/1)
-    plasmid_burden = plasmid_gene_count * 0.3
+    # Phase 16: plasmid replication cost scales with copy_number.
+    # Burden = Σ (genes × copy_number × 0.3 ATP/gene/copy/tick).
+    # High-copy plasmids amplify the burden; the gene-dosage benefit
+    # (also proportional to copy_number) lives elsewhere — Phase 17
+    # will couple it through `:catalytic_site` kcat scaling.
+    plasmid_burden =
+      Enum.sum_by(genome.plasmids, fn plasmid ->
+        length(plasmid.genes) * plasmid.copy_number * 0.3
+      end)
 
     net_adjusted = net - plasmid_burden
     delta = round(net_adjusted) |> max(-200) |> min(500)

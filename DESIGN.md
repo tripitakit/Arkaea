@@ -434,6 +434,17 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **End-to-end RAS test**: scenario seed con popolazione hydrolase-bearing (β-lattamasi-like) + pulse di β-lattam mostra detoxificazione progressiva del pool nel tempo (test in `xenobiotic_test.exs`).
 - **Audit log**: eventi `:xenobiotic_pulse` registrati come intervention payload (esistente). Phase 16 cablerà eventi per-lineage di drug-driven death.
 
+##### Fase 16 — Plasmid traits avanzati e trasduzione
+
+- **Refactor `Genome.plasmids`** (`Genome.plasmid()` map): ogni plasmide ora porta `genes`, `inc_group`, `copy_number`, `oriT_present` derivati generativamente dai geni stessi. `Genome.normalize_plasmid/1` è idempotente sui map già formati e wrappa automaticamente le gene-list legacy. `Genome.new/2` e `Genome.add_plasmid/2` accettano entrambe le forme.
+- **`inc_group`** (`0..@inc_group_modulus-1` con `@inc_group_modulus = 7`): hash dei codoni dei geni del plasmide modulo 7. `Genome.add_plasmid/2` applica **displacement automatico**: aggiungere un plasmide con `inc_group` di un residente sostituisce il residente (Novick 1987 incompatibility, semplificato). `set_plasmids/2` per replacement wholesale senza displacement.
+- **`copy_number`** (`1..@max_copy_number` con `@max_copy_number = 10`): `1 + count(:dna_binding domains)` clampato. Tighter repressor binding ⇒ stricter replication control ⇒ higher steady-state copy number (San Millán & MacLean 2018).
+- **Burden scalato dal copy_number** (`Tick.compute_growth_deltas_v5`): `plasmid_burden = Σ (length(plasmid.genes) × plasmid.copy_number × 0.3)`. Plasmidi high-copy amplificano il costo; il beneficio gene-dosage è cablato in Phase 17 via kcat scaling.
+- **`oriT_present`**: `true` se almeno un gene del plasmide porta un intergenic block `orit_site`. `Intergenic.transfer_probability_multiplier/3` consuma il flag come boost donor-side.
+- **Trasduzione generalizzata** (`Virion.payload_kind :: :phage | :generalized_transduction | :specialized_transduction`): `HGT.Phage.lytic_burst/5` con probabilità `@transduction_probability = 0.05` mis-packaging un gene cromosomiale random in un transducing virion (`@transducing_burst_fraction = 0.03` del burst size). Il virione viaggia attraverso `phage_pool` come uno fagico normale; in `infection_step/4` il branch su `payload_kind` reroute la consegna verso allelic replacement posizionale (nessuna integrazione lisogenica). Specialized transduction è dichiarata nello schema (`:specialized_transduction`) ma il path di excisione errata sarà cablato in Fase 17.
+- **Behaviour `Arkea.Sim.HGT.Channel`**: nuova interfaccia formale `step/4 :: {lineages, phase, children, rng}` + callback `name/0`. Implementata da `HGT.Channel.Transformation` (Fase 13) e `HGT.Phage` (Fase 12 + 16). Conjugation (`HGT.step/4`) mantiene la firma legacy per ora; conformance al behaviour rinviata a Fase 17.
+- **Audit log**: lo schema `audit_log` accetta atom-typed events via il catchall `Atom.to_string`; nuovi event types Fase 16+ (`:transformation_event`, `:transduction_event`, `:plasmid_displaced`, `:rm_digestion`) possono fluire trasparentemente. Emissione esplicita di questi events nei canali è cablata in Fase 17 insieme a `:error_catastrophe_death` e `:bacteriocin_kill`.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).
