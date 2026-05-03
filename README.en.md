@@ -33,6 +33,7 @@ Then open [`localhost:4000`](http://localhost:4000) and create or resume a playe
 - [DESIGN.en.md](DESIGN.en.md) — complete design document, 15 blocks (architecture, biological model, environment, population, engine, metabolic inventory, generative domain system, selective pressures, quorum sensing, network topology, time, micro/macroscale, anti-griefing, stack, integral use case)
 - [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md) — walk-through "Chronicles of a contested estuary" that validates design coherence by traversing all 15 blocks
 - [IMPLEMENTATION-PLAN.en.md](IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick), analysis of the discarded Event Sourcing alternative, implemented roadmap, and consolidation notes on UI, persistence, and player onboarding
+- [BIOLOGICAL-MODEL-REVIEW.en.md](BIOLOGICAL-MODEL-REVIEW.en.md) — scientific review of the implemented biological model and intervention plan to close the gaps (complete HGT, phage cycle, R-M, transformation, transduction, xenobiotics/RAS, biomass, SOS, error catastrophe, operons, bacteriocins)
 
 ## Project subagents
 
