@@ -445,6 +445,23 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Behaviour `Arkea.Sim.HGT.Channel`**: nuova interfaccia formale `step/4 :: {lineages, phase, children, rng}` + callback `name/0`. Implementata da `HGT.Channel.Transformation` (Fase 13) e `HGT.Phage` (Fase 12 + 16). Conjugation (`HGT.step/4`) mantiene la firma legacy per ora; conformance al behaviour rinviata a Fase 17.
 - **Audit log**: lo schema `audit_log` accetta atom-typed events via il catchall `Atom.to_string`; nuovi event types Fase 16+ (`:transformation_event`, `:transduction_event`, `:plasmid_displaced`, `:rm_digestion`) possono fluire trasparentemente. Emissione esplicita di questi events nei canali è cablata in Fase 17 insieme a `:error_catastrophe_death` e `:bacteriocin_kill`.
 
+##### Fase 17 — SOS, error catastrophe, operoni, bacteriocine
+
+- **`Lineage.dna_damage :: 0.0..@dna_damage_max`** (cap 5.0): accumulatore biologicamente coerente del DNA-damage del lignaggio. Per-tick incremento normalizzato pro-cellula tramite `Mutator.dna_damage_increment/4`: `µ_baseline × (replications/abundance) × (1 - repair_efficiency)`, con boost ×1.5 se SOS già attiva (DinB-like compounding). Decadimento fisso `Mutator.decay_damage/1` `0.10/tick`. Nuovo `Tick.step_dna_damage` tra `step_cell_events` e `step_hgt`.
+- **SOS response** (`Mutator.sos_active?/1`): `dna_damage ≥ @sos_active_threshold = 0.50`. Effetti generative-only:
+  - `Mutator.mutation_probability/3` amplifica µ × `@sos_mutation_amplifier = 4` (mutator strain attivo).
+  - `HGT.induction_step` moltiplica la induction probability profagica per `@sos_induction_amplifier = 3` (RecA-mediated repressor cleavage). Sostituisce il trigger ATP-deficit-only di Fase 12 con la convergenza ATP-stress + DNA-damage.
+- **Error catastrophe** (`Mutator.error_catastrophe_lethality/2`): conforme alla soglia di Eigen quasispecies. Per `µ_per_cell × genome_size > 1`, `p_lethal = 1 - (1 - share)^genome_size` dove `share = (product - 1) / genome_size`. Cablato in `Tick.attempt_spawn`: se il roll cade sotto p_lethal, l'offspring è non-vitale (parent paga il costo replicativo, niente nuovo lineage). Skip RNG quando `p_lethal == 0` per preservare i path deterministici delle scenarios canary.
+- **Operoni** (`Gene.operon_id :: binary | nil`): nuovo campo data-model (default `nil`). Geni con stesso `operon_id` formano un operone — semantica runtime di kcat scaling coordinato e σ-factor condiviso rinviata a follow-up; Fase 17 ship la struct shape così che builder e mutator possano già taggare geni co-trascritti.
+- **Bacteriocine** (`Arkea.Sim.Bacteriocin`): warfare proteinaceous narrow-spectrum (Riley & Wertz 2002). Producer = genoma con (a) un gene contenente `:substrate_binding + :catalytic_site(:hydrolysis) + :transmembrane_anchor` *e* (b) almeno un `:surface_tag` (immunity marker). Il doppio requisito previene "suicide producer" che si auto-distruggerebbero. Pool dinamica:
+  - `Phase.toxin_pool :: %{producer_lineage_id => float}` indicizzato dal producer (per matching immunity).
+  - Secrezione: `producer.abundance × @secretion_per_cell (=0.0001)` per tick.
+  - Damage: ogni lineage non-immune (no shared `:surface_tag` con il producer) perde `@damage_rate (=0.005) × concentration` da `biomass.wall`, capped a `@max_damage_per_pool (=0.05)` per pool. Lethality routing tramite `Tick.step_lysis` esistente — niente meccanismi paralleli di morte.
+  - Self-immunity: il producer skipa il proprio pool. Cross-immunity: lineage con `:surface_tag` matching condiviso skipano il pool del producer.
+  - Diluzione standard via `Phase.dilute/1`.
+- **Pipeline `Tick`**: nuovo `step_bacteriocin` tra `step_signaling` e `step_expression`; nuovo `step_dna_damage` tra `step_cell_events` e `step_hgt`. Error catastrophe fold dentro `attempt_spawn`.
+- **Audit log**: schema esistente `audit_log` accetta `:sos_active`, `:error_catastrophe_death`, `:bacteriocin_kill` via catchall `Atom.to_string`. Emissione esplicita di questi event types resta cablabile per-channel quando il behaviour `HGT.Channel` viene esteso (Fase 18+).
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).

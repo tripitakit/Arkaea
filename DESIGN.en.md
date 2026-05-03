@@ -445,6 +445,23 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Behaviour `Arkea.Sim.HGT.Channel`**: new formal interface `step/4 :: {lineages, phase, children, rng}` + callback `name/0`. Implemented by `HGT.Channel.Transformation` (Phase 13) and `HGT.Phage` (Phase 12 + 16). Conjugation (`HGT.step/4`) retains the legacy signature for now; behaviour conformance deferred to Phase 17.
 - **Audit log**: the `audit_log` schema accepts atom-typed events via the catchall `Atom.to_string`; new Phase 16+ event types (`:transformation_event`, `:transduction_event`, `:plasmid_displaced`, `:rm_digestion`) can flow transparently. Explicit emission of these events in the channels will be wired in Phase 17 together with `:error_catastrophe_death` and `:bacteriocin_kill`.
 
+##### Phase 17 — SOS, error catastrophe, operons, bacteriocins
+
+- **`Lineage.dna_damage :: 0.0..@dna_damage_max`** (cap 5.0): biologically coherent accumulator of lineage DNA damage. Per-tick increment normalised per-cell via `Mutator.dna_damage_increment/4`: `µ_baseline × (replications/abundance) × (1 - repair_efficiency)`, with a ×1.5 boost if SOS is already active (DinB-like compounding). Fixed decay `Mutator.decay_damage/1` `0.10/tick`. New `Tick.step_dna_damage` between `step_cell_events` and `step_hgt`.
+- **SOS response** (`Mutator.sos_active?/1`): `dna_damage ≥ @sos_active_threshold = 0.50`. Generative-only effects:
+  - `Mutator.mutation_probability/3` amplifies µ × `@sos_mutation_amplifier = 4` (active mutator strain).
+  - `HGT.induction_step` multiplies the prophage induction probability by `@sos_induction_amplifier = 3` (RecA-mediated repressor cleavage). Replaces the ATP-deficit-only trigger from Phase 12 with the ATP-stress + DNA-damage convergence.
+- **Error catastrophe** (`Mutator.error_catastrophe_lethality/2`): conforms to the Eigen quasispecies threshold. For `µ_per_cell × genome_size > 1`, `p_lethal = 1 - (1 - share)^genome_size` where `share = (product - 1) / genome_size`. Wired in `Tick.attempt_spawn`: if the roll falls below p_lethal, the offspring is non-viable (the parent pays the replicative cost, no new lineage). RNG skip when `p_lethal == 0` to preserve deterministic paths in canary scenarios.
+- **Operons** (`Gene.operon_id :: binary | nil`): new data-model field (default `nil`). Genes sharing the same `operon_id` form an operon — runtime semantics of coordinated kcat scaling and shared σ-factor deferred to a follow-up; Phase 17 ships the struct shape so that builders and mutators can already tag co-transcribed genes.
+- **Bacteriocins** (`Arkea.Sim.Bacteriocin`): narrow-spectrum proteinaceous warfare (Riley & Wertz 2002). Producer = genome carrying (a) a gene containing `:substrate_binding + :catalytic_site(:hydrolysis) + :transmembrane_anchor` *and* (b) at least one `:surface_tag` (immunity marker). The dual requirement prevents self-destructive suicide producers. Dynamic pool:
+  - `Phase.toxin_pool :: %{producer_lineage_id => float}` indexed by producer (for immunity matching).
+  - Secretion: `producer.abundance × @secretion_per_cell (=0.0001)` per tick.
+  - Damage: every non-immune lineage (no shared `:surface_tag` with the producer) loses `@damage_rate (=0.005) × concentration` from `biomass.wall`, capped at `@max_damage_per_pool (=0.05)` per pool. Lethality routes through the existing `Tick.step_lysis` — no parallel death mechanism.
+  - Self-immunity: the producer skips its own pool. Cross-immunity: lineages with a matching shared `:surface_tag` skip the producer's pool.
+  - Standard dilution via `Phase.dilute/1`.
+- **`Tick` pipeline**: new `step_bacteriocin` between `step_signaling` and `step_expression`; new `step_dna_damage` between `step_cell_events` and `step_hgt`. Error catastrophe folded into `attempt_spawn`.
+- **Audit log**: existing `audit_log` schema accepts `:sos_active`, `:error_catastrophe_death`, `:bacteriocin_kill` via the catchall `Atom.to_string`. Explicit emission of these event types remains wireable per-channel when the `HGT.Channel` behaviour is extended (Phase 18+).
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).

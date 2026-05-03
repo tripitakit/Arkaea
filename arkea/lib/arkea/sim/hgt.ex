@@ -47,6 +47,7 @@ defmodule Arkea.Sim.HGT do
   alias Arkea.Genome.Gene
   alias Arkea.Sim.HGT.Phage
   alias Arkea.Sim.Intergenic
+  alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
 
   @conj_base_rate 0.005
@@ -353,25 +354,43 @@ defmodule Arkea.Sim.HGT do
     denom = max(energy_cost * 5.0, 0.1)
     stress_factor = max(0.0, 1.0 - atp / denom)
 
-    apply_induction_rolls(lineage, phases_by_name, stress_factor, tick, rng)
+    # Phase 17: SOS adds a multiplicative amplifier on top of the
+    # ATP-deficit stress signal. The two pathways converge on the same
+    # prophage repressor (RecA-mediated cleavage in vivo), so a cell
+    # with both metabolic stress and DNA damage induces faster than
+    # either alone.
+    sos_mult =
+      if Mutator.sos_active?(lineage.dna_damage),
+        do: Mutator.sos_induction_amplifier(),
+        else: 1.0
+
+    apply_induction_rolls(lineage, phases_by_name, stress_factor, sos_mult, tick, rng)
   end
 
   # Walk each cassette in order, rolling its own induction probability.
   # On induction, delegate to `Phage.lytic_burst/5` which mutates both the
   # lineage genome (cassette dropped) and the lineage's primary phase.
-  defp apply_induction_rolls(lineage, phases_by_name, stress_factor, tick, rng) do
+  defp apply_induction_rolls(lineage, phases_by_name, stress_factor, sos_mult, tick, rng) do
     indexed = Enum.with_index(lineage.genome.prophages)
 
     Enum.reduce(indexed, {lineage, phases_by_name, rng}, fn
       {cassette, _idx}, {acc_lineage, acc_phases, acc_rng} ->
-        roll_for_cassette(acc_lineage, acc_phases, cassette, stress_factor, tick, acc_rng)
+        roll_for_cassette(
+          acc_lineage,
+          acc_phases,
+          cassette,
+          stress_factor,
+          sos_mult,
+          tick,
+          acc_rng
+        )
     end)
   end
 
-  defp roll_for_cassette(lineage, phases_by_name, cassette, stress_factor, tick, rng) do
+  defp roll_for_cassette(lineage, phases_by_name, cassette, stress_factor, sos_mult, tick, rng) do
     p =
       min(
-        @p_induction_base * stress_factor * (1.0 - cassette.repressor_strength),
+        @p_induction_base * stress_factor * sos_mult * (1.0 - cassette.repressor_strength),
         @p_induction_max
       )
 

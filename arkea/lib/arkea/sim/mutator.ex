@@ -56,6 +56,27 @@ defmodule Arkea.Sim.Mutator do
   @divisor 50.0
   @max_probability 0.95
 
+  # Phase 17 — SOS response and error catastrophe (DESIGN.md Block 8).
+  #
+  # `dna_damage` accumulates with every mutational event scaled by the
+  # genome size and inverse repair efficiency, mirroring the in vivo
+  # observation that error-prone polymerases (DinB, Pol II, Pol V)
+  # become active when DNA damage saturates the repair pool. SOS is
+  # thresholded — below the threshold mutation rates and prophage
+  # induction return to baseline; above, the polymerase activation
+  # multiplies µ by `@sos_mutation_amplifier`.
+  #
+  # The error-catastrophe ceiling on µ is set by the Eigen quasispecies
+  # criterion: replication is sustainable only when `µ × genome_size <
+  # ~1`. Above the critical product, almost every offspring carries at
+  # least one lethal mutation. Phase 17 implements the soft boundary:
+  # spawn rolls ignored above `@critical_mu_per_gene` × genome_size.
+  @dna_damage_decay 0.10
+  @sos_active_threshold 0.50
+  @sos_mutation_amplifier 4.0
+  @sos_induction_amplifier 3.0
+  @critical_mu_per_gene 0.20
+
   @type rng_state :: :rand.state()
 
   @doc """
@@ -108,10 +129,135 @@ defmodule Arkea.Sim.Mutator do
 
   def mutation_probability(abundance, repair_efficiency)
       when is_integer(abundance) and abundance > 0 and is_float(repair_efficiency) do
-    mu = @base_rate * (1.0 - repair_efficiency)
+    mutation_probability(abundance, repair_efficiency, 0.0)
+  end
+
+  @doc """
+  SOS-aware mutation probability (Phase 17 — DESIGN.md Block 8).
+
+  When the lineage's accumulated `dna_damage` crosses `@sos_active_threshold`,
+  the per-cell mutation rate is amplified by `@sos_mutation_amplifier`
+  (DinB-like error-prone polymerase activation). Below the threshold the
+  formula reduces to `mutation_probability/2`.
+
+  Pure.
+  """
+  @spec mutation_probability(non_neg_integer(), float(), float()) :: float()
+  def mutation_probability(0, _repair_efficiency, _dna_damage), do: 0.0
+
+  def mutation_probability(abundance, repair_efficiency, dna_damage)
+      when is_integer(abundance) and abundance > 0 and is_float(repair_efficiency) and
+             is_float(dna_damage) do
+    sos_mult = if sos_active?(dna_damage), do: @sos_mutation_amplifier, else: 1.0
+    mu = @base_rate * (1.0 - repair_efficiency) * sos_mult
     raw = mu * abundance / @divisor
     raw |> max(0.0) |> min(@max_probability)
   end
+
+  @doc """
+  True when the SOS response is active for the given dna_damage value.
+  """
+  @spec sos_active?(float()) :: boolean()
+  def sos_active?(dna_damage) when is_float(dna_damage),
+    do: dna_damage >= @sos_active_threshold
+
+  @doc "SOS-active threshold (exposed for tests / docs)."
+  def sos_active_threshold, do: @sos_active_threshold
+
+  @doc "Per-tick decay applied to `dna_damage` independent of new accumulation."
+  def dna_damage_decay, do: @dna_damage_decay
+
+  @doc "Mutation-rate multiplier when SOS is active."
+  def sos_mutation_amplifier, do: @sos_mutation_amplifier
+
+  @doc "Prophage-induction multiplier when SOS is active."
+  def sos_induction_amplifier, do: @sos_induction_amplifier
+
+  @doc """
+  Per-tick increment of `dna_damage`, scaled to a per-cell rate.
+
+  Models the in vivo observation that DNA damage tracks mutation
+  rate, replication intensity, and inverse repair capacity:
+
+      damage_increment ∝ µ_baseline × growth_rate × (1 - repair_efficiency)
+
+  `growth_rate` is `replications / max(abundance, 1)` — the per-cell
+  replication probability. Normalising to a per-cell rate keeps the
+  damage magnitudes comparable across small and large populations:
+  a 200-cell colony growing at 30 % per tick accumulates the same
+  per-tick damage as a 20-cell colony at the same growth rate.
+  Without this normalisation, populous colonies saturate the SOS
+  threshold within one or two ticks regardless of mutator status,
+  which is biologically wrong.
+
+  Returns a non-negative float. Damage compounds when SOS is already
+  active (DinB-like polymerases lengthen the per-replication error
+  count); the multiplier surfaces the runaway-mutator feedback loop
+  that selection then has to neutralise.
+  """
+  @spec dna_damage_increment(float(), non_neg_integer(), non_neg_integer(), float()) :: float()
+  def dna_damage_increment(repair_efficiency, replications, abundance, current_damage)
+      when is_float(repair_efficiency) and is_integer(replications) and replications >= 0 and
+             is_integer(abundance) and abundance >= 0 and is_float(current_damage) do
+    if abundance == 0 or replications == 0 do
+      0.0
+    else
+      growth_rate = replications / abundance
+      base = @base_rate * growth_rate * (1.0 - clamp(repair_efficiency, 0.0, 1.0))
+      if sos_active?(current_damage), do: base * 1.5, else: base
+    end
+  end
+
+  @doc """
+  Backwards-compatible 3-arg form (Phase 17 internal): infers a
+  per-cell rate from `replications` only when `abundance` is
+  unavailable; falls back to a coarse `replications/100` as the
+  growth-rate proxy. Prefer the 4-arg form whenever possible.
+  """
+  @spec dna_damage_increment(float(), non_neg_integer(), float()) :: float()
+  def dna_damage_increment(repair_efficiency, replications, current_damage),
+    do: dna_damage_increment(repair_efficiency, replications, max(replications * 5, 1), current_damage)
+
+  @doc """
+  Apply per-tick decay to a `dna_damage` value, clamped at 0.
+  """
+  @spec decay_damage(float()) :: float()
+  def decay_damage(damage) when is_float(damage) do
+    (damage - @dna_damage_decay) |> max(0.0)
+  end
+
+  @doc """
+  Error-catastrophe lethality probability for a freshly produced
+  offspring, given the lineage's per-cell mutation rate `µ` and its
+  genome size.
+
+  Per Eigen's quasispecies result, `µ × genome_size > 1` means almost
+  every replication produces at least one lethal mutation. Phase 17
+  encodes the soft boundary as
+
+      p_lethal = 1 - (1 - µ_critical_share)^genome_size
+      where µ_critical_share = max(0, µ × genome_size - 1) / genome_size
+
+  Returns 0 below the threshold; saturates near 1 well above.
+  """
+  @spec error_catastrophe_lethality(float(), pos_integer()) :: float()
+  def error_catastrophe_lethality(mu, genome_size)
+      when is_float(mu) and is_integer(genome_size) and genome_size > 0 do
+    product = mu * genome_size
+
+    if product <= 1.0 do
+      0.0
+    else
+      share = (product - 1.0) / genome_size
+      raw = 1.0 - :math.pow(1.0 - share, genome_size)
+      raw |> max(0.0) |> min(1.0)
+    end
+  end
+
+  @doc "Per-gene µ ceiling above which error catastrophe sets in."
+  def critical_mu_per_gene, do: @critical_mu_per_gene
+
+  defp clamp(value, lo, hi), do: value |> max(lo) |> min(hi)
 
   # ---------------------------------------------------------------------------
   # Private — type sampling

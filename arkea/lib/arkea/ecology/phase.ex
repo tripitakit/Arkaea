@@ -37,6 +37,14 @@ defmodule Arkea.Ecology.Phase do
     Independent from `metabolite_pool` because xenobiotics use their
     own catalog (target_class, Kd, mode) rather than the 13-metabolite
     metabolic taxonomy.
+
+  ## Phase 17 additions
+
+  - `toxin_pool :: %{producer_lineage_id => float()}` — bacteriocin
+    concentration secreted by each producer lineage in the phase
+    (`Arkea.Sim.Bacteriocin`). The map key is the producer's lineage
+    id so that immunity tags can be looked up by source. Diluted
+    along with the other phase pools by `dilute/1`.
   """
 
   use TypedStruct
@@ -62,6 +70,7 @@ defmodule Arkea.Ecology.Phase do
     field :phage_pool, %{binary() => Virion.t()}, default: %{}
     field :dna_pool, %{binary() => DnaFragment.t()}, default: %{}
     field :xenobiotic_pool, %{atom() => float()}, default: %{}
+    field :toxin_pool, %{binary() => float()}, default: %{}
     field :lineage_ids, MapSet.t(binary()), default: MapSet.new()
   end
 
@@ -91,6 +100,7 @@ defmodule Arkea.Ecology.Phase do
       phage_pool: %{},
       dna_pool: %{},
       xenobiotic_pool: %{},
+      toxin_pool: %{},
       lineage_ids: MapSet.new()
     }
 
@@ -219,7 +229,8 @@ defmodule Arkea.Ecology.Phase do
         signal_pool: dilute_pool(phase.signal_pool, factor),
         phage_pool: dilute_phage_pool(phase.phage_pool, factor),
         dna_pool: dilute_dna_pool(phase.dna_pool, factor),
-        xenobiotic_pool: dilute_pool(phase.xenobiotic_pool, factor)
+        xenobiotic_pool: dilute_pool(phase.xenobiotic_pool, factor),
+        toxin_pool: dilute_pool(phase.toxin_pool, factor)
     }
   end
 
@@ -255,6 +266,7 @@ defmodule Arkea.Ecology.Phase do
       {fn -> valid_phage_pool?(phase.phage_pool) end, :invalid_phage_pool},
       {fn -> valid_dna_pool?(phase.dna_pool) end, :invalid_dna_pool},
       {fn -> valid_pool?(phase.xenobiotic_pool) end, :invalid_xenobiotic_pool},
+      {fn -> valid_toxin_pool?(phase.toxin_pool) end, :invalid_toxin_pool},
       {fn -> match?(%MapSet{}, phase.lineage_ids) end, :invalid_lineage_ids}
     ]
   end
@@ -285,6 +297,12 @@ defmodule Arkea.Ecology.Phase do
   end
 
   defp valid_dna_pool?(_), do: false
+
+  defp valid_toxin_pool?(pool) when is_map(pool) do
+    Enum.all?(pool, fn {k, v} -> is_binary(k) and is_float(v) and v >= 0.0 end)
+  end
+
+  defp valid_toxin_pool?(_), do: false
 
   defp dilute_pool(pool, factor) when is_map(pool) do
     Map.new(pool, fn {k, v} -> {k, v * factor} end)

@@ -40,8 +40,19 @@ defmodule Arkea.Ecology.Lineage do
     in the genome push biomass up while stress (osmotic shock,
     elemental shortage, toxicity, mutational load) pushes it down. A
     component below its critical threshold drives `step_lysis/1` to
-    kill cells stochastically. Phase 17 will use the same field as the
-    substrate for error-catastrophe accounting.
+    kill cells stochastically. Phase 17 uses `:dna` as the substrate
+    for error-catastrophe accounting.
+
+  - `dna_damage` — Phase 17 SOS-response substrate
+    (`0.0..@dna_damage_max`). Accumulates as
+    `µ × replications × (1 - repair_efficiency)` per tick and decays
+    each tick at a fixed rate. When it crosses
+    `@sos_active_threshold` the lineage enters SOS: mutation rate is
+    boosted (DinB-like activation), prophage repressors are degraded
+    (induction probability rises), and Phase 17 audits emit a
+    `:sos_active` event. Default `0.0` (intact, no damage). See
+    `Arkea.Sim.Mutator.dna_damage_increment/3` for the per-tick
+    formula and `Arkea.Sim.Mutator.sos_active?/1` for the threshold.
 
   ## Bookkeeping
 
@@ -71,6 +82,8 @@ defmodule Arkea.Ecology.Lineage do
 
   @full_biomass %{membrane: 1.0, wall: 1.0, dna: 1.0}
 
+  @dna_damage_max 5.0
+
   typedstruct enforce: true do
     field :id, binary()
     field :parent_id, binary() | nil
@@ -81,7 +94,12 @@ defmodule Arkea.Ecology.Lineage do
     field :fitness_cache, float() | nil, default: nil
     field :created_at_tick, non_neg_integer()
     field :biomass, biomass(), default: %{membrane: 1.0, wall: 1.0, dna: 1.0}
+    field :dna_damage, float(), default: 0.0
   end
+
+  @doc "Hard cap on `dna_damage`."
+  @spec dna_damage_max() :: float()
+  def dna_damage_max, do: @dna_damage_max
 
   @doc "Default fully-intact biomass. Used when seeding founders and children."
   @spec full_biomass() :: biomass()
@@ -114,7 +132,8 @@ defmodule Arkea.Ecology.Lineage do
       abundance_by_phase: abundances,
       fitness_cache: nil,
       created_at_tick: tick,
-      biomass: @full_biomass
+      biomass: @full_biomass,
+      dna_damage: 0.0
     }
   end
 
@@ -152,7 +171,8 @@ defmodule Arkea.Ecology.Lineage do
       abundance_by_phase: abundances,
       fitness_cache: nil,
       created_at_tick: tick,
-      biomass: @full_biomass
+      biomass: @full_biomass,
+      dna_damage: 0.0
     }
   end
 
@@ -232,7 +252,8 @@ defmodule Arkea.Ecology.Lineage do
       {fn -> Enum.all?(lineage.delta, &Mutation.valid?/1) end, :invalid_delta},
       {fn -> valid_abundances?(lineage.abundance_by_phase) end, :invalid_abundances},
       {fn -> valid_fitness?(lineage.fitness_cache) end, :invalid_fitness},
-      {fn -> valid_biomass?(lineage.biomass) end, :invalid_biomass}
+      {fn -> valid_biomass?(lineage.biomass) end, :invalid_biomass},
+      {fn -> valid_dna_damage?(lineage.dna_damage) end, :invalid_dna_damage}
     ]
   end
 
@@ -250,6 +271,9 @@ defmodule Arkea.Ecology.Lineage do
        do: true
 
   defp valid_biomass?(_), do: false
+
+  defp valid_dna_damage?(d) when is_float(d) and d >= 0.0 and d <= @dna_damage_max, do: true
+  defp valid_dna_damage?(_), do: false
 
   # ----------------------------------------------------------------------
   # Private helpers

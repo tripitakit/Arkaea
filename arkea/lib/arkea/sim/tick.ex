@@ -71,6 +71,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome.Mutation.Applicator
+  alias Arkea.Sim.Bacteriocin
   alias Arkea.Sim.Biomass
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.HGT
@@ -101,8 +102,10 @@ defmodule Arkea.Sim.Tick do
       |> step_xenobiotic()
       |> step_biomass()
       |> step_signaling()
+      |> step_bacteriocin()
       |> step_expression()
       |> step_cell_events()
+      |> step_dna_damage()
       |> step_hgt()
       |> step_phage_infection()
       |> step_environment()
@@ -364,6 +367,36 @@ defmodule Arkea.Sim.Tick do
       new_biomass = Biomass.apply_delta(lineage.biomass, delta)
       %{lineage | biomass: new_biomass}
     end
+  end
+
+  @doc """
+  Step 1.75 — Bacteriocin warfare (Phase 17 — DESIGN.md Block 8).
+
+  For every phase, accumulates per-producer bacteriocin secretion in
+  `Phase.toxin_pool` and applies the resulting wall damage to non-immune
+  resident lineages (via `Arkea.Sim.Bacteriocin.step/2`). Producers are
+  determined generatively from the genome (a gene with co-occurring
+  `:substrate_binding`, `:catalytic_site(:hydrolysis)`, and
+  `:transmembrane_anchor`); immunity is conferred by sharing any
+  `:surface_tag` with the producer.
+
+  The damage routes through `Lineage.biomass.wall`, so a successful
+  bacteriocin attack manifests as wall-deficit-driven lysis in
+  `step_lysis/1` later in the same tick. This keeps the lethality
+  pathway aligned with the Phase 14 osmotic-shock model and avoids
+  introducing a parallel "bacteriocin death" mechanism.
+
+  Pure: no I/O, no message sends.
+  """
+  @spec step_bacteriocin(BiotopeState.t()) :: BiotopeState.t()
+  def step_bacteriocin(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    {new_lineages, new_phases} =
+      Enum.reduce(phases, {lineages, []}, fn phase, {acc_lineages, acc_phases} ->
+        {ls_out, ph_out} = Bacteriocin.step(acc_lineages, phase)
+        {ls_out, acc_phases ++ [ph_out]}
+      end)
+
+    %{state | lineages: new_lineages, phases: new_phases}
   end
 
   @doc """
@@ -652,6 +685,67 @@ defmodule Arkea.Sim.Tick do
     replenished_phases = apply_inflow(diluted_phases, inflow)
 
     %{state | lineages: diluted_lineages, phases: replenished_phases}
+  end
+
+  @doc """
+  Step 4.5 — DNA-damage accumulation and decay (Phase 17 — DESIGN.md Block 8 SOS).
+
+  For every lineage with a non-`nil` genome, advance `dna_damage` by
+
+      Δdamage = µ_baseline × replications_this_tick × (1 - repair_efficiency)
+
+  scaled up by `1.5` when SOS is already active (DinB-like
+  self-amplification), then apply a fixed per-tick decay
+  `@dna_damage_decay`. The result is clamped into
+  `0..Lineage.dna_damage_max/0`.
+
+  `replications_this_tick` is approximated by the population gain in
+  the lineage's primary phase (positive `growth_delta`) clamped at
+  the current abundance; negative growth contributes zero damage. This
+  collapses several real-world repair-vs-replication kinetics into a
+  single forward-Euler step that is sufficient to surface the
+  qualitative phenomenon: high-µ low-repair lineages slide into SOS
+  faster than wild-types and trigger their resident prophages.
+
+  Pure: no I/O, no message sends.
+  """
+  @spec step_dna_damage(BiotopeState.t()) :: BiotopeState.t()
+  def step_dna_damage(%BiotopeState{lineages: lineages} = state) do
+    deltas = state.growth_delta_by_lineage
+
+    new_lineages =
+      Enum.map(lineages, fn lineage ->
+        update_lineage_dna_damage(lineage, deltas)
+      end)
+
+    %{state | lineages: new_lineages}
+  end
+
+  defp update_lineage_dna_damage(%Lineage{genome: nil} = lineage, _deltas), do: lineage
+
+  defp update_lineage_dna_damage(%Lineage{} = lineage, deltas) do
+    phenotype = Phenotype.from_genome(lineage.genome)
+    delta_map = Map.get(deltas, lineage.id, %{})
+    replications = positive_growth_total(delta_map)
+    abundance = Lineage.total_abundance(lineage)
+
+    increment =
+      Mutator.dna_damage_increment(
+        phenotype.repair_efficiency,
+        replications,
+        abundance,
+        lineage.dna_damage
+      )
+
+    decayed = Mutator.decay_damage(lineage.dna_damage + increment)
+    clamped = decayed |> max(0.0) |> min(Lineage.dna_damage_max())
+    %{lineage | dna_damage: clamped}
+  end
+
+  defp positive_growth_total(delta_map) when is_map(delta_map) do
+    Enum.reduce(delta_map, 0, fn {_phase, delta}, acc ->
+      if is_integer(delta) and delta > 0, do: acc + delta, else: acc
+    end)
   end
 
   @doc """
@@ -1032,26 +1126,31 @@ defmodule Arkea.Sim.Tick do
     end
   end
 
-  # For one lineage: compute mutation probability, roll the dice, and if
-  # successful generate and apply a mutation → child lineage.
+  # For one lineage: compute SOS-aware mutation probability, roll the
+  # dice, and if successful generate and apply a mutation → child lineage.
   # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil}.
   defp maybe_spawn_child(parent, state, rng, tick) do
     phenotype = Phenotype.from_genome(parent.genome)
     abundance = Lineage.total_abundance(parent)
-    prob = Mutator.mutation_probability(abundance, phenotype.repair_efficiency)
+
+    prob =
+      Mutator.mutation_probability(abundance, phenotype.repair_efficiency, parent.dna_damage)
 
     {roll, rng1} = :rand.uniform_s(rng)
 
     if roll < prob do
-      attempt_spawn(parent, state, rng1, tick)
+      attempt_spawn(parent, phenotype, state, rng1, tick)
     else
       {parent, rng1, nil}
     end
   end
 
   # Attempt to generate a mutation and produce a child. On any failure (skip,
-  # invalid mutation, applicator error) returns the parent unchanged.
-  defp attempt_spawn(parent, state, rng, tick) do
+  # invalid mutation, applicator error) returns the parent unchanged. Phase 17
+  # error-catastrophe gate: when the per-cell mutation rate × genome size
+  # exceeds the Eigen threshold, the offspring carries one or more lethal
+  # mutations and never gets seeded — only the parent decrement happens.
+  defp attempt_spawn(parent, phenotype, state, rng, tick) do
     case Mutator.generate(parent.genome, rng) do
       {:skip, rng1} ->
         {parent, rng1, nil}
@@ -1062,20 +1161,42 @@ defmodule Arkea.Sim.Tick do
             {parent, rng1, nil}
 
           {:ok, child_genome} ->
-            # Determine the primary phase (first phase by position)
+            mu_per_cell =
+              0.01 *
+                (1.0 - phenotype.repair_efficiency) *
+                if(Mutator.sos_active?(parent.dna_damage), do: Mutator.sos_mutation_amplifier(),
+                   else: 1.0)
+
+            genome_size = max(child_genome.gene_count, 1)
+            p_lethal = Mutator.error_catastrophe_lethality(mu_per_cell, genome_size)
+
+            # Skip the RNG consumption when p_lethal is exactly zero
+            # (no catastrophe possible) so that the deterministic
+            # simulation traces of low-mutator scenarios — including
+            # the canary `cronache_test.exs` — keep their RNG path
+            # stable. Only the high-µ × large-genome corner pays the
+            # extra roll.
+            {lethal?, rng2} =
+              if p_lethal == 0.0 do
+                {false, rng1}
+              else
+                {roll, rng_next} = :rand.uniform_s(rng1)
+                {roll < p_lethal, rng_next}
+              end
+
             primary_phase = primary_phase_name(parent, state)
 
-            # Seed the child with a small founder population (5 units) so
-            # that it survives the dilution step in the same tick.
-            # This is consistent with the lineage model: each lineage
-            # represents a sub-population, not a single cell.
-            child_abundances = %{primary_phase => 5}
-            child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
-
-            # Decrement parent abundance in primary phase by 5 (conservation)
-            updated_parent = decrement_abundance(parent, primary_phase, 5)
-
-            {updated_parent, rng1, child}
+            if lethal? do
+              # Error-catastrophe: child is non-vital, parent still
+              # invests the replication cost (5 cell-equivalents).
+              updated_parent = decrement_abundance(parent, primary_phase, 5)
+              {updated_parent, rng2, nil}
+            else
+              child_abundances = %{primary_phase => 5}
+              child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
+              updated_parent = decrement_abundance(parent, primary_phase, 5)
+              {updated_parent, rng2, child}
+            end
         end
     end
   end
