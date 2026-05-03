@@ -420,6 +420,20 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **State**: aggiunto `BiotopeState.uptake_by_lineage` per condividere uptake da `step_metabolism` a `step_biomass`.
 - Phase 17 userà la stessa biomass come substrato per `error_catastrophe` e SOS coupling.
 
+##### Fase 15 — Xenobiotici e RAS (Resistance Antibiotic Selection)
+
+- **Catalogo xenobiotici** (`Arkea.Sim.Xenobiotic`): mappa atom → entry con `target_class`, `kd`, `mode` (`:cidal | :static | :mutagen`), `degradable_by_hydrolase`. La v1 ha `:beta_lactam` (target `:pbp_like`, Kd 10.0, cidal, degradabile). Catalogo additivo — nuove entries non rompono nulla esistente.
+- **Pool xenobiotici** (`Phase.xenobiotic_pool :: %{xeno_id => float}`): concentrazione in scala metabolite_pool. Diluizione in `Phase.dilute/1` come gli altri pool.
+- **Tre meccanismi di resistenza emergenti** (tutti generative dai 11 domini esistenti):
+  1. **Target absence**: `Phenotype.target_classes :: %{atom => float}` (proxy abundance per `:pbp_like`, `:dna_polymerase_like`, `:ribosome_like`, `:membrane`). PBP-like = co-occorrenza `:transmembrane_anchor + :catalytic_site`. Lineage senza il target → resistenza intrinseca.
+  2. **Degradazione enzimatica**: `Phenotype.hydrolase_capacity :: float` = conteggio geni con `:substrate_binding + :catalytic_site(reaction_class: :hydrolysis)` (β-lattamasi-like). `Xenobiotic.degradation_amount/3` = `k_deg × conc × hydrolase × abundance`, capped at conc.
+  3. **Efflux pump**: `Phenotype.efflux_capacity :: 0.0..1.0` = co-occorrenza `:transmembrane_anchor + :channel_pore + :energy_coupling + :substrate_binding` capped at 1.0 (max protezione 90%).
+- **Modello binding** (`Xenobiotic.bound_fraction/2`): saturating Hill-like `bound = [drug_intracellular] / (Kd + [drug_intracellular])`. Survival per drug = `1 - bound × mode_severity × target_abundance`. Mode severity: cidal 0.95, static 0.50, mutagen 0.0 (Phase 17 cablerà il mutagen a SOS µ).
+- **Pipeline** (`Tick.step_xenobiotic`): tra `step_metabolism` e `step_biomass`. (1) per ogni lineage applica `Xenobiotic.survival_factor/3` al suo `atp_yield_by_lineage` post-toxicity. (2) per ogni xenobiotico degradabile, somma la degradazione di tutti i lineage e la sottrae al pool. Skipped quando tutti i pool sono vuoti (no overhead in absence of drugs).
+- **Player intervention** (`Arkea.Sim.Intervention :xenobiotic_pulse`): `kind: :xenobiotic_pulse, phase_name:, xenobiotic_id: :beta_lactam, dose: 50.0` inietta una pulse nel pool. Default dose 50.0.
+- **End-to-end RAS test**: scenario seed con popolazione hydrolase-bearing (β-lattamasi-like) + pulse di β-lattam mostra detoxificazione progressiva del pool nel tempo (test in `xenobiotic_test.exs`).
+- **Audit log**: eventi `:xenobiotic_pulse` registrati come intervention payload (esistente). Phase 16 cablerà eventi per-lineage di drug-driven death.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).

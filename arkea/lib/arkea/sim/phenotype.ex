@@ -91,6 +91,42 @@ defmodule Arkea.Sim.Phenotype do
     toxicity contributions for owned targets — this is how
     catalase-like, sulfide-oxidoreductase-like, and lactate-dehydrogenase-like
     activities emerge generatively.
+
+  - `target_classes` — `%{atom() => float()}` map of cellular targets
+    that xenobiotics may bind (Phase 15 — DESIGN.md Block 8). Each
+    entry is a non-negative *abundance index* derived from gene
+    composition:
+
+      - `:pbp_like` — penicillin-binding-protein analogue: gene with
+        co-occurring `:transmembrane_anchor` + `:catalytic_site`. Drives
+        β-lactam susceptibility.
+      - `:dna_polymerase_like` — gene with co-occurring `:dna_binding`
+        + `:catalytic_site`. Drives susceptibility to
+        polymerase-targeting drugs (rifampicin-class).
+      - `:ribosome_like` — every cell has ribosomes; pinned to `1.0`
+        as a baseline to model intrinsic susceptibility to
+        translation-targeting drugs (aminoglycosides, tetracyclines).
+      - `:membrane` — `n_transmembrane` indexed; drives
+        membrane-disrupting drug susceptibility.
+
+    Lineages without a given target class are intrinsically resistant
+    to drugs that bind that class — the cleanest of the three Phase 15
+    resistance pathways.
+
+  - `hydrolase_capacity` — `0.0..∞` proxy for β-lactamase-like
+    enzymatic resistance (Phase 15 — DESIGN.md Block 8). Counts genes
+    that co-express `:substrate_binding` and `:catalytic_site` with
+    `reaction_class: :hydrolysis`. The scalar feeds
+    `Arkea.Sim.Xenobiotic.degradation_amount/3` — a hydrolase-bearing
+    population shrinks the drug pool over time.
+
+  - `efflux_capacity` — `0.0..1.0` proxy for active efflux pumping
+    (Phase 15). A "pump" is a gene that co-encodes
+    `:transmembrane_anchor + :channel_pore + :energy_coupling +
+    :substrate_binding`; the scalar grows with the count of such genes
+    capped at `1.0`. Used by
+    `Arkea.Sim.Xenobiotic.intracellular_concentration/2` to scale
+    effective drug exposure.
   """
 
   use TypedStruct
@@ -115,6 +151,9 @@ defmodule Arkea.Sim.Phenotype do
     field :methylation_profile, [binary()], default: []
     field :competence_score, float(), default: 0.0
     field :detoxify_targets, MapSet.t(atom()), default: MapSet.new()
+    field :target_classes, %{atom() => float()}, default: %{}
+    field :hydrolase_capacity, float(), default: 0.0
+    field :efflux_capacity, float(), default: 0.0
   end
 
   @doc """
@@ -135,7 +174,10 @@ defmodule Arkea.Sim.Phenotype do
       | restriction_profile: rest,
         methylation_profile: meth,
         competence_score: competence_score(domains),
-        detoxify_targets: detoxify_targets(genome)
+        detoxify_targets: detoxify_targets(genome),
+        target_classes: target_classes(genome),
+        hydrolase_capacity: hydrolase_capacity(genome),
+        efflux_capacity: efflux_capacity(genome)
     }
   end
 
@@ -184,6 +226,104 @@ defmodule Arkea.Sim.Phenotype do
       MapSet.new()
     end
   end
+
+  @doc """
+  Compute the per-target-class abundance index for the genome (Phase 15).
+
+  Walks every gene, classifies it against the four xenobiotic target
+  archetypes, and returns a `%{atom() => float()}` map. Counts are
+  normalised by `0.2` so a single specialised gene contributes 0.2,
+  three contribute 0.6, five saturate at 1.0. Saturation matches the
+  biological observation that a handful of proteins is enough to be
+  fully susceptible — duplications do not deepen the susceptibility.
+
+  `:ribosome_like` is pinned to `1.0` as a baseline: every cell has
+  ribosomes, regardless of explicit gene composition. This keeps
+  translation-targeting drugs from having a free pass on under-specified
+  genomes.
+  """
+  @spec target_classes(Genome.t()) :: %{atom() => float()}
+  def target_classes(%Genome{} = genome) do
+    genes = Genome.all_genes(genome)
+
+    pbp = Enum.count(genes, &pbp_like?/1)
+    pol = Enum.count(genes, &polymerase_like?/1)
+    membrane = count_domains_of_type(genome, :transmembrane_anchor)
+
+    %{
+      pbp_like: count_to_index(pbp),
+      dna_polymerase_like: count_to_index(pol),
+      ribosome_like: 1.0,
+      membrane: count_to_index(membrane)
+    }
+  end
+
+  @doc """
+  Aggregate hydrolase capacity (Phase 15).
+
+  A "hydrolase" gene co-encodes a `:substrate_binding` and a
+  `:catalytic_site(reaction_class: :hydrolysis)`. The capacity is the
+  count of such genes — unbounded above, since β-lactamases can
+  duplicate freely and population-level degradation should compound.
+  """
+  @spec hydrolase_capacity(Genome.t()) :: float()
+  def hydrolase_capacity(%Genome{} = genome) do
+    genome
+    |> Genome.all_genes()
+    |> Enum.count(&hydrolase_like?/1)
+    |> Kernel./(1.0)
+  end
+
+  @doc """
+  Aggregate efflux pump capacity (Phase 15).
+
+  An efflux gene co-encodes the four-domain pattern
+  `:transmembrane_anchor + :channel_pore + :energy_coupling +
+  :substrate_binding`. The scalar grows with count and saturates at
+  `1.0` — a 10× pump (90% extracellular dilution) is biologically the
+  upper bound for a single efflux family.
+  """
+  @spec efflux_capacity(Genome.t()) :: float()
+  def efflux_capacity(%Genome{} = genome) do
+    n =
+      genome
+      |> Genome.all_genes()
+      |> Enum.count(&efflux_like?/1)
+
+    min(1.0, n * 0.5)
+  end
+
+  defp pbp_like?(%Gene{domains: domains}) do
+    has_type?(domains, :transmembrane_anchor) and has_type?(domains, :catalytic_site)
+  end
+
+  defp polymerase_like?(%Gene{domains: domains}) do
+    has_type?(domains, :dna_binding) and has_type?(domains, :catalytic_site)
+  end
+
+  defp hydrolase_like?(%Gene{domains: domains}) do
+    has_type?(domains, :substrate_binding) and
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and d.params[:reaction_class] == :hydrolysis
+      end)
+  end
+
+  defp efflux_like?(%Gene{domains: domains}) do
+    has_type?(domains, :transmembrane_anchor) and
+      has_type?(domains, :channel_pore) and
+      has_type?(domains, :energy_coupling) and
+      has_type?(domains, :substrate_binding)
+  end
+
+  defp has_type?(domains, type), do: Enum.any?(domains, fn d -> d.type == type end)
+
+  defp count_domains_of_type(%Genome{} = genome, type) do
+    genome
+    |> Genome.all_domains()
+    |> Enum.count(fn d -> d.type == type end)
+  end
+
+  defp count_to_index(n), do: min(1.0, n * 0.2)
 
   @doc """
   Compute the natural-transformation competence score for a domain list.

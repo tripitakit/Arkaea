@@ -27,6 +27,16 @@ defmodule Arkea.Ecology.Phase do
     donor genes plus a methylation profile so the R-M gate can run on
     it; consumed by `HGT.Channel.Transformation` when a competent
     recipient takes up the cassette.
+
+  ## Phase 15 additions
+
+  - `xenobiotic_pool :: %{xeno_id => float()}` — environmental
+    concentration of each xenobiotic in `Arkea.Sim.Xenobiotic.catalog/0`.
+    Player interventions inject drug into the pool; lineages with
+    matching hydrolase capacity remove drug from the pool over time.
+    Independent from `metabolite_pool` because xenobiotics use their
+    own catalog (target_class, Kd, mode) rather than the 13-metabolite
+    metabolic taxonomy.
   """
 
   use TypedStruct
@@ -51,6 +61,7 @@ defmodule Arkea.Ecology.Phase do
     field :signal_pool, %{binary() => float()}, default: %{}
     field :phage_pool, %{binary() => Virion.t()}, default: %{}
     field :dna_pool, %{binary() => DnaFragment.t()}, default: %{}
+    field :xenobiotic_pool, %{atom() => float()}, default: %{}
     field :lineage_ids, MapSet.t(binary()), default: MapSet.new()
   end
 
@@ -79,6 +90,7 @@ defmodule Arkea.Ecology.Phase do
       signal_pool: %{},
       phage_pool: %{},
       dna_pool: %{},
+      xenobiotic_pool: %{},
       lineage_ids: MapSet.new()
     }
 
@@ -128,6 +140,23 @@ defmodule Arkea.Ecology.Phase do
   def update_signal(%__MODULE__{signal_pool: pool} = phase, id, conc)
       when is_binary(id) and is_float(conc) and conc >= 0.0 do
     %{phase | signal_pool: Map.put(pool, id, conc)}
+  end
+
+  @doc """
+  Set or update a xenobiotic concentration. Concentration must be ≥ 0.0.
+  Pure. Raises on negative input.
+  """
+  @spec update_xenobiotic(t(), atom(), float()) :: t()
+  def update_xenobiotic(%__MODULE__{xenobiotic_pool: pool} = phase, id, conc)
+      when is_atom(id) and is_float(conc) and conc >= 0.0 do
+    %{phase | xenobiotic_pool: Map.put(pool, id, conc)}
+  end
+
+  @doc "Inject `amount` (≥ 0) of a xenobiotic into the phase pool. Pure."
+  @spec add_xenobiotic(t(), atom(), float()) :: t()
+  def add_xenobiotic(%__MODULE__{xenobiotic_pool: pool} = phase, id, amount)
+      when is_atom(id) and is_float(amount) and amount >= 0.0 do
+    %{phase | xenobiotic_pool: Map.update(pool, id, amount, &(&1 + amount))}
   end
 
   @doc "Sum of virion abundances across the entire phage_pool. O(n)."
@@ -189,7 +218,8 @@ defmodule Arkea.Ecology.Phase do
       | metabolite_pool: dilute_pool(phase.metabolite_pool, factor),
         signal_pool: dilute_pool(phase.signal_pool, factor),
         phage_pool: dilute_phage_pool(phase.phage_pool, factor),
-        dna_pool: dilute_dna_pool(phase.dna_pool, factor)
+        dna_pool: dilute_dna_pool(phase.dna_pool, factor),
+        xenobiotic_pool: dilute_pool(phase.xenobiotic_pool, factor)
     }
   end
 
@@ -224,6 +254,7 @@ defmodule Arkea.Ecology.Phase do
       {fn -> valid_signal_pool?(phase.signal_pool) end, :invalid_signal_pool},
       {fn -> valid_phage_pool?(phase.phage_pool) end, :invalid_phage_pool},
       {fn -> valid_dna_pool?(phase.dna_pool) end, :invalid_dna_pool},
+      {fn -> valid_pool?(phase.xenobiotic_pool) end, :invalid_xenobiotic_pool},
       {fn -> match?(%MapSet{}, phase.lineage_ids) end, :invalid_lineage_ids}
     ]
   end

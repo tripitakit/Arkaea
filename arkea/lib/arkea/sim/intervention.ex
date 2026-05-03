@@ -12,8 +12,10 @@ defmodule Arkea.Sim.Intervention do
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Xenobiotic
 
   @nutrient_pulse %{glucose: 12.0, nh3: 2.0, po4: 1.0}
+  @default_xenobiotic_dose 50.0
 
   @type command :: %{
           required(:kind) => atom(),
@@ -83,7 +85,41 @@ defmodule Arkea.Sim.Intervention do
     end
   end
 
+  def apply(%BiotopeState{} = state, %{kind: :xenobiotic_pulse} = command) do
+    phase_name = Map.get(command, :phase_name)
+    xeno_id = Map.get(command, :xenobiotic_id, :beta_lactam)
+    dose = Map.get(command, :dose, @default_xenobiotic_dose)
+
+    with {:ok, phase} <- fetch_phase(state, phase_name),
+         {:ok, _entry} <- fetch_xeno_entry(xeno_id),
+         {:ok, dose_f} <- normalise_dose(dose) do
+      updated_phase = Phase.add_xenobiotic(phase, xeno_id, dose_f)
+      new_state = put_phase(state, updated_phase)
+
+      payload =
+        base_payload(command, state, phase_name, %{
+          xenobiotic_id: Atom.to_string(xeno_id),
+          dose: dose_f
+        })
+
+      {:ok, new_state, [%{type: :intervention, payload: payload}], payload}
+    end
+  end
+
   def apply(_state, _command), do: {:error, :unknown_intervention}
+
+  defp fetch_xeno_entry(xeno_id) when is_atom(xeno_id) do
+    case Xenobiotic.entry(xeno_id) do
+      nil -> {:error, :unknown_xenobiotic}
+      entry -> {:ok, entry}
+    end
+  end
+
+  defp fetch_xeno_entry(_), do: {:error, :unknown_xenobiotic}
+
+  defp normalise_dose(dose) when is_float(dose) and dose >= 0.0, do: {:ok, dose}
+  defp normalise_dose(dose) when is_integer(dose) and dose >= 0, do: {:ok, dose * 1.0}
+  defp normalise_dose(_), do: {:error, :invalid_dose}
 
   defp fetch_phase(%BiotopeState{phases: phases}, phase_name) when is_atom(phase_name) do
     case Enum.find(phases, &(&1.name == phase_name)) do

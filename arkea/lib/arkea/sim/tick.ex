@@ -81,6 +81,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Sim.Mutator
   alias Arkea.Sim.Phenotype
   alias Arkea.Sim.Signaling
+  alias Arkea.Sim.Xenobiotic
 
   @type event :: %{type: atom(), payload: map()}
 
@@ -97,6 +98,7 @@ defmodule Arkea.Sim.Tick do
     new_state =
       state
       |> step_metabolism()
+      |> step_xenobiotic()
       |> step_biomass()
       |> step_signaling()
       |> step_expression()
@@ -162,6 +164,150 @@ defmodule Arkea.Sim.Tick do
   defp merge_uptake_maps(left, right) do
     Map.merge(left, right, fn _id, l_map, r_map ->
       Map.merge(l_map, r_map, fn _met, a, b -> a + b end)
+    end)
+  end
+
+  @doc """
+  Step 1.25 — Xenobiotic exposure and degradation (Phase 15 — DESIGN.md Block 8).
+
+  For each phase:
+
+  1. Sums fitness damage across all (drug, lineage) pairs by composing
+     `Arkea.Sim.Xenobiotic.survival_factor/3` with the lineage's
+     post-toxicity ATP yield. The result feeds back into
+     `state.atp_yield_by_lineage` so later steps (biomass, expression)
+     read the post-drug budget.
+  2. Aggregates hydrolase-driven degradation across all lineages and
+     subtracts it from `phase.xenobiotic_pool`. Drug at concentration
+     0.0 is removed from the pool entirely.
+
+  The pipeline runs after `step_metabolism/1` so that the toxicity
+  factor and ATP yield are already populated; it runs before
+  `step_biomass/1` so that biomass progress reflects the drug-adjusted
+  budget.
+
+  Pure: no I/O, no message sends.
+  """
+  @spec step_xenobiotic(BiotopeState.t()) :: BiotopeState.t()
+  def step_xenobiotic(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    if all_pools_empty?(phases) do
+      state
+    else
+      do_step_xenobiotic(state, lineages, phases)
+    end
+  end
+
+  defp all_pools_empty?(phases) do
+    Enum.all?(phases, fn p -> map_size(p.xenobiotic_pool) == 0 end)
+  end
+
+  defp do_step_xenobiotic(state, lineages, phases) do
+    phenotypes = build_phenotype_map(lineages)
+    primary_phase_for_lineage = primary_phase_index(lineages, phases)
+
+    # 1. Apply binding-driven damage to atp_yield_by_lineage.
+    new_yields = apply_drug_damage(state.atp_yield_by_lineage, phenotypes, primary_phase_for_lineage, phases)
+
+    # 2. Aggregate hydrolase-driven degradation per phase.
+    new_phases = degrade_phase_pools(phases, lineages, phenotypes)
+
+    %{state | atp_yield_by_lineage: new_yields, phases: new_phases}
+  end
+
+  defp primary_phase_index(lineages, phases) do
+    phase_names = Enum.map(phases, & &1.name)
+    phase_by_name = Map.new(phases, fn p -> {p.name, p} end)
+
+    Map.new(lineages, fn lineage ->
+      inhabited =
+        Enum.filter(phase_names, fn n -> Map.get(lineage.abundance_by_phase, n, 0) > 0 end)
+
+      name =
+        cond do
+          inhabited != [] ->
+            Enum.max_by(inhabited, fn n -> Map.get(lineage.abundance_by_phase, n, 0) end)
+
+          phase_names != [] ->
+            hd(phase_names)
+
+          true ->
+            nil
+        end
+
+      {lineage.id, Map.get(phase_by_name, name)}
+    end)
+  end
+
+  defp apply_drug_damage(atp_yields, phenotypes, primary_phase_by_lineage, phases) do
+    phase_pools = Map.new(phases, fn p -> {p.name, p.xenobiotic_pool} end)
+
+    Map.new(atp_yields, fn {lineage_id, atp} ->
+      phase = Map.get(primary_phase_by_lineage, lineage_id)
+      phenotype = Map.get(phenotypes, lineage_id)
+
+      cond do
+        phase == nil or phenotype == nil ->
+          {lineage_id, atp}
+
+        true ->
+          pool = Map.get(phase_pools, phase.name, %{})
+
+          factor =
+            Xenobiotic.survival_factor(
+              pool,
+              phenotype.target_classes,
+              phenotype.efflux_capacity
+            )
+
+          {lineage_id, atp * factor}
+      end
+    end)
+  end
+
+  defp degrade_phase_pools(phases, lineages, phenotypes) do
+    Enum.map(phases, fn phase -> degrade_phase_pool(phase, lineages, phenotypes) end)
+  end
+
+  defp degrade_phase_pool(%Phase{xenobiotic_pool: pool} = phase, _lineages, _phenotypes)
+       when map_size(pool) == 0,
+       do: phase
+
+  defp degrade_phase_pool(%Phase{xenobiotic_pool: pool} = phase, lineages, phenotypes) do
+    new_pool =
+      Enum.reduce(pool, %{}, fn {xeno_id, conc}, acc ->
+        case Xenobiotic.entry(xeno_id) do
+          nil ->
+            Map.put(acc, xeno_id, conc)
+
+          %{degradable_by_hydrolase: false} ->
+            Map.put(acc, xeno_id, conc)
+
+          %{degradable_by_hydrolase: true} ->
+            removed = total_degradation(lineages, phenotypes, phase.name, conc)
+            new_conc = max(conc - removed, 0.0)
+
+            if new_conc <= 0.0 do
+              acc
+            else
+              Map.put(acc, xeno_id, new_conc)
+            end
+        end
+      end)
+
+    %{phase | xenobiotic_pool: new_pool}
+  end
+
+  defp total_degradation(lineages, phenotypes, phase_name, concentration) do
+    Enum.reduce(lineages, 0.0, fn lineage, acc ->
+      abundance = Lineage.abundance_in(lineage, phase_name)
+      phenotype = Map.get(phenotypes, lineage.id)
+
+      if abundance > 0 and phenotype != nil and phenotype.hydrolase_capacity > 0.0 do
+        acc +
+          Xenobiotic.degradation_amount(concentration, phenotype.hydrolase_capacity, abundance)
+      else
+        acc
+      end
     end)
   end
 
