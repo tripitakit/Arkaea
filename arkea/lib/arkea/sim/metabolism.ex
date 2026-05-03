@@ -129,6 +129,45 @@ defmodule Arkea.Sim.Metabolism do
     lactate: {30.0, 100.0}
   }
 
+  # Phase 18 — Cross-feeding closure (DESIGN.md Block 8 Phase 18).
+  #
+  # Each metabolite consumed produces stoichiometric by-products that
+  # are returned to `Phase.metabolite_pool`. The map below collapses
+  # several real microbial pathways into a single per-substrate
+  # coefficient table — coarse but sufficient to close the C, N, S,
+  # Fe, H₂ cycles emergently:
+  #
+  # - **Carbon**: glucose → acetate + CO₂ + H₂ (mixed-acid fermentation
+  #   baseline); acetate → CO₂ (acetate respiration); lactate → acetate
+  #   + CO₂ + H₂ (syntrophic fermentation); CH₄ → CO₂ (methanotrophy);
+  #   CO₂ → CH₄ (autotrophic methanogenesis, rare).
+  # - **Sulfur**: SO₄²⁻ → H₂S (sulfate reduction); H₂S → SO₄²⁻ (sulfide
+  #   oxidation).
+  # - **Nitrogen**: NH₃ → NO₃⁻ (nitrification); NO₃⁻ → NH₃ + CO₂
+  #   (denitrification → ammonification).
+  # - **Hydrogen**: H₂ is consumed without by-product (terminal electron
+  #   donor), but lactate fermentation and acetate-respiration fluxes
+  #   re-introduce H₂ into the pool — the syntrophic loop.
+  # - **Iron / O₂**: cycle internally through redox couples, no
+  #   metabolite by-product.
+  #
+  # Coefficients are **fractional** (yield per unit of substrate
+  # consumed). They sum to ≤ 1.0 per substrate in mass-equivalent
+  # terms — Phase 18 does not enforce strict mass conservation; the
+  # goal is the qualitative closure of the C/N/S/Fe cycles, not a
+  # fitted thermodynamic model.
+  @byproducts %{
+    glucose: %{acetate: 0.5, co2: 0.3, h2: 0.2},
+    acetate: %{co2: 0.8},
+    lactate: %{acetate: 0.4, co2: 0.4, h2: 0.2},
+    ch4: %{co2: 0.9},
+    co2: %{ch4: 0.1},
+    so4: %{h2s: 0.7},
+    h2s: %{so4: 0.7},
+    nh3: %{no3: 0.7},
+    no3: %{nh3: 0.5, co2: 0.3}
+  }
+
   # Phase 14 — Elemental floors (DESIGN.md Block 8.A.3).
   #
   # Each elemental nutrient (P, N, Fe, S) must be taken up at a minimum
@@ -359,6 +398,43 @@ defmodule Arkea.Sim.Metabolism do
   @doc "Set of metabolites considered elemental nutrients (Phase 14)."
   @spec elemental_metabolites() :: [atom()]
   def elemental_metabolites, do: @elemental_metabolites
+
+  @doc """
+  Stoichiometric by-product coefficients for one consumed metabolite
+  (Phase 18 — cross-feeding closure).
+
+  Returns a `%{atom() => float()}` map of products → fractional yield
+  per unit of `metabolite` consumed. Empty map means the metabolite
+  is a terminal electron sink with no metabolite-level by-product
+  (O₂, Fe, PO₄³⁻).
+
+  Pure.
+  """
+  @spec byproducts(atom()) :: %{atom() => float()}
+  def byproducts(metabolite), do: Map.get(@byproducts, metabolite, %{})
+
+  @doc """
+  Compute the total by-product flux for an uptake map (Phase 18).
+
+  Sums per-substrate by-product yields across the entire uptake map.
+  The return is shaped like `metabolite_pool` so the caller can
+  merge it back into `Phase.metabolite_pool` after the consumption
+  step.
+  """
+  @spec compute_byproducts(%{atom() => float()}) :: %{atom() => float()}
+  def compute_byproducts(uptake_map) when is_map(uptake_map) do
+    Enum.reduce(uptake_map, %{}, fn {substrate, amount}, acc ->
+      Enum.reduce(byproducts(substrate), acc, fn {product, coeff}, inner ->
+        delta = amount * coeff
+
+        if delta > 0.0 do
+          Map.update(inner, product, delta, &(&1 + delta))
+        else
+          inner
+        end
+      end)
+    end)
+  end
 
   defp attempted_elements(affinities) do
     @elemental_metabolites

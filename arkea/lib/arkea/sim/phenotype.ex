@@ -127,6 +127,18 @@ defmodule Arkea.Sim.Phenotype do
     capped at `1.0`. Used by
     `Arkea.Sim.Xenobiotic.intracellular_concentration/2` to scale
     effective drug exposure.
+
+  - `biofilm_capable?` — boolean flag (Phase 18 — DESIGN.md Block 8).
+    `true` when the genome encodes both an adhesion structure (any
+    `:surface_tag`) and a matrix-like structural protein (any
+    `:structural_fold` with `multimerization_n ≥ 2`). The two-prong
+    requirement keeps the flag conservative: presence of just a
+    surface tag (a single adhesin molecule) is not enough to form
+    biofilm; the cell also needs the multimerising protein that
+    cross-links the extracellular matrix. Biofilm-capable lineages
+    enjoy a per-tick dilution discount in `Tick.step_environment/1`
+    — the analogue of the protective EPS layer that shields biofilm
+    members from chemostat washout.
   """
 
   use TypedStruct
@@ -154,6 +166,7 @@ defmodule Arkea.Sim.Phenotype do
     field :target_classes, %{atom() => float()}, default: %{}
     field :hydrolase_capacity, float(), default: 0.0
     field :efflux_capacity, float(), default: 0.0
+    field :biofilm_capable?, boolean(), default: false
   end
 
   @doc """
@@ -177,8 +190,30 @@ defmodule Arkea.Sim.Phenotype do
         detoxify_targets: detoxify_targets(genome),
         target_classes: target_classes(genome),
         hydrolase_capacity: hydrolase_capacity(genome),
-        efflux_capacity: efflux_capacity(genome)
+        efflux_capacity: efflux_capacity(genome),
+        biofilm_capable?: biofilm_capable?(domains)
     }
+  end
+
+  @doc """
+  Compute the Phase-18 biofilm capability flag for a domain list.
+
+  The cell is biofilm-capable when it carries both a surface tag
+  (adhesin / anchoring protein) and a multimerising structural
+  protein (`:structural_fold` with `multimerization_n ≥ 2`, the
+  matrix proxy). Single-molecule adhesins without matrix scaffolding
+  do not form biofilms.
+  """
+  @spec biofilm_capable?([Domain.t()]) :: boolean()
+  def biofilm_capable?(domains) when is_list(domains) do
+    has_surface = Enum.any?(domains, fn d -> d.type == :surface_tag end)
+
+    has_matrix =
+      Enum.any?(domains, fn d ->
+        d.type == :structural_fold and (d.params[:multimerization_n] || 1) >= 2
+      end)
+
+    has_surface and has_matrix
   end
 
   @doc """

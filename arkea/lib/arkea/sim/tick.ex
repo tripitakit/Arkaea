@@ -88,6 +88,24 @@ defmodule Arkea.Sim.Tick do
 
   @lineage_cap Application.compile_env(:arkea, :lineage_cap, 100)
 
+  # Phase 18 — biofilm dilution discount.
+  # Fraction of the per-tick dilution rate that a biofilm-capable
+  # lineage avoids. With a 5 % phase dilution and `@biofilm_dilution_relief
+  # = 0.5`, a biofilm-capable lineage washes out at 2.5 % per tick
+  # while a planktonic neighbour washes out at 5 %. The 50 % discount
+  # is at the high end of biological plausibility (some EPS matrices
+  # provide near-total residence retention) but matches the
+  # qualitative selective pressure we want to surface in Phase 18.
+  @biofilm_dilution_relief 0.5
+
+  # Phase 18 — Poisson mixing event probability.
+  # At ~10⁻⁴ per tick, a 5-min tick interval gives roughly one
+  # mixing event per ~70 hours of wall-clock simulation — rare but
+  # non-zero, matching the cadence of natural disturbance regimes
+  # (storms, sediment turnover, host re-population) that re-mix
+  # microbial spatial structure.
+  @mixing_event_probability 1.0e-4
+
   @doc """
   Run one simulation tick.
 
@@ -110,6 +128,7 @@ defmodule Arkea.Sim.Tick do
       |> step_phage_infection()
       |> step_environment()
       |> step_lysis()
+      |> step_mixing_event()
       |> step_pruning()
       |> increment_tick()
 
@@ -661,13 +680,24 @@ defmodule Arkea.Sim.Tick do
       ) do
     phase_rates = build_phase_rates(phases, state.dilution_rate)
 
-    # Dilute lineage abundances (unchanged from Phase 2)
+    # Dilute lineage abundances. Phase 18: biofilm-capable lineages
+    # enjoy a per-tick dilution discount (`@biofilm_dilution_relief`)
+    # — the EPS matrix anchors cells to surfaces and shields them
+    # from chemostat washout.
     diluted_lineages =
       Enum.map(lineages, fn lineage ->
+        biofilm_relief =
+          if lineage.genome != nil and Phenotype.from_genome(lineage.genome).biofilm_capable? do
+            @biofilm_dilution_relief
+          else
+            0.0
+          end
+
         new_abundances =
           Map.new(lineage.abundance_by_phase, fn {phase_name, count} ->
-            rate = Map.get(phase_rates, phase_name, state.dilution_rate)
-            new_count = max(floor(count * (1.0 - rate)), 0)
+            base_rate = Map.get(phase_rates, phase_name, state.dilution_rate)
+            effective_rate = max(base_rate * (1.0 - biofilm_relief), 0.0)
+            new_count = max(floor(count * (1.0 - effective_rate)), 0)
             {phase_name, new_count}
           end)
 
@@ -802,6 +832,92 @@ defmodule Arkea.Sim.Tick do
       end)
 
     %{lineage | abundance_by_phase: new_abundances, fitness_cache: nil}
+  end
+
+  @doc """
+  Step 5.75 — Poisson mixing event (Phase 18 — DESIGN.md Block 8).
+
+  Each tick rolls a Bernoulli trial against `@mixing_event_probability`.
+  On a hit, the biotope's lineages and phase pools are *homogenised*
+  across phases — the analogue of a storm, sediment turnover, or
+  host bowel mixing event that erases spatial structure within a
+  biotope. The redistribution reuses the same mathematical model as
+  the player-triggered `:mixing_event` intervention.
+
+  No-op when the biotope has fewer than 2 phases (mixing has no
+  meaning) or when the trial misses. Pure: reads/updates
+  `state.rng_seed`.
+  """
+  @spec step_mixing_event(BiotopeState.t()) :: BiotopeState.t()
+  def step_mixing_event(%BiotopeState{phases: phases} = state) when length(phases) < 2,
+    do: state
+
+  def step_mixing_event(%BiotopeState{} = state) do
+    rng = get_rng(state)
+    {roll, rng_out} = :rand.uniform_s(rng)
+
+    if roll >= @mixing_event_probability do
+      %{state | rng_seed: rng_out}
+    else
+      apply_natural_mixing(%{state | rng_seed: rng_out})
+    end
+  end
+
+  # Homogenise lineage abundances and phase pools across all phases —
+  # analogue of `Arkea.Sim.Intervention.homogenize_phase_pools/1` but
+  # entirely in-process (we cannot call `Intervention.apply/2` here
+  # because the natural Poisson trigger has no actor / payload
+  # context).
+  defp apply_natural_mixing(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    redistributed_lineages = Enum.map(lineages, &redistribute_lineage_uniformly(&1, phases))
+    homogenised_phases = homogenise_phase_pools(phases)
+    %{state | lineages: redistributed_lineages, phases: homogenised_phases}
+  end
+
+  defp redistribute_lineage_uniformly(%Lineage{abundance_by_phase: ab} = lineage, phases) do
+    phase_names = Enum.map(phases, & &1.name)
+    total = Enum.sum(Map.values(ab))
+    n_phases = length(phase_names)
+
+    if n_phases == 0 or total == 0 do
+      lineage
+    else
+      base = div(total, n_phases)
+      remainder = rem(total, n_phases)
+
+      new_abundance =
+        phase_names
+        |> Enum.with_index()
+        |> Map.new(fn {name, idx} ->
+          extra = if idx < remainder, do: 1, else: 0
+          {name, base + extra}
+        end)
+
+      %{lineage | abundance_by_phase: new_abundance, fitness_cache: nil}
+    end
+  end
+
+  defp homogenise_phase_pools(phases) do
+    metabolite_mean = mean_pool(phases, & &1.metabolite_pool)
+    signal_mean = mean_pool(phases, & &1.signal_pool)
+
+    Enum.map(phases, fn phase ->
+      %{phase | metabolite_pool: metabolite_mean, signal_pool: signal_mean}
+    end)
+  end
+
+  defp mean_pool(phases, accessor) do
+    keys =
+      phases
+      |> Enum.flat_map(fn p -> p |> accessor.() |> Map.keys() end)
+      |> Enum.uniq()
+
+    divisor = max(length(phases), 1)
+
+    Map.new(keys, fn key ->
+      total = Enum.sum(Enum.map(phases, fn p -> Map.get(accessor.(p), key, 0.0) end))
+      {key, total / divisor}
+    end)
   end
 
   @doc """
@@ -1038,10 +1154,18 @@ defmodule Arkea.Sim.Tick do
         accumulate_lineage_uptake(lineage, phase, phenotypes, acc)
       end)
 
+    # Phase 18: cross-feeding closure. Each unit of substrate
+    # consumed releases stoichiometric by-products into the same
+    # phase pool — the C/N/S/Fe/H₂ cycles close emergently when one
+    # lineage's by-product is another's substrate. The release happens
+    # *after* consumption so the donor can't immediately re-uptake
+    # its own waste.
+    byproducts = Metabolism.compute_byproducts(total_consumed)
+
     new_pool =
-      Map.merge(phase.metabolite_pool, total_consumed, fn _k, conc, consumed ->
-        max(conc - consumed, 0.0)
-      end)
+      phase.metabolite_pool
+      |> Map.merge(total_consumed, fn _k, conc, consumed -> max(conc - consumed, 0.0) end)
+      |> Map.merge(byproducts, fn _k, conc, produced -> conc + produced end)
 
     {%{phase | metabolite_pool: new_pool}, phase_yields, phase_uptake}
   end
