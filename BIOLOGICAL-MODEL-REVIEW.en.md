@@ -278,6 +278,102 @@ Emergent trait: a lineage is competent if it co-expresses `:channel_pore (DNA se
 
 ---
 
+## Phase 19 — Community Mode (advanced mode)
+
+**Objective**: extend the *Seed Lab* into a mode in which the player simultaneously designs and inoculates multiple distinct Arkeon into the same biotope, enabling emergent community ecology — niche partitioning, syntrophy, closed cross-feeding, competitive exclusion, Black Queen Hypothesis. This phase is not part of the core gap-closure plan (Phases 12–18) but a *progressive unlock* built on top of the completed model. Hard prerequisite: **Phase 18** (cross-feeding closure is the mechanic that makes co-cultures non-trivial — without closed C/N/S/Fe cycles a single specialist wins by niche).
+
+### Biological rationale
+
+In nature the vast majority of interesting microbial processes (anaerobic decomposition, nitrification, sulfate reduction coupled with sulfide oxidation, syntrophic methanogenesis, dental biofilm) are carried out by *consortia* of distinct species. Single-species evolution reproduces drift and adaptive sweep, but not real microbial ecology. Community Mode transforms the player from *evolutionary biologist* into *consortium designer + evolutionary biologist*, in line with the target audience (microbiologists/molecular biologists).
+
+### Data model changes
+
+- `Arkea.Game.SeedLibrary` (new module) — player-side store for seed designs. Each entry: `{name, genome :: Genome.t(), description, created_at}`. Persistence via new Ecto table `player_seeds` (player_id, name, genome_blob, description, inserted_at). Configurable cap (default 12 seeds per player).
+- `Arkea.Ecology.Lineage` — addition of field `original_seed_id :: binary() | nil` propagated to descendants. Enables cladistic analytics ("does this lineage descend from Seed-A or Seed-B?") without traversing the phylogenetic tree. `nil` for wild residents pre-seeding.
+
+### Multi-seed provisioning
+
+- `lib/arkea/game/seed_lab.ex` extended with `provision_community/3(player, biotope_id, seed_ids)`. Each seed creates an independent founder lineage (`new_founder/3`) with a distinct clade_ref_id. Maximum simultaneous seeds: `@max_community_seeds = 3` (configurable).
+- When the player activates Community Mode, the seed lab selector switches from single-radio to multi-checkbox; the UI shows a comparative preview of the emergent traits of the chosen seeds (target_classes, detoxify_targets, hydrolase_capacity, competence_score, n_transmembrane → invariant per cell).
+
+### Progressive unlock (anti-deck-building)
+
+Community Mode is not available from day 1. It unlocks when the player has completed at least *one* of the following milestones:
+
+- **A. Endurance**: has maintained a single-seed colony beyond 500 real ticks.
+- **B. Mutator emergence**: in one of their biotopes, a lineage with `repair_efficiency < 0.2` appeared for ≥ 10 ticks (a survived mutator strain).
+- **C. Successful HGT**: has received at least 1 `:hgt_transfer` or `:transformation_event` event in their home biotope.
+
+Milestones are tracked via `player_progression` (new schema: `player_id`, `endurance_unlocked_at`, `mutator_unlocked_at`, `hgt_unlocked_at`). When one is satisfied, it unlocks the "Community Designer" tab of the Seed Lab. **Why**: prevents new players from importing pre-packaged diversity, bypassing the evolutionary experience. Preserves Arkea's pedagogical framing (evolution *must* be felt before it can be "engineered" as a community).
+
+### UI viewport changes
+
+- Color palette per founder: each clade_ref_id receives a stable color from `original_seed_id` → hash (consistent across ticks). Differentiated glyph (circle/square/triangle) to visually distinguish the 3 founders.
+- Lineage board: new "Per founder" filter that groups lineages by `original_seed_id`. Shows each founder's contribution to the total biotope population (temporal heatmap).
+- Phylogenetic compact view: parallel trees per founder (3 small trees instead of 1 large one), highlighting cross-clade HGT events as dashed arcs.
+
+### Carrying capacity and lineage cap
+
+The `@lineage_cap = 100` cap remains. With 3 founders, each starts with 1 lineage; mutation and HGT produce new lineages that compete for slots. Abundance-based pruning (Phase 4) naturally manages the pressure: the three founders compete via metabolism + cross-feeding, and *the community that wins* is the ecologically robust one. This is the game-design signal: **the winner is not the player who inoculates the most seeds, but the one who chose complementary seeds**.
+
+### Extended audit log
+
+- New event `:community_provisioned` emitted when a biotope receives > 1 seed simultaneously. Payload: `[seed_id_1, seed_id_2, seed_id_3]`, `tick_count`.
+- New event `:cross_clade_hgt` when an HGT event (any channel) transfers material between lineages with distinct `original_seed_id`. Enables analytics to measure community *connectedness* (healthy communities → high HGT connectivity).
+
+### Integration with Phase 18
+
+Phase 18 must have closed at least these two points for Community Mode to emerge correctly:
+
+- **Cross-feeding stoichiometry**: integration scenario with SO₄²⁻-reducer + H₂S-oxidiser shows a closed S cycle. Without this, two specialists cannot mutually potentiate each other.
+- **QS-driven biofilm switch**: without biofilm, sedentary species cannot stably coexist in low-turnover phases.
+
+Phase 18's regulator_output runtime and mixing events are not blockers but refine the dynamics.
+
+### Property tests
+
+- `community_test.exs` (new): 2-seed inoculum where seed-A produces H₂S and seed-B consumes it → after N ticks both founders have abundance > threshold (emergent cross-feeding). Without Phase 18 this test fails — it also serves as a canary for validating closure.
+- `community_test.exs`: 2-seed inoculum with identical phenotype → one of the two is excluded within N ticks (neutral selection → stochastic lock-in). Verifies that multi-seed does *not* trivialize competition.
+- `seed_library_test.exs`: seed library persistence across restarts, cap respected, cascade deletion.
+- `seed_lab_test.exs` (extended): `provision_community/3` with 3 seeds creates 3 founders with distinct clade_ref_id and `original_seed_id` correctly propagated.
+- StreamData property: for every multi-seed inoculum, `Σ(abundance per founder)` ≤ `lineage_cap × max_abundance_per_lineage` (no artificial population inflation).
+
+### Realism validation
+
+- **Cross-feeding rates**: 2-seed inoculum scenario (sulfate-reducer + sulfide-oxidiser) must reach a steady state in ~10²–10³ ticks, consistent with timescales observed for syntrophic consortia in chemostat (Stams & Plugge 2009). The `biological-realism-reviewer` must validate that the H₂S → SO₄²⁻ flux is quantitatively within the stoichiometric range.
+- **Anti-monoculture invariant**: in 100 random multi-seed inocula, at least 30% must yield persistent communities (≥ 2 founders survive ≥ 100 ticks). Lower ratio = carrying-capacity tuning required.
+- **Cross-clade HGT rate**: with 3 distinct founders at least 1 `:cross_clade_hgt` event should emerge per 50 ticks on average (non-isolated communities). Consistent with Smillie et al. 2011 for natural microbiomes.
+
+### Critical files touched
+
+- `lib/arkea/game/seed_library.ex` (new)
+- `lib/arkea/game/seed_lab.ex` — `provision_community/3`
+- `lib/arkea/game/player_progression.ex` (new) — milestone tracking
+- `lib/arkea/persistence/player_seed.ex` (new Ecto schema)
+- `lib/arkea/persistence/player_progression.ex` (new Ecto schema)
+- `lib/arkea/ecology/lineage.ex` — field `original_seed_id`
+- `lib/arkea_web/live/seed_lab_live.ex` — Community Designer tab
+- `lib/arkea_web/live/sim_live.ex` — color/glyph per founder, founder filter on lineage board
+- `lib/arkea/persistence/audit_writer.ex` — handler for `:community_provisioned`, `:cross_clade_hgt`
+
+### Ecto migrations
+
+- `player_seeds` (player_id, name, genome_blob bytea, description, inserted_at). Unique index `(player_id, name)`.
+- `player_progression` (player_id PRIMARY KEY, endurance_unlocked_at, mutator_unlocked_at, hgt_unlocked_at).
+- `lineages` ALTER adds `original_seed_id text NULL` with backfill `NULL` for existing wild residents.
+
+### Time estimate
+
+- 2 weeks of development (new UI + schema + multi-seed provisioning) + 1 week of tests/balance/realism reviewer = ~3 weeks total.
+
+### Specific risks
+
+- **Game balance**: with 3 strong founders the player can create "OP" biotopes that dominate the network. Mitigation: the intervention budget limit does not scale with n_seeds; the total throughput of the community is capped by the biotope's carrying capacity.
+- **Onboarding regression**: new players may confuse Community Mode with the standard mode. Mitigation: the Community Designer is a *separate* tab, accessible only after unlock; the default flow remains single-seed.
+- **Cluttered visualisation**: 3 clades in the viewport can become illegible. Mitigation: density-based clustering in the PixiJS scene (cells visually clustered per founder as separate colour bands, not mixed particles).
+
+---
+
 ## Execution sequence and dependencies
 
 ```
@@ -286,14 +382,15 @@ Phase 12 (R-M + phage cycle) ──┬──→ Phase 13 (Transformation)──�
 Phase 14 (Toxicity+biomass) ──────→ Phase 15 (Xeno/RAS)─────────┤
                                                                ├──→ Phase 17 (SOS, error cat., operons, bact.)
                                                                │
-                                                               └──→ Phase 18 (polish + cycle closure)
+                                                               └──→ Phase 18 (polish + cycle closure) ──→ Phase 19 (Community Mode)
 ```
 
 - Phase 12 is blocking for 13 and 16 (Phase 13 uses `dna_pool`; Phase 16 uses `phage_pool` and packaging).
 - Phase 14 is blocking for 15 (xenobiotics use biomass for "target abundance") and 17 (error catastrophe uses biomass).
 - Phase 17 depends on 12 (SOS-induction) and 14 (error catastrophe).
+- **Phase 19 depends on Phase 18** (cross-feeding closure is a prerequisite for community ecology; without it, multi-seed trade-offs degenerate into winner-takes-all).
 
-Estimated time: 1 week of development + property tests + 1 round of biological-realism-reviewer per phase = ~7 weeks total with possible parameter iteration rounds.
+Estimated time: 1 week of development + property tests + 1 round of biological-realism-reviewer per phase for Phases 12–18 = ~7 weeks. Phase 19 adds ~3 weeks (UI + schema + balance) for a total of ~10 weeks if executed in series.
 
 ---
 
@@ -315,6 +412,7 @@ Estimated time: 1 week of development + property tests + 1 round of biological-r
 - `lib/arkea/sim/hgt/defense.ex`, `lib/arkea/sim/hgt/phage.ex`, `lib/arkea/sim/hgt/channel/transformation.ex`, `lib/arkea/sim/hgt/channel/transduction.ex`, `lib/arkea/sim/hgt/channel.ex` (behaviour), `lib/arkea/sim/hgt/plasmid.ex`.
 - `lib/arkea/sim/biomass.ex`, `lib/arkea/sim/xenobiotic.ex`, `lib/arkea/sim/bacteriocin.ex`.
 - `lib/arkea/genome/operon.ex`.
+- **Phase 19**: `lib/arkea/game/seed_library.ex`, `lib/arkea/game/player_progression.ex`, `lib/arkea/persistence/player_seed.ex`, `lib/arkea/persistence/player_progression.ex`.
 
 ---
 
@@ -357,3 +455,13 @@ For each phase:
 - Inc-group and copy_number enabling plasmid coexistence/displacement.
 - Audit log populated for every HGT event, with complete origin tracking.
 - Full coherence with DESIGN.md Blocks 5, 7, 8, 13.
+
+### Additional output Phase 19 (Community Mode)
+
+- Player-side persistent Seed Library (cap 12 seeds/player, Ecto-backed).
+- Multi-seed provisioning (up to 3 simultaneous seeds in the same biotope).
+- Progressive unlock: Community Mode unlocks via endurance / mutator emergence / successful HGT.
+- `Lineage.original_seed_id` propagated throughout the entire genealogy → cladistic analytics per founder.
+- UI viewport with color/glyph palette per founder + "Per founder" lineage board filter.
+- Audit events `:community_provisioned` and `:cross_clade_hgt`.
+- Syntrophic property test scenario (sulfate-reducer + sulfide-oxidiser) as canary for Phases 18 + 19 together.
