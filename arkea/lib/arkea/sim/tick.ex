@@ -71,6 +71,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome.Mutation.Applicator
+  alias Arkea.Sim.Biomass
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.HGT
   alias Arkea.Sim.HGT.Channel.Transformation
@@ -96,12 +97,14 @@ defmodule Arkea.Sim.Tick do
     new_state =
       state
       |> step_metabolism()
+      |> step_biomass()
       |> step_signaling()
       |> step_expression()
       |> step_cell_events()
       |> step_hgt()
       |> step_phage_infection()
       |> step_environment()
+      |> step_lysis()
       |> step_pruning()
       |> increment_tick()
 
@@ -139,14 +142,82 @@ defmodule Arkea.Sim.Tick do
         {l.id, ph}
       end)
 
-    {new_phases, atp_yields} =
-      Enum.reduce(phases, {[], %{}}, fn phase, {acc_phases, acc_yields} ->
-        {updated_phase, phase_yields} = process_phase(phase, lineages, phenotypes)
-        merged = Map.merge(acc_yields, phase_yields, fn _k, a, b -> a + b end)
-        {acc_phases ++ [updated_phase], merged}
+    {new_phases, atp_yields, uptake_by_lineage} =
+      Enum.reduce(phases, {[], %{}, %{}}, fn phase, {acc_phases, acc_yields, acc_uptake} ->
+        {updated_phase, phase_yields, phase_uptake} = process_phase(phase, lineages, phenotypes)
+        merged_yields = Map.merge(acc_yields, phase_yields, fn _k, a, b -> a + b end)
+        merged_uptake = merge_uptake_maps(acc_uptake, phase_uptake)
+        {acc_phases ++ [updated_phase], merged_yields, merged_uptake}
       end)
 
-    %{state | phases: new_phases, atp_yield_by_lineage: atp_yields}
+    %{
+      state
+      | phases: new_phases,
+        atp_yield_by_lineage: atp_yields,
+        uptake_by_lineage: uptake_by_lineage
+    }
+  end
+
+  # Merge two `%{lineage_id => %{metabolite => float}}` maps additively.
+  defp merge_uptake_maps(left, right) do
+    Map.merge(left, right, fn _id, l_map, r_map ->
+      Map.merge(l_map, r_map, fn _met, a, b -> a + b end)
+    end)
+  end
+
+  @doc """
+  Step 1.5 — Biomass progression and decay (Phase 14 — DESIGN.md Block 8).
+
+  Walks every lineage, derives the per-tick biomass delta from its
+  primary phase's environment (osmotic stress, toxicity, elemental
+  availability) and the metabolic budget produced by `step_metabolism/1`,
+  and applies the result to `Lineage.biomass`.
+
+  Lineages with `genome: nil` are skipped (delta-encoded descendants
+  inherit the parent biomass and re-evaluate the next time their
+  genome is reified).
+
+  Pure: no I/O, no side effects.
+  """
+  @spec step_biomass(BiotopeState.t()) :: BiotopeState.t()
+  def step_biomass(%BiotopeState{lineages: lineages, phases: phases} = state) do
+    phase_by_name = Map.new(phases, fn p -> {p.name, p} end)
+
+    new_lineages =
+      Enum.map(lineages, fn lineage ->
+        update_lineage_biomass(lineage, state, phase_by_name)
+      end)
+
+    %{state | lineages: new_lineages}
+  end
+
+  defp update_lineage_biomass(%Lineage{genome: nil} = lineage, _state, _phase_by_name),
+    do: lineage
+
+  defp update_lineage_biomass(%Lineage{} = lineage, state, phase_by_name) do
+    phase_name = primary_phase_name(lineage, state)
+    phase = Map.get(phase_by_name, phase_name)
+
+    if phase == nil do
+      lineage
+    else
+      phenotype = Phenotype.from_genome(lineage.genome)
+      atp = Map.get(state.atp_yield_by_lineage, lineage.id, 0.0)
+      abundance = max(Lineage.abundance_in(lineage, phase_name), 1)
+
+      # Reuse the uptake captured by step_metabolism — the phase pool
+      # has already been depleted by consumption, so a fresh
+      # `compute_uptake/3` would see a near-empty pool and conclude
+      # (incorrectly) that the cell is starved.
+      uptake = Map.get(state.uptake_by_lineage, lineage.id, %{})
+
+      tox = Metabolism.toxicity_factor(phase.metabolite_pool, phenotype.detoxify_targets)
+      elemental = Metabolism.elemental_factor(uptake, phenotype.substrate_affinities, abundance)
+
+      delta = Biomass.compute_delta(phenotype, atp, elemental, tox, phase)
+      new_biomass = Biomass.apply_delta(lineage.biomass, delta)
+      %{lineage | biomass: new_biomass}
+    end
   end
 
   @doc """
@@ -438,6 +509,62 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
+  Step 5.5 — Lysis on biomass deficit (Phase 14 — DESIGN.md Block 8.B.4).
+
+  For each lineage, rolls a Bernoulli trial per phase against the
+  lysis probability derived from the lineage's biomass profile (see
+  `Arkea.Sim.Biomass.lysis_probability/1`). On a hit the lineage
+  abundance in that phase is reduced by `floor(abundance × p)` —
+  a population-level analogue of fractional lysis.
+
+  Lysis is *not* an extinction event by itself; it is a continuous
+  selection pressure. Lineages with intact biomass roll p ≈ 0 and are
+  unaffected. Lineages whose biomass collapses can lose half or more
+  of their abundance per tick.
+
+  Pure: reads/updates `state.rng_seed`.
+  """
+  @spec step_lysis(BiotopeState.t()) :: BiotopeState.t()
+  def step_lysis(%BiotopeState{lineages: lineages} = state) do
+    rng = get_rng(state)
+
+    {new_lineages, rng_out} =
+      Enum.map_reduce(lineages, rng, fn lineage, acc_rng ->
+        maybe_lyse(lineage, acc_rng)
+      end)
+
+    %{state | lineages: new_lineages, rng_seed: rng_out}
+  end
+
+  defp maybe_lyse(%Lineage{genome: nil} = lineage, rng), do: {lineage, rng}
+
+  defp maybe_lyse(%Lineage{} = lineage, rng) do
+    p = Biomass.lysis_probability(lineage.biomass)
+
+    if p <= 0.0 do
+      {lineage, rng}
+    else
+      {roll, rng1} = :rand.uniform_s(rng)
+
+      if roll >= p do
+        {lineage, rng1}
+      else
+        {apply_lysis(lineage, p), rng1}
+      end
+    end
+  end
+
+  defp apply_lysis(%Lineage{abundance_by_phase: abundances} = lineage, p) do
+    new_abundances =
+      Map.new(abundances, fn {phase_name, count} ->
+        lost = floor(count * p)
+        {phase_name, max(count - lost, 0)}
+      end)
+
+    %{lineage | abundance_by_phase: new_abundances, fitness_cache: nil}
+  end
+
+  @doc """
   Step 6 — Pruning: remove extinct lineages and enforce the lineage cap.
 
   Phase 4 implementation:
@@ -660,8 +787,8 @@ defmodule Arkea.Sim.Tick do
   # and accumulate ATP yields per lineage.
   # Returns {updated_phase, %{lineage_id => atp_yield_float}}.
   defp process_phase(%Phase{} = phase, lineages, phenotypes) do
-    {total_consumed, phase_yields} =
-      Enum.reduce(lineages, {%{}, %{}}, fn lineage, acc ->
+    {total_consumed, phase_yields, phase_uptake} =
+      Enum.reduce(lineages, {%{}, %{}, %{}}, fn lineage, acc ->
         accumulate_lineage_uptake(lineage, phase, phenotypes, acc)
       end)
 
@@ -670,12 +797,12 @@ defmodule Arkea.Sim.Tick do
         max(conc - consumed, 0.0)
       end)
 
-    {%{phase | metabolite_pool: new_pool}, phase_yields}
+    {%{phase | metabolite_pool: new_pool}, phase_yields, phase_uptake}
   end
 
   # Accumulate one lineage's metabolite uptake and ATP yield into the running
   # totals for a phase. Returns {updated_total_consumed, updated_phase_yields}.
-  defp accumulate_lineage_uptake(lineage, phase, phenotypes, {acc_consumed, acc_yields}) do
+  defp accumulate_lineage_uptake(lineage, phase, phenotypes, {acc_consumed, acc_yields, acc_uptake}) do
     abundance = Map.get(lineage.abundance_by_phase, phase.name, 0)
     phenotype = Map.get(phenotypes, lineage.id)
 
@@ -687,12 +814,22 @@ defmodule Arkea.Sim.Tick do
           abundance
         )
 
-      atp = Metabolism.atp_yield(uptake)
+      # Phase 14: scale ATP yield by metabolite-toxicity survival
+      # (catalase-like activities bypass per-target). Elemental
+      # availability gates *biosynthesis* (Biomass.compute_delta), not
+      # respiration: a P-limited cell can still oxidise its substrate,
+      # it just cannot replicate DNA.
+      tox = Metabolism.toxicity_factor(phase.metabolite_pool, phenotype.detoxify_targets)
+      atp = Metabolism.atp_yield(uptake) * tox
+
       new_consumed = Map.merge(acc_consumed, uptake, fn _k, total, more -> total + more end)
       new_yields = Map.update(acc_yields, lineage.id, atp, fn prev -> prev + atp end)
-      {new_consumed, new_yields}
+      new_uptake = Map.update(acc_uptake, lineage.id, uptake, fn prev_uptake ->
+        Map.merge(prev_uptake, uptake, fn _met, a, b -> a + b end)
+      end)
+      {new_consumed, new_yields, new_uptake}
     else
-      {acc_consumed, acc_yields}
+      {acc_consumed, acc_yields, acc_uptake}
     end
   end
 

@@ -81,6 +81,16 @@ defmodule Arkea.Sim.Phenotype do
     three categories are present and grows with the geometric mean of
     their counts, capped at `1.0`. Naïve genomes that lack any of the
     three categories sit at zero — competence is *not* the default.
+
+  - `detoxify_targets` — set of metabolite atom ids the genome can
+    detoxify (Phase 14 — DESIGN.md Block 8.A.2). A
+    `:catalytic_site(reaction_class: :reduction)` co-located with a
+    `:substrate_binding` whose target is one of the toxic metabolites
+    (O₂, H₂S, lactate) protects the cell from that specific stressor.
+    `Arkea.Sim.Metabolism.toxicity_factor/2` uses the set to bypass
+    toxicity contributions for owned targets — this is how
+    catalase-like, sulfide-oxidoreductase-like, and lactate-dehydrogenase-like
+    activities emerge generatively.
   """
 
   use TypedStruct
@@ -104,6 +114,7 @@ defmodule Arkea.Sim.Phenotype do
     field :restriction_profile, [binary()], default: []
     field :methylation_profile, [binary()], default: []
     field :competence_score, float(), default: 0.0
+    field :detoxify_targets, MapSet.t(atom()), default: MapSet.new()
   end
 
   @doc """
@@ -123,8 +134,55 @@ defmodule Arkea.Sim.Phenotype do
       aggregate(domains)
       | restriction_profile: rest,
         methylation_profile: meth,
-        competence_score: competence_score(domains)
+        competence_score: competence_score(domains),
+        detoxify_targets: detoxify_targets(genome)
     }
+  end
+
+  @doc """
+  Compute the set of metabolites the genome can actively detoxify.
+
+  A *detoxify activity* in Arkea is the co-occurrence within the same
+  gene of:
+
+    - a `:substrate_binding` domain whose `target_metabolite_id` maps
+      to one of the toxic metabolites (O₂, H₂S, lactate); and
+    - a `:catalytic_site` whose `reaction_class` is `:reduction`.
+
+  The combination is the generative analogue of catalase
+  (`:reduction` of O₂), sulfide:quinone oxidoreductase (`:reduction`
+  of H₂S in this simplified model), and lactate dehydrogenase. Real
+  enzymology is more nuanced (sulfide is *oxidised*, not reduced, by
+  SQR), but Arkea collapses both donor- and acceptor-side enzymatic
+  detoxification into one categorical pattern; the biological
+  consequence — the cell stops dying — is preserved.
+  """
+  @spec detoxify_targets(Genome.t()) :: MapSet.t(atom())
+  def detoxify_targets(%Genome{} = genome) do
+    toxic_set = MapSet.new(Metabolism.toxic_metabolites())
+
+    genome
+    |> Genome.all_genes()
+    |> Enum.reduce(MapSet.new(), fn gene, acc ->
+      MapSet.union(acc, gene_detoxify_targets(gene, toxic_set))
+    end)
+  end
+
+  defp gene_detoxify_targets(%Gene{domains: domains}, toxic_set) do
+    has_reduction =
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and d.params[:reaction_class] == :reduction
+      end)
+
+    if has_reduction do
+      domains
+      |> Enum.filter(fn d -> d.type == :substrate_binding end)
+      |> Enum.map(fn d -> Metabolism.metabolite_atom(d.params[:target_metabolite_id]) end)
+      |> Enum.filter(&MapSet.member?(toxic_set, &1))
+      |> MapSet.new()
+    else
+      MapSet.new()
+    end
   end
 
   @doc """

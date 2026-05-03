@@ -408,6 +408,18 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Decay**: `Phase.dilute/1` applica il dilution rate ai frammenti come per i virioni; ageing implicito via `decay_age` (preparato per refinement Fase 18 se servirà decay accelerato).
 - **Audit log**: schema esistente; eventi `:transformation_event` saranno cablati in Fase 16 con il behaviour `HGT.Channel`.
 
+##### Fase 14 — Tossicità, vincoli elementari, biomassa continua
+
+- **Toxicity** (`Metabolism.toxicity_factor/2` + `Phenotype.detoxify_targets`): tre metaboliti tossici (`:oxygen`, `:h2s`, `:lactate`) hanno `(threshold, scale)` codificato. Per ogni metabolita non protetto, contributo = `1 - max(0, [met] - threshold)/scale`, clampato in `0..1`; i contributi compongono moltiplicativamente. Detoxify enzima generativo: gene con co-occorrenza `:substrate_binding(target=metabolita)` + `:catalytic_site(reaction_class: :reduction)` → `detoxify_targets ∋ metabolita` → bypass completo per quel target. Riproduce catalase (O₂), sulfide oxidoreductase (H₂S), lactate dehydrogenase (lattato) come traits emergenti.
+- **Elemental constraints** (`Metabolism.elemental_factor/3`): per ogni elemento essenziale (P/N/Fe/S) tracciato (`@elemental_metabolites`), score = `min(1.0, uptake / floor)` con `floor = 0.001 × abundance`. Geometric mean → fattore globale. **Solo elementi che il fenotipo cerca attivamente (substrate_binding presente)** contano come vincolo; un genoma naïf non viene penalizzato per nutrienti che non cerca (la prototype non modella il riciclo cellulare). Fattore in `0.0..1.0` applicato solo alla biosintesi (biomass progress), non alla respirazione.
+- **Continuous biomass** (`Lineage.biomass :: %{membrane, wall, dna}`): tre componenti in `0.0..1.0` (default 1.0 = founder intatto). Per-tick:
+  - `progress`: scalato da `(atp_yield/50) × tox`. Capability per componente: membrana ∝ `n_transmembrane/5`, wall ∝ `n_transmembrane/5` (proxy PBP-like), DNA ∝ `repair_efficiency × elemental`.
+  - `decay`: osmotic shock fuori band tolerance ±200 mOsm/L (decay membrana + wall); penuria elementare (decay DNA `(1-elemental) × 0.05`).
+- **`Arkea.Sim.Biomass.lysis_probability/1`**: pressioni per componente sotto soglia (membrana 0.30, wall 0.40, DNA 0.25) compongono come max → probabilità di lisi in `0..1`.
+- **Pipeline** (`Tick`): nuovo `step_biomass` dopo `step_metabolism` (riusa `state.uptake_by_lineage` per evitare ricomputo su pool già drenato); nuovo `step_lysis` dopo `step_environment` e prima di `step_pruning` (Bernoulli per lineage, riduce abundance per phase di `floor(count × p)`).
+- **State**: aggiunto `BiotopeState.uptake_by_lineage` per condividere uptake da `step_metabolism` a `step_biomass`.
+- Phase 17 userà la stessa biomass come substrato per `error_catastrophe` e SOS coupling.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).

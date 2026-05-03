@@ -94,6 +94,53 @@ defmodule Arkea.Sim.Metabolism do
     po4: 0.0
   }
 
+  # Phase 14 — Metabolite toxicity profile (DESIGN.md Block 8.A.2).
+  #
+  # Each entry maps a metabolite id to `{threshold, scale}`:
+  #
+  # - `threshold` — concentration above which the metabolite begins to
+  #   damage cells. Below threshold there is no toxicity.
+  # - `scale` — concentration delta that produces a 100% knock-out of
+  #   metabolic activity. The toxicity contribution is
+  #   `min(1.0, max(0.0, (concentration - threshold) / scale))`.
+  #
+  # Lineages owning a *detoxify* enzyme for a given metabolite (a
+  # `:catalytic_site(reaction_class: :reduction)` whose substrate-binding
+  # targets that metabolite — proxy for catalase, sulfide-quinone
+  # oxidoreductase, lactate dehydrogenase, etc.) bypass the toxicity for
+  # that specific metabolite. See `toxicity_factor/2`.
+  #
+  # The numerical thresholds are deliberately conservative: the goal of
+  # Phase 14 is to surface a *qualitative* selective pressure (anaerobes
+  # die in aerobic phases unless they encode catalase-like protection),
+  # not to fit a specific kinetic curve. Phase 17 will refine these
+  # against published K_i values for cytochrome inhibition (Cooper &
+  # Brown 2008 for H₂S; Imlay 2008 for O₂).
+  #
+  # Concentration scale: Arkea metabolite pools use arbitrary
+  # dimensionless units; typical aerobic biotopes seed oxygen around
+  # 50–100, so the threshold sits well above the mean to avoid
+  # triggering on background levels. Toxicity bites only at
+  # concentrations associated with rapid radical chemistry (oxidative
+  # stress) or metal-protein cytochrome poisoning.
+  @toxicity_profile %{
+    oxygen: {200.0, 800.0},
+    h2s: {20.0, 80.0},
+    lactate: {30.0, 100.0}
+  }
+
+  # Phase 14 — Elemental floors (DESIGN.md Block 8.A.3).
+  #
+  # Each elemental nutrient (P, N, Fe, S) must be taken up at a minimum
+  # per-cell rate. Below the floor the cell cannot synthesise its
+  # corresponding biomass component (P → DNA, N → membrane/wall
+  # proteins, Fe → cofactors, S → sulfur amino acids). The
+  # `elemental_factor/2` returns a `0.0..1.0` scalar applied to ATP
+  # yield; it goes to zero only when *all* nutrients are exhausted, but
+  # any single deficit drags it down proportionally.
+  @elemental_metabolites [:po4, :nh3, :no3, :iron, :so4, :h2s]
+  @elemental_floor_per_cell 0.001
+
   @doc """
   Return the canonical atom key for a metabolite integer id.
 
@@ -208,5 +255,113 @@ defmodule Arkea.Sim.Metabolism do
       coeff = Map.get(@atp_coefficients, metabolite, 0.0)
       acc + amount * coeff
     end)
+  end
+
+  @doc """
+  The set of metabolite ids tracked as toxic (Phase 14).
+
+  Used by tests and by `Arkea.Sim.Phenotype.from_genome/1` to build the
+  `:detoxify_targets` MapSet from the genome.
+  """
+  @spec toxic_metabolites() :: [atom()]
+  def toxic_metabolites, do: Map.keys(@toxicity_profile)
+
+  @doc """
+  Compute the toxicity-survival factor for a lineage in a phase.
+
+  Returns a value in `0.0..1.0` that scales the lineage's ATP yield
+  (and therefore its growth budget) based on the per-metabolite
+  concentrations in `metabolite_pool` and the lineage's
+  `detoxify_targets`. A lineage that encodes the matching detoxify
+  enzyme is fully shielded for that metabolite (factor 1.0 contribution
+  from that source); otherwise the per-metabolite contribution drops
+  with the over-threshold concentration.
+
+  Multiple toxic metabolites compose multiplicatively: surviving two
+  unrelated stressors both at the threshold edge is harder than
+  surviving one. Pure.
+
+  ## Examples
+
+      # Anaerobe (no detoxify targets) under aerobic conditions
+      iex> Metabolism.toxicity_factor(%{oxygen: 1.0}, MapSet.new())
+      0.5
+
+      # Aerobic-tolerant lineage (catalase-like for O₂) is unaffected
+      iex> Metabolism.toxicity_factor(%{oxygen: 1.0}, MapSet.new([:oxygen]))
+      1.0
+  """
+  @spec toxicity_factor(%{atom() => float()}, MapSet.t(atom())) :: float()
+  def toxicity_factor(metabolite_pool, detoxify_targets) when is_map(metabolite_pool) do
+    Enum.reduce(@toxicity_profile, 1.0, fn {metabolite, {threshold, scale}}, acc ->
+      if MapSet.member?(detoxify_targets, metabolite) do
+        acc
+      else
+        conc = Map.get(metabolite_pool, metabolite, 0.0)
+        knock = max(0.0, conc - threshold) / max(scale, 1.0e-9)
+        survival = max(0.0, 1.0 - knock)
+        acc * survival
+      end
+    end)
+  end
+
+  @doc """
+  Compute the elemental-constraint factor for a lineage in a phase.
+
+  Returns a value in `0.0..1.0` reflecting how close the lineage is to
+  the elemental floor required to build new biomass.
+
+  Only elements the lineage *attempts* to take up (i.e. for which the
+  phenotype carries a `:substrate_binding` domain) participate in the
+  constraint. A lineage that has no affinity for phosphate is assumed
+  to satisfy its phosphorus demand from baseline cellular pools (the
+  prototype does not model recycling explicitly). Specialist lineages
+  that do encode an uptake transporter are accountable: when their
+  preferred nutrient pool drops below the elemental floor, biosynthesis
+  is throttled.
+
+  Within the considered elements:
+
+  - per-element score = `min(1.0, uptake_per_cell / elemental_floor)`
+  - overall factor    = geometric mean of per-element scores
+
+  Multiplicative composition (geometric mean) means a single missing
+  nutrient drags down the factor without zeroing it: a P-limited cell
+  still respires, but its biosynthesis is slowed.
+
+  Pure.
+  """
+  @spec elemental_factor(%{atom() => float()}, %{atom() => map()}, non_neg_integer()) ::
+          float()
+  def elemental_factor(uptake_map, substrate_affinities, abundance)
+      when is_map(uptake_map) and is_map(substrate_affinities) and is_integer(abundance) and
+             abundance > 0 do
+    attempted = attempted_elements(substrate_affinities)
+
+    if attempted == [] do
+      1.0
+    else
+      floor = @elemental_floor_per_cell * abundance
+
+      scores =
+        Enum.map(attempted, fn metabolite ->
+          uptake = Map.get(uptake_map, metabolite, 0.0)
+          min(1.0, uptake / max(floor, 1.0e-9))
+        end)
+
+      product = Enum.reduce(scores, 1.0, fn s, acc -> acc * max(s, 1.0e-3) end)
+      :math.pow(product, 1.0 / length(scores))
+    end
+  end
+
+  def elemental_factor(_uptake_map, _affinities, 0), do: 1.0
+
+  @doc "Set of metabolites considered elemental nutrients (Phase 14)."
+  @spec elemental_metabolites() :: [atom()]
+  def elemental_metabolites, do: @elemental_metabolites
+
+  defp attempted_elements(affinities) do
+    @elemental_metabolites
+    |> Enum.filter(fn m -> Map.has_key?(affinities, m) end)
   end
 end

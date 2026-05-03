@@ -34,6 +34,14 @@ defmodule Arkea.Ecology.Lineage do
     match cell-equivalents removed from the source.
   - `fitness_cache` — last computed fitness, `nil` if invalidated.
     Phase 5+ cache.
+  - `biomass` — Phase 14: continuous structural integrity index split
+    across `:membrane`, `:wall`, `:dna`, each in `0.0..1.0`. Defaults
+    to `1.0` (intact founder cell). Each tick, biosynthetic enzymes
+    in the genome push biomass up while stress (osmotic shock,
+    elemental shortage, toxicity, mutational load) pushes it down. A
+    component below its critical threshold drives `step_lysis/1` to
+    kill cells stochastically. Phase 17 will use the same field as the
+    substrate for error-catastrophe accounting.
 
   ## Bookkeeping
 
@@ -47,6 +55,22 @@ defmodule Arkea.Ecology.Lineage do
   alias Arkea.Genome
   alias Arkea.Genome.Mutation
 
+  @typedoc """
+  Continuous biomass index for a lineage (Phase 14).
+
+  Three components, each in `0.0..1.0`. Founder cells start fully
+  intact at `1.0`. Stress drives values down; biosynthesis pushes them
+  back up. Below per-component critical thresholds the lineage suffers
+  stochastic lysis (`step_lysis/1`).
+  """
+  @type biomass :: %{
+          membrane: float(),
+          wall: float(),
+          dna: float()
+        }
+
+  @full_biomass %{membrane: 1.0, wall: 1.0, dna: 1.0}
+
   typedstruct enforce: true do
     field :id, binary()
     field :parent_id, binary() | nil
@@ -56,7 +80,12 @@ defmodule Arkea.Ecology.Lineage do
     field :abundance_by_phase, %{atom() => non_neg_integer()}
     field :fitness_cache, float() | nil, default: nil
     field :created_at_tick, non_neg_integer()
+    field :biomass, biomass(), default: %{membrane: 1.0, wall: 1.0, dna: 1.0}
   end
+
+  @doc "Default fully-intact biomass. Used when seeding founders and children."
+  @spec full_biomass() :: biomass()
+  def full_biomass, do: @full_biomass
 
   @doc """
   Build a founder lineage (no parent, clade reference is itself).
@@ -84,7 +113,8 @@ defmodule Arkea.Ecology.Lineage do
       delta: [],
       abundance_by_phase: abundances,
       fitness_cache: nil,
-      created_at_tick: tick
+      created_at_tick: tick,
+      biomass: @full_biomass
     }
   end
 
@@ -121,7 +151,8 @@ defmodule Arkea.Ecology.Lineage do
       delta: [],
       abundance_by_phase: abundances,
       fitness_cache: nil,
-      created_at_tick: tick
+      created_at_tick: tick,
+      biomass: @full_biomass
     }
   end
 
@@ -200,7 +231,8 @@ defmodule Arkea.Ecology.Lineage do
       {fn -> lineage.genome == nil or Genome.valid?(lineage.genome) end, :invalid_genome},
       {fn -> Enum.all?(lineage.delta, &Mutation.valid?/1) end, :invalid_delta},
       {fn -> valid_abundances?(lineage.abundance_by_phase) end, :invalid_abundances},
-      {fn -> valid_fitness?(lineage.fitness_cache) end, :invalid_fitness}
+      {fn -> valid_fitness?(lineage.fitness_cache) end, :invalid_fitness},
+      {fn -> valid_biomass?(lineage.biomass) end, :invalid_biomass}
     ]
   end
 
@@ -209,6 +241,15 @@ defmodule Arkea.Ecology.Lineage do
   defp valid_fitness?(nil), do: true
   defp valid_fitness?(fitness) when is_float(fitness) and fitness >= 0.0, do: true
   defp valid_fitness?(_), do: false
+
+  defp valid_biomass?(%{membrane: m, wall: w, dna: d})
+       when is_float(m) and is_float(w) and is_float(d) and
+              m >= 0.0 and m <= 1.0 and
+              w >= 0.0 and w <= 1.0 and
+              d >= 0.0 and d <= 1.0,
+       do: true
+
+  defp valid_biomass?(_), do: false
 
   # ----------------------------------------------------------------------
   # Private helpers

@@ -86,6 +86,7 @@ defmodule Arkea.Sim.BiotopeState do
     field :dilution_rate, float()
     field :rng_seed, term(), default: nil
     field :atp_yield_by_lineage, %{binary() => float()}, default: %{}
+    field :uptake_by_lineage, %{binary() => %{atom() => float()}}, default: %{}
     field :metabolite_inflow, %{atom() => float()}, default: %{}
   end
 

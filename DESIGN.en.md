@@ -408,6 +408,18 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Decay**: `Phase.dilute/1` applies the dilution rate to fragments as for free virions; implicit ageing via `decay_age` (prepared for Phase 18 refinement if accelerated decay is needed).
 - **Audit log**: existing schema; `:transformation_event` events will be wired in Phase 16 with the `HGT.Channel` behaviour.
 
+##### Phase 14 — Toxicity, elemental constraints, continuous biomass
+
+- **Toxicity** (`Metabolism.toxicity_factor/2` + `Phenotype.detoxify_targets`): three toxic metabolites (`:oxygen`, `:h2s`, `:lactate`) have an encoded `(threshold, scale)`. For each unprotected metabolite, contribution = `1 - max(0, [met] - threshold)/scale`, clamped to `0..1`; contributions compose multiplicatively. Generative detoxify enzyme: a gene with co-occurring `:substrate_binding(target=metabolite)` + `:catalytic_site(reaction_class: :reduction)` → `detoxify_targets ∋ metabolite` → full bypass for that target. Reproduces catalase (O₂), sulfide oxidoreductase (H₂S), lactate dehydrogenase (lactate) as emergent traits.
+- **Elemental constraints** (`Metabolism.elemental_factor/3`): for each tracked essential element (P/N/Fe/S) (`@elemental_metabolites`), score = `min(1.0, uptake / floor)` with `floor = 0.001 × abundance`. Geometric mean → global factor. **Only elements that the phenotype actively seeks (`:substrate_binding` present)** count as a constraint; a naïve genome is not penalized for nutrients it does not seek (the prototype does not model cellular recycling). Factor in `0.0..1.0` applied only to biosynthesis (biomass progress), not to respiration.
+- **Continuous biomass** (`Lineage.biomass :: %{membrane, wall, dna}`): three components in `0.0..1.0` (default 1.0 = intact founder). Per-tick:
+  - `progress`: scaled by `(atp_yield/50) × tox`. Per-component capability: membrane ∝ `n_transmembrane/5`, wall ∝ `n_transmembrane/5` (PBP-like proxy), DNA ∝ `repair_efficiency × elemental`.
+  - `decay`: osmotic shock outside the tolerance band ±200 mOsm/L (membrane + wall decay); elemental shortage (DNA decay `(1-elemental) × 0.05`).
+- **`Arkea.Sim.Biomass.lysis_probability/1`**: per-component pressure below threshold (membrane 0.30, wall 0.40, DNA 0.25) composes as max → lysis probability in `0..1`.
+- **Pipeline** (`Tick`): new `step_biomass` after `step_metabolism` (reuses `state.uptake_by_lineage` to avoid recomputing on an already-drained pool); new `step_lysis` after `step_environment` and before `step_pruning` (Bernoulli trial per lineage, reduces abundance per phase by `floor(count × p)`).
+- **State**: `BiotopeState.uptake_by_lineage` added to share uptake from `step_metabolism` to `step_biomass`.
+- Phase 17 will use the same biomass as substrate for `error_catastrophe` and SOS coupling.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).
