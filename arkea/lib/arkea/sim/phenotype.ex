@@ -70,6 +70,17 @@ defmodule Arkea.Sim.Phenotype do
     Arber-Dussoix host-modification mechanism: DNA replicated in a cell
     that already methylates a recognition site is no longer cleaved by
     that site's restriction enzyme.
+
+  - `competence_score` — `0.0..1.0` proxy for the cell's ability to take
+    up free DNA from the environment (Phase 13 — DESIGN.md Block 8).
+    Naturally competent species (e.g. *Streptococcus*, *Bacillus*,
+    *Haemophilus*; Johnston et al. 2014) express a coordinated set of
+    machinery: a DNA channel (`:channel_pore`), membrane integration
+    (`:transmembrane_anchor`), and a stress / quorum sensor that gates
+    competence (`:ligand_sensor`). The score is non-zero only when all
+    three categories are present and grows with the geometric mean of
+    their counts, capped at `1.0`. Naïve genomes that lack any of the
+    three categories sit at zero — competence is *not* the default.
   """
 
   use TypedStruct
@@ -92,6 +103,7 @@ defmodule Arkea.Sim.Phenotype do
     field :qs_receives, [{binary(), float()}], default: []
     field :restriction_profile, [binary()], default: []
     field :methylation_profile, [binary()], default: []
+    field :competence_score, float(), default: 0.0
   end
 
   @doc """
@@ -110,8 +122,41 @@ defmodule Arkea.Sim.Phenotype do
     %{
       aggregate(domains)
       | restriction_profile: rest,
-        methylation_profile: meth
+        methylation_profile: meth,
+        competence_score: competence_score(domains)
     }
+  end
+
+  @doc """
+  Compute the natural-transformation competence score for a domain list.
+
+  Three categories must all be present for any uptake to happen:
+
+  - `:channel_pore` — the DNA-conducting pore (proxy for ComEC/ComEA);
+  - `:transmembrane_anchor` — anchors the channel to the membrane
+    (proxy for the type IV pilus-like uptake apparatus);
+  - `:ligand_sensor` — the inducer that switches the cell into the
+    competent state (proxy for ComX / cAMP-like signalling).
+
+  When any one is absent the score is `0.0` (no competence at all).
+  Otherwise the score is the geometric mean of the three counts scaled
+  by `0.2`, capped at `1.0` — three of each domain is enough to nearly
+  saturate the score, matching the order-of-magnitude observation that
+  competence machinery does not improve indefinitely with copy number
+  in vivo.
+  """
+  @spec competence_score([Domain.t()]) :: float()
+  def competence_score(domains) when is_list(domains) do
+    n_channel = Enum.count(domains, fn d -> d.type == :channel_pore end)
+    n_membrane = Enum.count(domains, fn d -> d.type == :transmembrane_anchor end)
+    n_sensor = Enum.count(domains, fn d -> d.type == :ligand_sensor end)
+
+    if n_channel == 0 or n_membrane == 0 or n_sensor == 0 do
+      0.0
+    else
+      geom_mean = :math.pow(n_channel * n_membrane * n_sensor, 1.0 / 3.0)
+      min(1.0, geom_mean * 0.2)
+    end
   end
 
   # Scan every gene for restriction-modification (R-M) signatures.

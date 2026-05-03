@@ -36,6 +36,7 @@ defmodule Arkea.Sim.HGT.Phage do
   alias Arkea.Ecology.Phase
   alias Arkea.Genome
   alias Arkea.Sim.HGT.Defense
+  alias Arkea.Sim.HGT.DnaFragment
   alias Arkea.Sim.HGT.Virion
   alias Arkea.Sim.Phenotype
 
@@ -128,7 +129,7 @@ defmodule Arkea.Sim.HGT.Phage do
       new_phase =
         phase
         |> Phase.add_virion(virion)
-        |> deposit_dna_fragment(lineage.id, lost)
+        |> deposit_dna_fragment(lineage, lost, tick)
 
       new_lineage =
         lineage
@@ -264,8 +265,20 @@ defmodule Arkea.Sim.HGT.Phage do
     %{lineage | abundance_by_phase: new_abundances, fitness_cache: nil}
   end
 
-  defp deposit_dna_fragment(%Phase{dna_pool: pool} = phase, lineage_id, lost) do
-    %{phase | dna_pool: Map.update(pool, lineage_id, lost, &(&1 + lost))}
+  defp deposit_dna_fragment(%Phase{} = phase, %Lineage{} = lineage, lost, tick) do
+    methylation = methylation_profile_for(lineage)
+
+    fragment =
+      DnaFragment.new(
+        id: Arkea.UUID.v4(),
+        genes: lineage.genome.chromosome,
+        abundance: lost,
+        methylation_profile: methylation,
+        origin_lineage_id: lineage.id,
+        created_at_tick: tick
+      )
+
+    Phase.add_dna_fragment(phase, fragment)
   end
 
   # ---------------------------------------------------------------------------
@@ -367,9 +380,8 @@ defmodule Arkea.Sim.HGT.Phage do
     new_phase =
       ph
       |> consume_one_virion(phage_id)
-      |> deposit_dna_fragment(recipient.id, lost)
+      |> deposit_dna_fragment(recipient, lost, tick)
 
-    _ = tick
     {new_lineages, new_phase, children, rng}
   end
 

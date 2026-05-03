@@ -73,6 +73,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.HGT
+  alias Arkea.Sim.HGT.Channel.Transformation
   alias Arkea.Sim.HGT.Phage
   alias Arkea.Sim.Intergenic
   alias Arkea.Sim.Metabolism
@@ -301,23 +302,45 @@ defmodule Arkea.Sim.Tick do
 
     all_lineages = conjugated_lineages ++ new_children
 
-    # Step 4b: prophage induction — stress-triggered lytic burst that
+    # Step 4b: natural transformation (Phase 13) — competent recipients
+    # take up DNA fragments from the phase dna_pool, gated by R-M, with
+    # positional homologous recombination producing transformant children.
+    {transformed_lineages, phases_after_transformation, transformant_children, rng2} =
+      run_transformation(all_lineages, phases, tick, rng1)
+
+    lineages_after_transformation = transformed_lineages ++ transformant_children
+
+    # Step 4c: prophage induction — stress-triggered lytic burst that
     # produces free virions in `phase.phage_pool` and DNA fragments in
     # `phase.dna_pool`. Phase 12: also drops the lysed cassette from the
     # host genome (Phage.lytic_burst).
-    phenotypes = build_phenotype_map(all_lineages)
+    phenotypes = build_phenotype_map(lineages_after_transformation)
 
-    {induced_lineages, induced_phases, rng2} =
+    {induced_lineages, induced_phases, rng3} =
       HGT.induction_step(
-        all_lineages,
-        phases,
+        lineages_after_transformation,
+        phases_after_transformation,
         state.atp_yield_by_lineage,
         phenotypes,
         tick,
-        rng1
+        rng2
       )
 
-    %{state | lineages: induced_lineages, phases: induced_phases, rng_seed: rng2}
+    %{state | lineages: induced_lineages, phases: induced_phases, rng_seed: rng3}
+  end
+
+  # Run natural transformation for every phase, threading lineages and
+  # phases through the per-phase channel and returning the aggregate
+  # transformant children alongside the updated phase list.
+  defp run_transformation(lineages, phases, tick, rng) do
+    Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
+                                                    {acc_lineages, acc_phases, acc_children,
+                                                     acc_rng} ->
+      {ls_out, p_out, children, rng_out} =
+        Transformation.step(acc_lineages, phase, tick, acc_rng)
+
+      {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+    end)
   end
 
   @doc """

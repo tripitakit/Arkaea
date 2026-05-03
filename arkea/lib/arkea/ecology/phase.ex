@@ -19,14 +19,19 @@ defmodule Arkea.Ecology.Phase do
     each free phage particle carries cassette genes, surface signature and
     a methylation profile so `Phage.infection_step/3` and
     `HGT.Defense.restriction_check/3` can run on it.
-  - `dna_pool :: %{binary() => non_neg_integer()}` — fragments of free DNA
-    released by lytic bursts and lysis-on-division. The map key is the
-    origin-lineage id; the value is the residual abundance index.
-    Consumed by Phase 13 (natural transformation).
+
+  ## Phase 13 additions
+
+  - `dna_pool :: %{fragment_id => DnaFragment.t()}` — free DNA fragments
+    released by lytic bursts and lysis-on-division. Each fragment carries
+    donor genes plus a methylation profile so the R-M gate can run on
+    it; consumed by `HGT.Channel.Transformation` when a competent
+    recipient takes up the cassette.
   """
 
   use TypedStruct
 
+  alias Arkea.Sim.HGT.DnaFragment
   alias Arkea.Sim.HGT.Virion
 
   @ph_min 0.0
@@ -45,7 +50,7 @@ defmodule Arkea.Ecology.Phase do
     field :metabolite_pool, %{atom() => float()}, default: %{}
     field :signal_pool, %{binary() => float()}, default: %{}
     field :phage_pool, %{binary() => Virion.t()}, default: %{}
-    field :dna_pool, %{binary() => non_neg_integer()}, default: %{}
+    field :dna_pool, %{binary() => DnaFragment.t()}, default: %{}
     field :lineage_ids, MapSet.t(binary()), default: MapSet.new()
   end
 
@@ -131,6 +136,12 @@ defmodule Arkea.Ecology.Phase do
     pool |> Map.values() |> Enum.reduce(0, fn v, acc -> acc + v.abundance end)
   end
 
+  @doc "Sum of DNA fragment abundances across the entire dna_pool. O(n)."
+  @spec dna_total(t()) :: non_neg_integer()
+  def dna_total(%__MODULE__{dna_pool: pool}) do
+    pool |> Map.values() |> Enum.reduce(0, fn f, acc -> acc + f.abundance end)
+  end
+
   @doc """
   Add a virion to the pool. Existing entries (same id) accumulate abundance
   while preserving their metadata; new ids store the supplied virion as-is.
@@ -144,6 +155,21 @@ defmodule Arkea.Ecology.Phase do
       end)
 
     %{phase | phage_pool: new_pool}
+  end
+
+  @doc """
+  Add a DNA fragment to the pool. Existing entries (same id) accumulate
+  abundance while preserving their metadata; new ids store the supplied
+  fragment as-is. Pure.
+  """
+  @spec add_dna_fragment(t(), DnaFragment.t()) :: t()
+  def add_dna_fragment(%__MODULE__{dna_pool: pool} = phase, %DnaFragment{} = fragment) do
+    new_pool =
+      Map.update(pool, fragment.id, fragment, fn existing ->
+        %{existing | abundance: existing.abundance + fragment.abundance}
+      end)
+
+    %{phase | dna_pool: new_pool}
   end
 
   @doc """
@@ -163,7 +189,7 @@ defmodule Arkea.Ecology.Phase do
       | metabolite_pool: dilute_pool(phase.metabolite_pool, factor),
         signal_pool: dilute_pool(phase.signal_pool, factor),
         phage_pool: dilute_phage_pool(phase.phage_pool, factor),
-        dna_pool: dilute_integer_pool(phase.dna_pool, factor)
+        dna_pool: dilute_dna_pool(phase.dna_pool, factor)
     }
   end
 
@@ -224,7 +250,7 @@ defmodule Arkea.Ecology.Phase do
   defp valid_phage_pool?(_), do: false
 
   defp valid_dna_pool?(pool) when is_map(pool) do
-    Enum.all?(pool, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
+    Enum.all?(pool, fn {k, v} -> is_binary(k) and DnaFragment.valid?(v) and v.id == k end)
   end
 
   defp valid_dna_pool?(_), do: false
@@ -233,14 +259,18 @@ defmodule Arkea.Ecology.Phase do
     Map.new(pool, fn {k, v} -> {k, v * factor} end)
   end
 
-  defp dilute_integer_pool(pool, factor) when is_map(pool) do
-    Map.new(pool, fn {k, v} -> {k, trunc(v * factor)} end)
-  end
-
   defp dilute_phage_pool(pool, factor) when is_map(pool) do
     pool
     |> Enum.map(fn {k, %Virion{abundance: a} = v} ->
       {k, %{v | abundance: trunc(a * factor)}}
+    end)
+    |> Map.new()
+  end
+
+  defp dilute_dna_pool(pool, factor) when is_map(pool) do
+    pool
+    |> Enum.map(fn {k, %DnaFragment{abundance: a} = f} ->
+      {k, %{f | abundance: trunc(a * factor)}}
     end)
     |> Map.new()
   end

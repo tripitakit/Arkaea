@@ -70,8 +70,14 @@ defmodule Arkea.Sim.HGT.PhageTest do
       # Phase pool now carries the virion.
       assert map_size(p_out.phage_pool) == 1
       assert Map.has_key?(p_out.phage_pool, virion.id)
-      # DNA fragment deposited in dna_pool.
-      assert Map.get(p_out.dna_pool, lineage.id, 0) > 0
+      # DNA fragment deposited in dna_pool — keyed by fragment UUID,
+      # carrying the donor's chromosome and audit-traceable to the lysed
+      # lineage.
+      assert map_size(p_out.dna_pool) == 1
+      [fragment] = Map.values(p_out.dna_pool)
+      assert fragment.origin_lineage_id == lineage.id
+      assert fragment.abundance > 0
+      assert fragment.genes == lineage.genome.chromosome
       # Cassette dropped from the host genome.
       assert l_out.genome.prophages == []
     end

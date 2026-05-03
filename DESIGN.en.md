@@ -398,6 +398,16 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Extended phenotype** (Phase 12): `restriction_profile :: [signal_key]` and `methylation_profile :: [signal_key]` derived from the composition of genes with co-occurring `dna_binding + catalytic_site`.
 - **Audit log mobile_elements**: existing schema; the write path for phage-cycle events (`:phage_infection`, `:rm_digestion`) will be wired in Phase 16 with the `HGT.Channel` behaviour.
 
+##### Phase 13 — Natural transformation
+
+- **Free DNA as substrate** (`Arkea.Sim.HGT.DnaFragment`): pool of fragments per phase (`Phase.dna_pool :: %{fragment_id => DnaFragment.t()}`) with `genes` (chromosome of the lysed cell), `methylation_profile` (inherited host modification), `abundance`, `decay_age`, `origin_lineage_id`. Sources: phage lysis (`HGT.Phage.lytic_burst` deposits the chromosome of the lysed cell); future Phases 14+ will add lysis upon division.
+- **Emergent competence** (`Phenotype.competence_score :: 0.0..1.0`): non-zero only if the genome expresses the Phase-13 triad — `:channel_pore` (proxy for ComEC/ComEA) + `:transmembrane_anchor` (proxy for type IV pseudopilus) + `:ligand_sensor` (proxy for ComX / induction signal). Score = `min(1.0, geom_mean(n_channel × n_membrane × n_sensor) × 0.2)`. Effective gating threshold 0.10. A naïve genome → competence 0.0 (no free uptake).
+- **`HGT.Channel.Transformation.step/4`** (in the `Tick.step_hgt` pipeline, between conjugation and induction): for each competent recipient, iterates over the `dna_pool` of the phase, computes `p_uptake = 0.0006 × competence × fragment.abundance` (cap 0.20), R-M gating via `HGT.Defense.restriction_check/3` with `fragment.methylation_profile`, positional homologous recombination (allelic replacement: gene at position *i* of the donor → position *i* of the recipient if both indices exist).
+- **Self-uptake excluded**: `fragment.origin_lineage_id == recipient.id` → rejected (deterministic no-op, prevents inflation).
+- **Conservation**: each gate event (digestion, uptake, or homology rejection) consumes one unit of `fragment.abundance`. Fragments at abundance 0 are pruned.
+- **Decay**: `Phase.dilute/1` applies the dilution rate to fragments as for free virions; implicit ageing via `decay_age` (prepared for Phase 18 refinement if accelerated decay is needed).
+- **Audit log**: existing schema; `:transformation_event` events will be wired in Phase 16 with the `HGT.Channel` behaviour.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).

@@ -398,6 +398,16 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Phenotype esteso** (Phase 12): `restriction_profile :: [signal_key]` e `methylation_profile :: [signal_key]` derivati da composizione di geni con `dna_binding + catalytic_site` co-occorrenti.
 - **Audit log mobile_elements**: schema esistente; il write path per gli eventi del ciclo fagico (`:phage_infection`, `:rm_digestion`) sarà cablato in Fase 16 con il behaviour `HGT.Channel`.
 
+##### Fase 13 — Trasformazione naturale
+
+- **DNA libero come substrato** (`Arkea.Sim.HGT.DnaFragment`): pool di frammenti per fase (`Phase.dna_pool :: %{fragment_id => DnaFragment.t()}`) con `genes` (cromosoma del lisato), `methylation_profile` (host modification ereditato), `abundance`, `decay_age`, `origin_lineage_id`. Sources: lisi fagica (`HGT.Phage.lytic_burst` deposita il cromosoma della cellula lisata); future Fasi 14+ aggiungeranno lisi alla divisione.
+- **Competenza emergente** (`Phenotype.competence_score :: 0.0..1.0`): non-zero solo se il genoma esprime la triade Phase-13 — `:channel_pore` (proxy ComEC/ComEA) + `:transmembrane_anchor` (proxy pseudopilus tipo IV) + `:ligand_sensor` (proxy ComX / segnale di induzione). Score = `min(1.0, geom_mean(n_channel × n_membrane × n_sensor) × 0.2)`. Soglia di gating effettiva 0.10. Genoma "naïf" → competence 0.0 (niente uptake gratuito).
+- **`HGT.Channel.Transformation.step/4`** (nel pipeline `Tick.step_hgt` tra coniugazione e induzione): per ogni recipient competente, scorre il `dna_pool` della fase, calcola `p_uptake = 0.0006 × competence × fragment.abundance` (cap 0.20), gating R-M via `HGT.Defense.restriction_check/3` con `fragment.methylation_profile`, ricombinazione omologa posizionale (allelic replacement: gene a posizione *i* del donor → posizione *i* del recipient se entrambi gli indici esistono).
+- **Self-uptake escluso**: `fragment.origin_lineage_id == recipient.id` → rifiutato (no-op deterministico, evita inflazione).
+- **Conservazione**: ogni evento di gate (digestione o uptake o rifiuto omologia) consuma una unit di `fragment.abundance`. Fragments a abundance 0 sono potati.
+- **Decay**: `Phase.dilute/1` applica il dilution rate ai frammenti come per i virioni; ageing implicito via `decay_age` (preparato per refinement Fase 18 se servirà decay accelerato).
+- **Audit log**: schema esistente; eventi `:transformation_event` saranno cablati in Fase 16 con il behaviour `HGT.Channel`.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).
