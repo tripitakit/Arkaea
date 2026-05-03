@@ -240,7 +240,8 @@ defmodule Arkea.Sim.HGT.PhageTest do
 
       {_lineages_out, _phase_out, children, _rng_out} =
         Enum.reduce(1..50, {[lineage_recipient], pumped_phase, [], rng1}, fn _i,
-                                                                             {ls, ph, acc_children,
+                                                                             {ls, ph,
+                                                                              acc_children,
                                                                               acc_rng} ->
           {ls_out, ph_out, new_children, rng_out} =
             Phage.infection_step(ls, ph, 1, acc_rng)

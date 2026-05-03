@@ -59,8 +59,7 @@ defmodule ArkeaWeb.GameChrome do
               href={~p"/players/log-out"}
               style="color: var(--sim-muted); font-size: var(--text-sm); padding: 0.5rem 0.75rem; border-radius: 0.5rem;"
             >
-              <span class="hero-arrow-right-on-rectangle w-4 h-4"></span>
-              Log out
+              <span class="hero-arrow-right-on-rectangle w-4 h-4"></span> Log out
             </.link>
           </li>
         </ul>

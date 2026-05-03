@@ -425,7 +425,13 @@ defmodule Arkea.Sim.HGT.Phage do
             decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
 
           :generalized_transduction ->
-            run_transducing_integration(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+            run_transducing_integration(
+              phage_id,
+              virion,
+              recipient,
+              tick,
+              {ls, ph, children, rng1}
+            )
 
           # Specialised transduction: Phase 16 stretch goal — the
           # virion carries the prophage cassette plus adjacent
@@ -491,11 +497,25 @@ defmodule Arkea.Sim.HGT.Phage do
     if roll < p_lytic do
       run_immediate_lysis(phage_id, virion, recipient, cassette, tick, {ls, ph, children, rng1})
     else
-      run_lysogenic_integration(phage_id, virion, recipient, cassette, tick, {ls, ph, children, rng1})
+      run_lysogenic_integration(
+        phage_id,
+        virion,
+        recipient,
+        cassette,
+        tick,
+        {ls, ph, children, rng1}
+      )
     end
   end
 
-  defp run_lysogenic_integration(phage_id, _virion, recipient, cassette, tick, {ls, ph, children, rng}) do
+  defp run_lysogenic_integration(
+         phage_id,
+         _virion,
+         recipient,
+         cassette,
+         tick,
+         {ls, ph, children, rng}
+       ) do
     new_genome = Genome.integrate_prophage(recipient.genome, cassette)
     child_tick = max(tick + 1, recipient.created_at_tick + 1)
     child_abundances = %{ph.name => 5}
@@ -558,7 +578,10 @@ defmodule Arkea.Sim.HGT.Phage do
         %{phase | phage_pool: Map.delete(pool, phage_id)}
 
       %Virion{} = virion ->
-        %{phase | phage_pool: Map.put(pool, phage_id, %{virion | abundance: virion.abundance - 1})}
+        %{
+          phase
+          | phage_pool: Map.put(pool, phage_id, %{virion | abundance: virion.abundance - 1})
+        }
     end
   end
 

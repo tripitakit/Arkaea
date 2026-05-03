@@ -470,6 +470,18 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Mixing event Poisson** (`Tick.step_mixing_event`): roll Bernoulli per tick contro `@mixing_event_probability = 1.0e-4`. Su hit: redistribuzione uniforme delle abbondanze del lignaggio across phases (analogue di tempesta / sediment turnover / mescolamento intestinale) + omogeneizzazione di metabolite_pool e signal_pool. No-op su biotopi mono-fase. RNG-frugal: il roll consuma un solo `:rand.uniform_s` per tick. Niente actor / payload (è una disturbance naturale), distinto dall'intervention `:mixing_event` player-triggered che resta disponibile via `Arkea.Sim.Intervention`.
 - **Pipeline `Tick`**: nuovo `step_mixing_event` tra `step_lysis` e `step_pruning` (mescolamento dopo che le morti sono state contate, prima del cap-enforcement). Sequence finale: `step_metabolism → step_xenobiotic → step_biomass → step_signaling → step_bacteriocin → step_expression → step_cell_events → step_dna_damage → step_hgt → step_phage_infection → step_environment → step_lysis → step_mixing_event → step_pruning`.
 
+##### Fase 19 — Community Mode (sim core)
+
+- **`Lineage.original_seed_id :: binary() | nil`**: tag opzionale che identifica il *founder seed* da cui un lignaggio discende. Propagato automaticamente attraverso `new_child/4` — quindi attraverso ogni evento riproduttivo (mutation, fission, conjugation, transformation, lysogenic / transducing integration). `nil` per residenti pre-Phase-19 o wild biotopes. Non altera la dinamica della simulazione: è puramente una *audit / analytics tag* per ricostruire la genealogia di community-mode senza traversare l'albero dei `parent_id`.
+- **`Arkea.Game.SeedLibrary`**: store in-memory player-side delle progettazioni di seed (cap `@max_size = 12` entries). API `new/0`, `save/3` (con check duplicate-name e cap), `delete/2`, `entries/1`, `fetch/2`. La persistenza Ecto-backed (`player_seeds` table) è riservata al PR runtime che cabla la LiveView Seed Lab; il sim core consuma solo il value type `entry()`.
+- **`Arkea.Game.CommunityLab.provision_community/3`**: API pura che prende una lista di `SeedLibrary.entry()` e produce una lista di founder lineages indipendenti, ciascuno taggato con `original_seed_id` derivato dall'entry. Vincoli:
+  - cap `@max_community_seeds = 3` (anti-deck-building);
+  - rifiuta duplicate-id;
+  - founders hanno `clade_ref_id` distinti (clades indipendenti).
+- **Audit log estensione**: `:lineage_born` e `:hgt_transfer` ora portano `original_seed_id` nel payload. `:community_provisioned` event emesso da `CommunityLab.provision_community/3` con la lista di seed/founder ids — fluisce attraverso il catchall `Atom.to_string` dell'AuditWriter. Cross-clade HGT detection è derivabile post-hoc dai payload `:hgt_transfer` (recipient_seed_id) + lookup donor (parent_id graph) — niente nuovo event type richiesto.
+- **Anti-deck-building gating** (player_progression milestones): pianificato come schema separato `Arkea.Game.PlayerProgression` cablato alla UI runtime; non parte del sim core.
+- **UI viewport changes** (per-founder palette, lineage board filter): pianificate ma rinviate — il sim core ha tutta l'informazione necessaria via `lineage.original_seed_id` per la rendering layer.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).

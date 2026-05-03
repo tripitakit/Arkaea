@@ -211,7 +211,10 @@ defmodule ArkeaWeb.SeedLabLive do
           </div>
         </section>
 
-        <div class="sim-main-grid mt-6" style="grid-template-columns: minmax(0, 0.9fr) minmax(21rem, 1.1fr);">
+        <div
+          class="sim-main-grid mt-6"
+          style="grid-template-columns: minmax(0, 0.9fr) minmax(21rem, 1.1fr);"
+        >
           <section class="sim-card seed-form-card">
             <div class="sim-card__header">
               <div>
@@ -443,8 +446,7 @@ defmodule ArkeaWeb.SeedLabLive do
                   phx-click="toggle_inspector"
                   style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; color: #67e8f9;"
                 >
-                  Gene inspector
-                  <span>{if @inspector_expanded, do: "−", else: "+"}</span>
+                  Gene inspector <span>{if @inspector_expanded, do: "−", else: "+"}</span>
                 </button>
 
                 <%= if @inspector_expanded do %>

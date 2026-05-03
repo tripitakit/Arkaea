@@ -116,7 +116,11 @@ defmodule ArkeaWeb.SimLive do
   end
 
   def handle_event("sort_lineages", %{"by" => field}, socket) do
-    sort = if field in ~w[abundance growth repair born], do: String.to_existing_atom(field), else: :abundance
+    sort =
+      if field in ~w[abundance growth repair born],
+        do: String.to_existing_atom(field),
+        else: :abundance
+
     {:noreply, assign(socket, lineage_sort: sort)}
   end
 
@@ -268,15 +272,24 @@ defmodule ArkeaWeb.SimLive do
       <span
         class="biotope-header__dot"
         style={"background: #{archetype_color(@sim_state.archetype)}"}
-      ></span>
+      >
+      </span>
       <span class="biotope-header__name">{phase_label(@sim_state.archetype)}</span>
       <div class="biotope-header__chips">
         <.header_chip label="tick" value={@sim_state.tick_count} tone="gold" />
         <.header_chip label="lineages" value={@lineage_count} tone="teal" />
         <.header_chip label="N" value={format_compact(@total_population)} tone="teal" />
         <.header_chip label="phases" value={@phase_count} tone="slate" />
-        <.header_chip label="stream" value={if(@running, do: "live", else: "shell")} tone={if @running, do: "green", else: "amber"} />
-        <.header_chip label="budget" value={@budget_label} tone={if @intervention_status.allowed?, do: "green", else: "amber"} />
+        <.header_chip
+          label="stream"
+          value={if(@running, do: "live", else: "shell")}
+          tone={if @running, do: "green", else: "amber"}
+        />
+        <.header_chip
+          label="budget"
+          value={@budget_label}
+          tone={if @intervention_status.allowed?, do: "green", else: "amber"}
+        />
       </div>
       <button
         type="button"
@@ -301,7 +314,10 @@ defmodule ArkeaWeb.SimLive do
 
   defp scene_panel(assigns) do
     ~H"""
-    <section class="sim-card sim-scene-card" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+    <section
+      class="sim-card sim-scene-card"
+      style="flex: 1; min-height: 0; display: flex; flex-direction: column;"
+    >
       <div
         class="sim-scene-frame"
         style="flex: 1; min-height: 0;"
@@ -329,7 +345,9 @@ defmodule ArkeaWeb.SimLive do
           <span class="sim-phase-tab__swatch" style={"background: #{phase_color(phase.name)}"}></span>
           <span class="label">{phase_label(phase.name)}</span>
           <span class="meta">
-            T {format_float(phase.temperature, 1)}°C &nbsp;pH {format_float(phase.ph, 1)} &nbsp;N {format_compact(phase_population(@sim_state.lineages, phase.name))}
+            T {format_float(phase.temperature, 1)}°C &nbsp;pH {format_float(phase.ph, 1)} &nbsp;N {format_compact(
+              phase_population(@sim_state.lineages, phase.name)
+            )}
           </span>
         </button>
       </div>
@@ -339,7 +357,11 @@ defmodule ArkeaWeb.SimLive do
 
   defp phase_inspector(assigns) do
     phase = selected_phase(assigns.sim_state, assigns.selected_phase_name)
-    phase_lineages = phase && Enum.filter(assigns.sim_state.lineages, &(Lineage.abundance_in(&1, phase.name) > 0))
+
+    phase_lineages =
+      phase &&
+        Enum.filter(assigns.sim_state.lineages, &(Lineage.abundance_in(&1, phase.name) > 0))
+
     total_population = phase && phase_population(assigns.sim_state.lineages, phase.name)
     richness = phase && length(phase_lineages)
     shannon = phase && shannon_diversity(phase_lineages, phase.name)
@@ -425,7 +447,10 @@ defmodule ArkeaWeb.SimLive do
 
     ~H"""
     <dialog id="topology-modal" class="modal">
-      <div class="modal-box biotope-modal" style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);">
+      <div
+        class="modal-box biotope-modal"
+        style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);"
+      >
         <form method="dialog">
           <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
         </form>
@@ -581,7 +606,9 @@ defmodule ArkeaWeb.SimLive do
               <tr :for={entry <- @operator_log}>
                 <td style="font-size: var(--text-sm)">{entry.kind}</td>
                 <td style="font-size: var(--text-sm); color: var(--sim-muted)">{entry.scope}</td>
-                <td style="font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--sim-muted)">{entry.tick || "?"}</td>
+                <td style="font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--sim-muted)">
+                  {entry.tick || "?"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -595,17 +622,28 @@ defmodule ArkeaWeb.SimLive do
     lineages =
       case assigns.lineage_sort do
         :growth ->
-          Enum.sort_by(assigns.sim_state.lineages, fn l ->
-            phenotype = Map.get(assigns.phenotype_cache, l.id)
-            if phenotype, do: phenotype.base_growth_rate, else: 0.0
-          end, :desc)
+          Enum.sort_by(
+            assigns.sim_state.lineages,
+            fn l ->
+              phenotype = Map.get(assigns.phenotype_cache, l.id)
+              if phenotype, do: phenotype.base_growth_rate, else: 0.0
+            end,
+            :desc
+          )
+
         :repair ->
-          Enum.sort_by(assigns.sim_state.lineages, fn l ->
-            phenotype = Map.get(assigns.phenotype_cache, l.id)
-            if phenotype, do: phenotype.repair_efficiency, else: 0.0
-          end, :desc)
+          Enum.sort_by(
+            assigns.sim_state.lineages,
+            fn l ->
+              phenotype = Map.get(assigns.phenotype_cache, l.id)
+              if phenotype, do: phenotype.repair_efficiency, else: 0.0
+            end,
+            :desc
+          )
+
         :born ->
           Enum.sort_by(assigns.sim_state.lineages, & &1.created_at_tick, :asc)
+
         _ ->
           Enum.sort_by(assigns.sim_state.lineages, &Lineage.total_abundance/1, :desc)
       end
@@ -634,22 +672,22 @@ defmodule ArkeaWeb.SimLive do
               <th>Phase</th>
               <th>
                 <button type="button" phx-click="sort_lineages" phx-value-by="abundance">
-                  N <%= if @lineage_sort == :abundance, do: "↓" %>
+                  N {if @lineage_sort == :abundance, do: "↓"}
                 </button>
               </th>
               <th>
                 <button type="button" phx-click="sort_lineages" phx-value-by="growth">
-                  µ (h⁻¹) <%= if @lineage_sort == :growth, do: "↓" %>
+                  µ (h⁻¹) {if @lineage_sort == :growth, do: "↓"}
                 </button>
               </th>
               <th>
                 <button type="button" phx-click="sort_lineages" phx-value-by="repair">
-                  ε <%= if @lineage_sort == :repair, do: "↓" %>
+                  ε {if @lineage_sort == :repair, do: "↓"}
                 </button>
               </th>
               <th>
                 <button type="button" phx-click="sort_lineages" phx-value-by="born">
-                  Born <%= if @lineage_sort == :born, do: "↑" %>
+                  Born {if @lineage_sort == :born, do: "↑"}
                 </button>
               </th>
             </tr>
@@ -715,12 +753,20 @@ defmodule ArkeaWeb.SimLive do
           <div class="sim-abundance-bar__track" style="min-width: 3rem;">
             <div class="sim-abundance-bar__fill" style={"width: #{@pct}%; background: #{@color}"} />
           </div>
-          <span class="sim-abundance-bar__value" style="font-size: var(--text-sm);">{@abundance}</span>
+          <span class="sim-abundance-bar__value" style="font-size: var(--text-sm);">
+            {@abundance}
+          </span>
         </div>
       </td>
-      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">{@growth_str}</td>
-      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">{@repair_str}</td>
-      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm); color: var(--sim-muted);">{@lineage.created_at_tick}</td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">
+        {@growth_str}
+      </td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm);">
+        {@repair_str}
+      </td>
+      <td style="padding: 0.45rem 0.5rem; font-variant-numeric: tabular-nums; font-size: var(--text-sm); color: var(--sim-muted);">
+        {@lineage.created_at_tick}
+      </td>
     </tr>
     """
   end
@@ -736,7 +782,9 @@ defmodule ArkeaWeb.SimLive do
           <div class="sim-card__eyebrow">Chemistry</div>
           <h2 class="sim-card__title">Metabolite pools</h2>
         </div>
-        <div class="sim-card__meta">{length(@sim_state.phases)} phases × {length(@chem.metabolites)} metabolites</div>
+        <div class="sim-card__meta">
+          {length(@sim_state.phases)} phases × {length(@chem.metabolites)} metabolites
+        </div>
       </div>
 
       <%= if @chem.rows == [] do %>
@@ -769,7 +817,9 @@ defmodule ArkeaWeb.SimLive do
           <span :for={phase <- @sim_state.phases} class="sim-token sim-token--ghost">
             <span class="sim-token__label">{phase_label(phase.name)}</span>
             <span class="sim-token__value">
-              sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(sum_phage_pool(phase.phage_pool))}
+              sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(
+                sum_phage_pool(phase.phage_pool)
+              )}
             </span>
           </span>
         </div>

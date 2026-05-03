@@ -228,7 +228,8 @@ defmodule Arkea.Sim.Tick do
     primary_phase_for_lineage = primary_phase_index(lineages, phases)
 
     # 1. Apply binding-driven damage to atp_yield_by_lineage.
-    new_yields = apply_drug_damage(state.atp_yield_by_lineage, phenotypes, primary_phase_for_lineage, phases)
+    new_yields =
+      apply_drug_damage(state.atp_yield_by_lineage, phenotypes, primary_phase_for_lineage, phases)
 
     # 2. Aggregate hydrolase-driven degradation per phase.
     new_phases = degrade_phase_pools(phases, lineages, phenotypes)
@@ -980,6 +981,7 @@ defmodule Arkea.Sim.Tick do
           payload: %{
             lineage_id: l.id,
             parent_id: l.parent_id,
+            original_seed_id: l.original_seed_id,
             tick: new_state.tick_count
           }
         }
@@ -1020,6 +1022,7 @@ defmodule Arkea.Sim.Tick do
           payload: %{
             lineage_id: new_l.id,
             parent_id: new_l.parent_id,
+            original_seed_id: new_l.original_seed_id,
             plasmids_gained: gain,
             tick: tick
           }
@@ -1172,7 +1175,12 @@ defmodule Arkea.Sim.Tick do
 
   # Accumulate one lineage's metabolite uptake and ATP yield into the running
   # totals for a phase. Returns {updated_total_consumed, updated_phase_yields}.
-  defp accumulate_lineage_uptake(lineage, phase, phenotypes, {acc_consumed, acc_yields, acc_uptake}) do
+  defp accumulate_lineage_uptake(
+         lineage,
+         phase,
+         phenotypes,
+         {acc_consumed, acc_yields, acc_uptake}
+       ) do
     abundance = Map.get(lineage.abundance_by_phase, phase.name, 0)
     phenotype = Map.get(phenotypes, lineage.id)
 
@@ -1194,9 +1202,12 @@ defmodule Arkea.Sim.Tick do
 
       new_consumed = Map.merge(acc_consumed, uptake, fn _k, total, more -> total + more end)
       new_yields = Map.update(acc_yields, lineage.id, atp, fn prev -> prev + atp end)
-      new_uptake = Map.update(acc_uptake, lineage.id, uptake, fn prev_uptake ->
-        Map.merge(prev_uptake, uptake, fn _met, a, b -> a + b end)
-      end)
+
+      new_uptake =
+        Map.update(acc_uptake, lineage.id, uptake, fn prev_uptake ->
+          Map.merge(prev_uptake, uptake, fn _met, a, b -> a + b end)
+        end)
+
       {new_consumed, new_yields, new_uptake}
     else
       {acc_consumed, acc_yields, acc_uptake}
@@ -1288,8 +1299,10 @@ defmodule Arkea.Sim.Tick do
             mu_per_cell =
               0.01 *
                 (1.0 - phenotype.repair_efficiency) *
-                if(Mutator.sos_active?(parent.dna_damage), do: Mutator.sos_mutation_amplifier(),
-                   else: 1.0)
+                if(Mutator.sos_active?(parent.dna_damage),
+                  do: Mutator.sos_mutation_amplifier(),
+                  else: 1.0
+                )
 
             genome_size = max(child_genome.gene_count, 1)
             p_lethal = Mutator.error_catastrophe_lethality(mu_per_cell, genome_size)

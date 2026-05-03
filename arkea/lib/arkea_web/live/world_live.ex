@@ -149,7 +149,8 @@ defmodule ArkeaWeb.WorldLive do
                       :for={{archetype, count} <- @overview.archetype_breakdown}
                       style={"flex: #{count}; background: #{archetype_color(archetype)}; min-width: 4px;"}
                       title={"#{archetype_label(archetype)}: #{count}"}
-                    ></div>
+                    >
+                    </div>
                   </div>
                   <div class="sim-token-cloud mt-2">
                     <span
@@ -157,7 +158,9 @@ defmodule ArkeaWeb.WorldLive do
                       class="sim-token sim-token--ghost"
                       style={"border-left: 3px solid #{archetype_color(archetype)}; border-radius: 0 999px 999px 0; padding-left: 0.5rem;"}
                     >
-                      <span class="sim-token__label" style="font-size: 0.68rem;">{archetype_label(archetype)}</span>
+                      <span class="sim-token__label" style="font-size: 0.68rem;">
+                        {archetype_label(archetype)}
+                      </span>
                       <span class="sim-token__value">{count}</span>
                     </span>
                   </div>
@@ -199,7 +202,8 @@ defmodule ArkeaWeb.WorldLive do
                   <tr :for={biotope <- @overview.biotopes}>
                     <td>
                       <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span style={"display: inline-block; width: 3px; height: 2rem; border-radius: 999px; background: #{archetype_color(biotope.archetype)}; flex-shrink: 0;"}></span>
+                        <span style={"display: inline-block; width: 3px; height: 2rem; border-radius: 999px; background: #{archetype_color(biotope.archetype)}; flex-shrink: 0;"}>
+                        </span>
                         <div>
                           <div class="world-table__title">{archetype_label(biotope.archetype)}</div>
                           <div class="sim-lineage-id__sub">{short_id(biotope.id)}</div>
@@ -214,9 +218,15 @@ defmodule ArkeaWeb.WorldLive do
                         {ownership_label(biotope.ownership)}
                       </span>
                     </td>
-                    <td style="color: var(--sim-muted); font-size: var(--text-sm);">{zone_label(biotope.zone)}</td>
-                    <td style="font-variant-numeric: tabular-nums;">{format_population(biotope.total_population)}</td>
-                    <td style="font-variant-numeric: tabular-nums; color: var(--sim-muted);">{biotope.tick_count}</td>
+                    <td style="color: var(--sim-muted); font-size: var(--text-sm);">
+                      {zone_label(biotope.zone)}
+                    </td>
+                    <td style="font-variant-numeric: tabular-nums;">
+                      {format_population(biotope.total_population)}
+                    </td>
+                    <td style="font-variant-numeric: tabular-nums; color: var(--sim-muted);">
+                      {biotope.tick_count}
+                    </td>
                     <td>
                       <.link href={~p"/biotopes/#{biotope.id}"} class="world-table__link">
                         <span class="hero-arrow-top-right-on-square w-4 h-4"></span>

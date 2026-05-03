@@ -201,6 +201,7 @@ defmodule Arkea.Sim.XenobioticTest do
       # injected. We are not testing growth here — only drug
       # degradation by step_xenobiotic across many ticks.
       phase_name = :surface
+
       phase =
         Phase.new(phase_name, dilution_rate: 0.0)
         |> Phase.update_metabolite(:glucose, 1_000.0)

@@ -91,7 +91,8 @@ defmodule Arkea.Sim.Biomass do
     dna_capability = phenotype.repair_efficiency
 
     progress = %{
-      membrane: clamp(@per_tick_progress_max * membrane_capability * budget, 0.0, @per_tick_progress_max),
+      membrane:
+        clamp(@per_tick_progress_max * membrane_capability * budget, 0.0, @per_tick_progress_max),
       wall:
         clamp(
           @per_tick_progress_max * wall_capability * budget * elemental,

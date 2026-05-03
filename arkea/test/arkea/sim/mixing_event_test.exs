@@ -73,7 +73,10 @@ defmodule Arkea.Sim.MixingEventTest do
              "could not find an RNG seed that triggers the event in 0..200_000"
 
       forced_rng =
-        :rand.seed_s(:exsss, {seed_with_event_fire, seed_with_event_fire + 1, seed_with_event_fire + 2})
+        :rand.seed_s(
+          :exsss,
+          {seed_with_event_fire, seed_with_event_fire + 1, seed_with_event_fire + 2}
+        )
 
       state_with_seed = %{state | rng_seed: forced_rng}
       mixed = Tick.step_mixing_event(state_with_seed)

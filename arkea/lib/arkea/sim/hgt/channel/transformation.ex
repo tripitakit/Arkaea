@@ -116,7 +116,8 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
 
   defp do_step(lineages, competent, phase, tick, rng) do
     Enum.reduce(competent, {lineages, phase, [], rng}, fn recipient, acc ->
-      Enum.reduce(acc |> elem(1) |> Map.fetch!(:dna_pool), acc, fn {fragment_id, fragment}, inner_acc ->
+      Enum.reduce(acc |> elem(1) |> Map.fetch!(:dna_pool), acc, fn {fragment_id, fragment},
+                                                                   inner_acc ->
         attempt_uptake(fragment_id, fragment, recipient, tick, inner_acc)
       end)
     end)
@@ -149,7 +150,14 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
     if roll >= p_uptake do
       {ls, ph, children, rng1}
     else
-      run_rm_gate(fragment_id, fragment, current_recipient, recipient_phenotype, tick, {ls, ph, children, rng1})
+      run_rm_gate(
+        fragment_id,
+        fragment,
+        current_recipient,
+        recipient_phenotype,
+        tick,
+        {ls, ph, children, rng1}
+      )
     end
   end
 
@@ -253,7 +261,10 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
         %{phase | dna_pool: Map.delete(pool, fragment_id)}
 
       %DnaFragment{} = fragment ->
-        %{phase | dna_pool: Map.put(pool, fragment_id, %{fragment | abundance: fragment.abundance - 1})}
+        %{
+          phase
+          | dna_pool: Map.put(pool, fragment_id, %{fragment | abundance: fragment.abundance - 1})
+        }
     end
   end
 

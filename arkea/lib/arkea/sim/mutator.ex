@@ -216,7 +216,13 @@ defmodule Arkea.Sim.Mutator do
   """
   @spec dna_damage_increment(float(), non_neg_integer(), float()) :: float()
   def dna_damage_increment(repair_efficiency, replications, current_damage),
-    do: dna_damage_increment(repair_efficiency, replications, max(replications * 5, 1), current_damage)
+    do:
+      dna_damage_increment(
+        repair_efficiency,
+        replications,
+        max(replications * 5, 1),
+        current_damage
+      )
 
   @doc """
   Apply per-tick decay to a `dna_damage` value, clamped at 0.

@@ -350,7 +350,18 @@ defmodule Arkea.Sim.Migration do
   defp move_phase_pool(acc, source_id, source_phase, scores, pool, scale, kind) do
     Enum.reduce(pool, acc, fn entry, transfer_acc ->
       {key, amount, virion} = pool_entry(kind, entry)
-      move_pool_key(transfer_acc, source_id, source_phase, scores, kind, key, amount, scale, virion)
+
+      move_pool_key(
+        transfer_acc,
+        source_id,
+        source_phase,
+        scores,
+        kind,
+        key,
+        amount,
+        scale,
+        virion
+      )
     end)
   end
 
@@ -369,7 +380,16 @@ defmodule Arkea.Sim.Migration do
     if zero_amount?(amount) or zero_amount?(total_budget) do
       acc
     else
-      distribute_pool_budget(acc, source_id, source_phase, scores, key, total_budget, kind, virion)
+      distribute_pool_budget(
+        acc,
+        source_id,
+        source_phase,
+        scores,
+        key,
+        total_budget,
+        kind,
+        virion
+      )
     end
   end
 

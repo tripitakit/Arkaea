@@ -54,6 +54,19 @@ defmodule Arkea.Ecology.Lineage do
     `Arkea.Sim.Mutator.dna_damage_increment/3` for the per-tick
     formula and `Arkea.Sim.Mutator.sos_active?/1` for the threshold.
 
+  - `original_seed_id` — Phase 19 Community Mode tag
+    (`binary() | nil`). Identifies the *founder seed* whose
+    inoculation produced this lineage's clade. Propagated
+    automatically through every reproductive event (mutation,
+    fission, conjugation, transformation, lysogenic / transducing
+    integration). `nil` for residents that pre-existed the
+    Community-Mode bookkeeping (e.g. wild biotopes seeded before
+    Phase 19 schemata were active). Enables cladistic analytics
+    ("how much of the population still descends from Seed-A?")
+    without traversing the parent pointer tree, and is the key the
+    audit log uses to emit `:cross_clade_hgt` events when an HGT
+    event crosses founder lineages.
+
   ## Bookkeeping
 
   - `created_at_tick` — tick number of birth. Used for monotonicity
@@ -95,6 +108,7 @@ defmodule Arkea.Ecology.Lineage do
     field :created_at_tick, non_neg_integer()
     field :biomass, biomass(), default: %{membrane: 1.0, wall: 1.0, dna: 1.0}
     field :dna_damage, float(), default: 0.0
+    field :original_seed_id, binary() | nil, default: nil
   end
 
   @doc "Hard cap on `dna_damage`."
@@ -109,10 +123,18 @@ defmodule Arkea.Ecology.Lineage do
   Build a founder lineage (no parent, clade reference is itself).
 
   Pure. Validates the genome and abundances.
+
+  ## Options
+
+    * `:original_seed_id` — Phase 19 Community Mode tag identifying
+      the seed design this founder originated from. Defaults to
+      `nil` (untagged founder). When provided, descendants of this
+      lineage automatically inherit the value through `new_child/4`.
   """
-  @spec new_founder(Genome.t(), %{atom() => non_neg_integer()}, non_neg_integer()) :: t()
-  def new_founder(%Genome{} = genome, abundances, tick)
-      when is_map(abundances) and is_integer(tick) and tick >= 0 do
+  @spec new_founder(Genome.t(), %{atom() => non_neg_integer()}, non_neg_integer(), keyword()) ::
+          t()
+  def new_founder(%Genome{} = genome, abundances, tick, opts \\ [])
+      when is_map(abundances) and is_integer(tick) and tick >= 0 and is_list(opts) do
     unless Genome.valid?(genome) do
       raise ArgumentError, "genome must be valid"
     end
@@ -122,6 +144,11 @@ defmodule Arkea.Ecology.Lineage do
     end
 
     id = Arkea.UUID.v4()
+    seed_id = Keyword.get(opts, :original_seed_id)
+
+    unless seed_id == nil or is_binary(seed_id) do
+      raise ArgumentError, "original_seed_id must be a binary or nil"
+    end
 
     %__MODULE__{
       id: id,
@@ -133,7 +160,8 @@ defmodule Arkea.Ecology.Lineage do
       fitness_cache: nil,
       created_at_tick: tick,
       biomass: @full_biomass,
-      dna_damage: 0.0
+      dna_damage: 0.0,
+      original_seed_id: seed_id
     }
   end
 
@@ -172,7 +200,8 @@ defmodule Arkea.Ecology.Lineage do
       fitness_cache: nil,
       created_at_tick: tick,
       biomass: @full_biomass,
-      dna_damage: 0.0
+      dna_damage: 0.0,
+      original_seed_id: parent.original_seed_id
     }
   end
 
@@ -253,7 +282,8 @@ defmodule Arkea.Ecology.Lineage do
       {fn -> valid_abundances?(lineage.abundance_by_phase) end, :invalid_abundances},
       {fn -> valid_fitness?(lineage.fitness_cache) end, :invalid_fitness},
       {fn -> valid_biomass?(lineage.biomass) end, :invalid_biomass},
-      {fn -> valid_dna_damage?(lineage.dna_damage) end, :invalid_dna_damage}
+      {fn -> valid_dna_damage?(lineage.dna_damage) end, :invalid_dna_damage},
+      {fn -> valid_original_seed_id?(lineage.original_seed_id) end, :invalid_original_seed_id}
     ]
   end
 
@@ -274,6 +304,10 @@ defmodule Arkea.Ecology.Lineage do
 
   defp valid_dna_damage?(d) when is_float(d) and d >= 0.0 and d <= @dna_damage_max, do: true
   defp valid_dna_damage?(_), do: false
+
+  defp valid_original_seed_id?(nil), do: true
+  defp valid_original_seed_id?(s) when is_binary(s), do: true
+  defp valid_original_seed_id?(_), do: false
 
   # ----------------------------------------------------------------------
   # Private helpers

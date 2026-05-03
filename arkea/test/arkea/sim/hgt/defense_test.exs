@@ -45,7 +45,9 @@ defmodule Arkea.Sim.HGT.DefenseTest do
     property "no recipient restriction sites ⇒ always passed" do
       check all(
               donor_methyl <-
-                StreamData.list_of(StreamData.binary(min_length: 1, max_length: 10), max_length: 5),
+                StreamData.list_of(StreamData.binary(min_length: 1, max_length: 10),
+                  max_length: 5
+                ),
               seed_token <- StreamData.binary(min_length: 4, max_length: 16),
               max_runs: 100
             ) do
@@ -65,7 +67,10 @@ defmodule Arkea.Sim.HGT.DefenseTest do
               max_runs: 100
             ) do
         sites = Enum.uniq(raw_sites)
-        rng = Mutator.init_seed("rm-methyl-full-" <> Base.url_encode64(seed_token, padding: false))
+
+        rng =
+          Mutator.init_seed("rm-methyl-full-" <> Base.url_encode64(seed_token, padding: false))
+
         # Methylation set is a superset of restriction sites: the entire
         # recognition repertoire is "host-modified".
         methyl = sites ++ ["extra-methyl"]

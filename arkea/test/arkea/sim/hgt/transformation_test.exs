@@ -159,8 +159,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       rng = Mutator.init_seed("transformation-conservation")
 
       {_ls_out, phase_out, _children, _rng_out} =
-        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i,
-                                                             {ls, ph, ch, acc_rng} ->
+        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
           {ls_out, ph_out, new_children, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
@@ -187,8 +186,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       rng = Mutator.init_seed("transformation-self-uptake")
 
       {ls, ph, children, _rng} =
-        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i,
-                                                             {ls_in, ph_in, ch_in, acc_rng} ->
+        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i, {ls_in, ph_in, ch_in, acc_rng} ->
           {ls_out, ph_out, new_children, rng_out} =
             Transformation.step(ls_in, ph_in, 1, acc_rng)
 
@@ -219,8 +217,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       rng = Mutator.init_seed("transformation-allelic-swap")
 
       {_ls_out, _ph_out, children, _rng_out} =
-        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i,
-                                                             {ls, ph, ch, acc_rng} ->
+        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
           {ls_out, ph_out, new_children, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
@@ -269,8 +266,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       rng = Mutator.init_seed("transformation-rm-gate")
 
       {_ls, _ph, children, _rng} =
-        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i,
-                                                             {ls, ph, ch, acc_rng} ->
+        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
           {ls_out, ph_out, new_children, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
