@@ -52,12 +52,31 @@ defmodule Arkea.Sim.Phenotype do
 
   - `qs_receives` — list of `{signal_key, threshold}` from all `:ligand_sensor`
     domains. Used in Phase 7 to compute the σ-factor QS boost for `step_expression/1`.
+
+  - `restriction_profile` — list of `signal_key`s of restriction enzymes
+    encoded by the genome (Phase 12 — DESIGN.md Block 8). A gene is a
+    restriction enzyme when it contains *both* a `:dna_binding` and a
+    `:catalytic_site(reaction_class: :hydrolysis)` domain; the
+    catalytic site's `signal_key` is the recognition site. Used by
+    `Arkea.Sim.HGT.Defense.restriction_check/3` as an immunity gate
+    against incoming HGT payloads.
+
+  - `methylation_profile` — list of `signal_key`s of methylases (the M
+    component of an R-M system). A gene is a methylase when it contains
+    *both* a `:dna_binding` and a `:catalytic_site(reaction_class:
+    :isomerization)` domain; the catalytic site's `signal_key` is the
+    methylation site. Used by `Arkea.Sim.HGT.Defense.restriction_check/3`
+    via the *donor methylation* the payload carries — this is the
+    Arber-Dussoix host-modification mechanism: DNA replicated in a cell
+    that already methylates a recognition site is no longer cleaved by
+    that site's restriction enzyme.
   """
 
   use TypedStruct
 
   alias Arkea.Genome
   alias Arkea.Genome.Domain
+  alias Arkea.Genome.Gene
   alias Arkea.Sim.Metabolism
 
   typedstruct enforce: true do
@@ -71,6 +90,8 @@ defmodule Arkea.Sim.Phenotype do
     field :dna_binding_affinity, float()
     field :qs_produces, [{binary(), float()}], default: []
     field :qs_receives, [{binary(), float()}], default: []
+    field :restriction_profile, [binary()], default: []
+    field :methylation_profile, [binary()], default: []
   end
 
   @doc """
@@ -84,7 +105,67 @@ defmodule Arkea.Sim.Phenotype do
   @spec from_genome(Genome.t()) :: t()
   def from_genome(%Genome{} = genome) do
     domains = Genome.all_domains(genome)
-    aggregate(domains)
+    %{restriction_profile: rest, methylation_profile: meth} = rm_profiles(genome)
+
+    %{
+      aggregate(domains)
+      | restriction_profile: rest,
+        methylation_profile: meth
+    }
+  end
+
+  # Scan every gene for restriction-modification (R-M) signatures.
+  #
+  # A *restriction enzyme* is a gene with co-occurring `:dna_binding` and
+  # `:catalytic_site(reaction_class: :hydrolysis)` domains: the `signal_key`
+  # of the catalytic site is the cleavage recognition site.
+  #
+  # A *methylase* is the same construction with reaction_class
+  # `:isomerization` (modify rather than cleave): the `signal_key` is the
+  # protected recognition site that "imprints" host DNA.
+  #
+  # The two lists are independent because a gene can encode both activities,
+  # but typically R-M systems split them across two adjacent genes. Either
+  # split is supported here.
+  @spec rm_profiles(Genome.t()) :: %{
+          restriction_profile: [binary()],
+          methylation_profile: [binary()]
+        }
+  def rm_profiles(%Genome{} = genome) do
+    {rest, methyl} =
+      genome
+      |> Genome.all_genes()
+      |> Enum.reduce({[], []}, fn gene, {rest_acc, methyl_acc} ->
+        if gene_has_dna_binding?(gene) do
+          gene
+          |> catalytic_signal_keys_by_reaction(:hydrolysis)
+          |> Enum.reduce({rest_acc, methyl_acc}, fn key, {r, m} -> {[key | r], m} end)
+          |> then(fn {r, m} ->
+            keys = catalytic_signal_keys_by_reaction(gene, :isomerization)
+            {r, Enum.reduce(keys, m, fn key, acc -> [key | acc] end)}
+          end)
+        else
+          {rest_acc, methyl_acc}
+        end
+      end)
+
+    %{
+      restriction_profile: Enum.reverse(rest),
+      methylation_profile: Enum.reverse(methyl)
+    }
+  end
+
+  defp gene_has_dna_binding?(%Gene{domains: domains}) do
+    Enum.any?(domains, fn d -> d.type == :dna_binding end)
+  end
+
+  defp catalytic_signal_keys_by_reaction(%Gene{domains: domains}, reaction_class) do
+    domains
+    |> Enum.filter(fn d ->
+      d.type == :catalytic_site and d.params[:reaction_class] == reaction_class
+    end)
+    |> Enum.map(fn d -> d.params[:signal_key] end)
+    |> Enum.reject(&is_nil/1)
   end
 
   # ---------------------------------------------------------------------------

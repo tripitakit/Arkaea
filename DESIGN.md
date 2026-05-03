@@ -388,6 +388,16 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 - **CRISPR**: omesso dalla v1 (richiede memoria adattiva qualitativamente diversa). Riserva di estensione futura.
 - **Co-evoluzione**: i fagi mutano come gli Arkeon (stesso sistema generativo) → arms race genuino.
 
+##### Fase 12 — Stato implementativo
+
+- **Cassette profago** (`Genome.prophage()` → `%{genes, state, repressor_strength}`): il flag `state :: :lysogenic | :induced` rende esplicito il commit verso il ciclo litico; `repressor_strength :: float()` (0.0..1.0) modula la sensibilità all'induzione da stress: `p_induction = 0.03 × stress_factor × (1 − repressor_strength)`.
+- **Virioni liberi** (`Arkea.Sim.HGT.Virion`): pool di particelle persistenti per fase, con `genes` (cassette confezionata), `surface_signature` (chiave 4-codoni per receptor matching), `methylation_profile` (host modification ereditato), `decay_age`. Decadimento `Phage.decay_step/1` indipendente dalla dilution: `decay = 0.20 + 0.05 × decay_age`.
+- **`HGT.Phage.lytic_burst/5`**: produce virioni nel `phage_pool` della fase primaria (burst size emergente da `Σ multimerization_n` dei `:structural_fold` del cassette, range biologicamente plausibile 10–500); rilascia frammenti chromosomiali nel `dna_pool` della stessa fase (substrato per Fase 13 trasformazione); rimuove la cassette dal genome dell'ospite lisato.
+- **`HGT.Phage.infection_step/4`** (`Tick.step_phage_infection/1` nel pipeline): ogni virione tenta l'infection sui recipient compatibili nella stessa fase. Receptor matching via `surface_signature`. Gating uniforme via `HGT.Defense.restriction_check_virion/3`. Decisione lytic/lysogenic dal `repressor_strength` del cassette: alta repressione → lisogenia (child lineage con prophage integrato), bassa repressione → lisi immediata.
+- **`HGT.Defense.restriction_check/3`**: gate R-M generativo. Riconoscimento sito = `signal_key` del Catalytic site di un gene contenente sia `:dna_binding` che `:catalytic_site(reaction_class: :hydrolysis)` (restrizione) o `:isomerization` (metilazione). Bypass via metilazione del donor che condivide signal_key con l'enzima del recipient (Arber-Dussoix host-modification). Cleavage probabilistico (`@cleave_p = 0.70` per sito vulnerabile) per riprodurre l'escape baseline in vivo (Tock & Dryden 2005).
+- **Phenotype esteso** (Phase 12): `restriction_profile :: [signal_key]` e `methylation_profile :: [signal_key]` derivati da composizione di geni con `dna_binding + catalytic_site` co-occorrenti.
+- **Audit log mobile_elements**: schema esistente; il write path per gli eventi del ciclo fagico (`:phage_infection`, `:rm_digestion`) sarà cablato in Fase 16 con il behaviour `HGT.Channel`.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omesso (batteri immortali a questo livello di astrazione).

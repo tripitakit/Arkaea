@@ -26,6 +26,7 @@ defmodule Arkea.Sim.Migration do
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.HGT.Virion
   alias Arkea.Sim.Phenotype
 
   @default_base_flow 0.12
@@ -40,7 +41,8 @@ defmodule Arkea.Sim.Migration do
           lineage_templates: %{binary() => Lineage.t()},
           metabolite_deltas: %{atom() => %{atom() => float()}},
           signal_deltas: %{atom() => %{binary() => float()}},
-          phage_deltas: %{atom() => %{binary() => integer()}}
+          phage_deltas: %{atom() => %{binary() => integer()}},
+          phage_metadata: %{binary() => Virion.t()}
         }
 
   @doc "Empty transfer payload."
@@ -51,7 +53,8 @@ defmodule Arkea.Sim.Migration do
       lineage_templates: %{},
       metabolite_deltas: %{},
       signal_deltas: %{},
-      phage_deltas: %{}
+      phage_deltas: %{},
+      phage_metadata: %{}
     }
   end
 
@@ -345,18 +348,28 @@ defmodule Arkea.Sim.Migration do
        do: acc
 
   defp move_phase_pool(acc, source_id, source_phase, scores, pool, scale, kind) do
-    Enum.reduce(pool, acc, fn {key, amount}, transfer_acc ->
-      move_pool_key(transfer_acc, source_id, source_phase, scores, kind, key, amount, scale)
+    Enum.reduce(pool, acc, fn entry, transfer_acc ->
+      {key, amount, virion} = pool_entry(kind, entry)
+      move_pool_key(transfer_acc, source_id, source_phase, scores, kind, key, amount, scale, virion)
     end)
   end
 
-  defp move_pool_key(acc, source_id, source_phase, scores, kind, key, amount, scale) do
+  # Phage pool values are %Virion{} structs; abundance is read from the struct
+  # while the struct itself is threaded down to `put_phase_resource_delta/7`
+  # so destinations can seed new map entries with the same cassette /
+  # surface signature.
+  defp pool_entry(:phage, {key, %Virion{abundance: abundance} = virion}),
+    do: {key, abundance, virion}
+
+  defp pool_entry(_other, {key, amount}), do: {key, amount, nil}
+
+  defp move_pool_key(acc, source_id, source_phase, scores, kind, key, amount, scale, virion) do
     total_budget = scale_budget(amount, scale)
 
     if zero_amount?(amount) or zero_amount?(total_budget) do
       acc
     else
-      distribute_pool_budget(acc, source_id, source_phase, scores, key, total_budget, kind)
+      distribute_pool_budget(acc, source_id, source_phase, scores, key, total_budget, kind, virion)
     end
   end
 
@@ -367,7 +380,8 @@ defmodule Arkea.Sim.Migration do
          scores,
          key,
          total_budget,
-         kind
+         kind,
+         virion
        ) do
     neighbor_amounts =
       case kind do
@@ -386,14 +400,22 @@ defmodule Arkea.Sim.Migration do
         phase_weights = Enum.map(destination.phases, &phase_compatibility(source_phase, &1))
 
         transfer_acc
-        |> put_phase_resource_delta(source_id, source_phase.name, kind, key, negate(moved))
+        |> put_phase_resource_delta(
+          source_id,
+          source_phase.name,
+          kind,
+          key,
+          negate(moved),
+          virion
+        )
         |> put_destination_phase_resource_deltas(
           destination.id,
           destination.phases,
           phase_weights,
           kind,
           key,
-          moved
+          moved,
+          virion
         )
       end
     end)
@@ -406,7 +428,8 @@ defmodule Arkea.Sim.Migration do
          phase_weights,
          kind,
          key,
-         moved
+         moved,
+         virion
        ) do
     allocations =
       case kind do
@@ -419,7 +442,7 @@ defmodule Arkea.Sim.Migration do
       if zero_amount?(delta) do
         inner_acc
       else
-        put_phase_resource_delta(inner_acc, destination_id, phase_name, kind, key, delta)
+        put_phase_resource_delta(inner_acc, destination_id, phase_name, kind, key, delta, virion)
       end
     end)
   end
@@ -458,6 +481,8 @@ defmodule Arkea.Sim.Migration do
   end
 
   defp apply_phase_deltas(state, transfer) do
+    metadata = Map.get(transfer, :phage_metadata, %{})
+
     updated_phases =
       Enum.map(state.phases, fn phase ->
         metabolite_delta = Map.get(transfer.metabolite_deltas, phase.name, %{})
@@ -467,7 +492,7 @@ defmodule Arkea.Sim.Migration do
         phase
         |> apply_float_pool_delta(:metabolite_pool, metabolite_delta)
         |> apply_float_pool_delta(:signal_pool, signal_delta)
-        |> apply_integer_pool_delta(:phage_pool, phage_delta)
+        |> apply_phage_pool_delta(phage_delta, metadata)
       end)
 
     %{state | phases: updated_phases}
@@ -486,17 +511,45 @@ defmodule Arkea.Sim.Migration do
     Map.put(phase, field, updated_pool)
   end
 
-  defp apply_integer_pool_delta(%Phase{} = phase, _field, delta) when delta == %{}, do: phase
+  # Apply phage abundance deltas while preserving / seeding %Virion{} metadata.
+  #
+  # - For existing keys, the virion's `abundance` is updated by the delta and
+  #   the entry is dropped if the resulting abundance is zero.
+  # - For new keys (positive delta), the destination is seeded from
+  #   `metadata` (planning-side index of source virions). Without metadata
+  #   the delta is discarded — a destination cannot fabricate a virion
+  #   identity it never saw.
+  defp apply_phage_pool_delta(%Phase{} = phase, delta, _metadata) when delta == %{},
+    do: phase
 
-  defp apply_integer_pool_delta(%Phase{} = phase, field, delta) do
+  defp apply_phage_pool_delta(%Phase{phage_pool: pool} = phase, delta, metadata) do
     updated_pool =
-      Enum.reduce(delta, Map.fetch!(phase, field), fn {key, diff}, acc ->
-        Map.update(acc, key, max(diff, 0), fn current -> max(current + diff, 0) end)
+      Enum.reduce(delta, pool, fn {key, diff}, acc ->
+        merge_phage_delta(acc, key, diff, metadata)
       end)
-      |> Enum.reject(fn {_key, value} -> value == 0 end)
+      |> Enum.reject(fn {_key, %Virion{abundance: abundance}} -> abundance == 0 end)
       |> Map.new()
 
-    Map.put(phase, field, updated_pool)
+    %{phase | phage_pool: updated_pool}
+  end
+
+  defp merge_phage_delta(pool, key, diff, metadata) do
+    case Map.get(pool, key) do
+      %Virion{} = virion ->
+        Map.put(pool, key, Virion.set_abundance(virion, virion.abundance + diff))
+
+      nil when diff > 0 ->
+        case Map.get(metadata, key) do
+          %Virion{} = source_virion ->
+            Map.put(pool, key, Virion.set_abundance(source_virion, diff))
+
+          _ ->
+            pool
+        end
+
+      nil ->
+        pool
+    end
   end
 
   defp clone_lineage(template, abundances) do
@@ -539,17 +592,19 @@ defmodule Arkea.Sim.Migration do
     %{ensured | lineage_deltas: updated_deltas, lineage_templates: templates}
   end
 
-  defp put_phase_resource_delta(acc, biotope_id, phase_name, kind, key, delta) when delta != 0 do
+  defp put_phase_resource_delta(acc, biotope_id, phase_name, kind, key, delta, virion)
+       when delta != 0 do
     update_in(acc, [biotope_id], fn transfer ->
       transfer
       |> ensure_transfer()
-      |> do_put_phase_resource_delta(phase_name, kind, key, delta)
+      |> do_put_phase_resource_delta(phase_name, kind, key, delta, virion)
     end)
   end
 
-  defp put_phase_resource_delta(acc, _biotope_id, _phase_name, _kind, _key, _delta), do: acc
+  defp put_phase_resource_delta(acc, _biotope_id, _phase_name, _kind, _key, _delta, _virion),
+    do: acc
 
-  defp do_put_phase_resource_delta(transfer, phase_name, :metabolite, key, delta) do
+  defp do_put_phase_resource_delta(transfer, phase_name, :metabolite, key, delta, _virion) do
     %{
       transfer
       | metabolite_deltas:
@@ -557,18 +612,25 @@ defmodule Arkea.Sim.Migration do
     }
   end
 
-  defp do_put_phase_resource_delta(transfer, phase_name, :signal, key, delta) do
+  defp do_put_phase_resource_delta(transfer, phase_name, :signal, key, delta, _virion) do
     %{
       transfer
       | signal_deltas: update_phase_delta_map(transfer.signal_deltas, phase_name, key, delta)
     }
   end
 
-  defp do_put_phase_resource_delta(transfer, phase_name, :phage, key, delta) do
+  defp do_put_phase_resource_delta(transfer, phase_name, :phage, key, delta, virion) do
     %{
       transfer
-      | phage_deltas: update_phase_delta_map(transfer.phage_deltas, phase_name, key, delta)
+      | phage_deltas: update_phase_delta_map(transfer.phage_deltas, phase_name, key, delta),
+        phage_metadata: maybe_put_virion(transfer.phage_metadata, key, virion)
     }
+  end
+
+  defp maybe_put_virion(metadata, _key, nil), do: metadata
+
+  defp maybe_put_virion(metadata, key, %Virion{} = virion) do
+    Map.put_new(metadata, key, virion)
   end
 
   defp update_phase_delta_map(phase_map, phase_name, key, delta) do
@@ -591,7 +653,12 @@ defmodule Arkea.Sim.Migration do
         metabolite_deltas:
           merge_phase_resource_maps(existing.metabolite_deltas, incoming.metabolite_deltas),
         signal_deltas: merge_phase_resource_maps(existing.signal_deltas, incoming.signal_deltas),
-        phage_deltas: merge_phase_resource_maps(existing.phage_deltas, incoming.phage_deltas)
+        phage_deltas: merge_phase_resource_maps(existing.phage_deltas, incoming.phage_deltas),
+        phage_metadata:
+          Map.merge(
+            Map.get(existing, :phage_metadata, %{}),
+            Map.get(incoming, :phage_metadata, %{})
+          )
       }
     end)
   end

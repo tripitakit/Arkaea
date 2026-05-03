@@ -343,7 +343,7 @@ defmodule ArkeaWeb.SimLive do
     total_population = phase && phase_population(assigns.sim_state.lineages, phase.name)
     richness = phase && length(phase_lineages)
     shannon = phase && shannon_diversity(phase_lineages, phase.name)
-    phage_load = phase && round_metric(sum_pool(phase.phage_pool))
+    phage_load = phase && round_metric(sum_phage_pool(phase.phage_pool))
 
     assigns =
       assign(assigns,
@@ -769,7 +769,7 @@ defmodule ArkeaWeb.SimLive do
           <span :for={phase <- @sim_state.phases} class="sim-token sim-token--ghost">
             <span class="sim-token__label">{phase_label(phase.name)}</span>
             <span class="sim-token__value">
-              sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(sum_pool(phase.phage_pool))}
+              sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(sum_phage_pool(phase.phage_pool))}
             </span>
           </span>
         </div>
@@ -883,7 +883,7 @@ defmodule ArkeaWeb.SimLive do
             "lineageCount" => phase_richness(state.lineages, phase.name),
             "metaboliteLoad" => round_metric(sum_pool(phase.metabolite_pool)),
             "signalLoad" => round_metric(sum_pool(phase.signal_pool)),
-            "phageLoad" => round_metric(sum_pool(phase.phage_pool))
+            "phageLoad" => round_metric(sum_phage_pool(phase.phage_pool))
           }
         end),
       "lineages" =>
@@ -1073,6 +1073,12 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp sum_pool(map) when is_map(map), do: Enum.sum(Map.values(map))
+
+  defp sum_phage_pool(map) when is_map(map) do
+    map
+    |> Map.values()
+    |> Enum.reduce(0, fn %Arkea.Sim.HGT.Virion{abundance: a}, acc -> acc + a end)
+  end
 
   defp short_id(""), do: ""
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)

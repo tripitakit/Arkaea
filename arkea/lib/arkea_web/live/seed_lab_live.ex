@@ -1233,13 +1233,13 @@ defmodule ArkeaWeb.SeedLabLive do
     prophages =
       preview.genome.prophages
       |> Enum.with_index(1)
-      |> Enum.map(fn {genes, index} ->
+      |> Enum.map(fn {prophage, index} ->
         %{
           id: "prophage_#{index}",
           label: "Prophage #{index}",
           tone: "prophage",
           genes:
-            genes
+            prophage.genes
             |> Enum.with_index(1)
             |> Enum.map(fn {gene, gene_index} ->
               gene_view(

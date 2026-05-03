@@ -94,11 +94,21 @@ defmodule Arkea.Sim.MigrationTest do
   end
 
   test "metabolites, signals and phages follow the same edge graph" do
+    cassette_gene = Gene.from_domains([Domain.new([0, 0, 9], List.duplicate(8, 20))])
+
+    virion =
+      Arkea.Sim.HGT.Virion.new(
+        id: "phage-a",
+        genes: [cassette_gene],
+        abundance: 40,
+        created_at_tick: 0
+      )
+
     source_phase =
       Phase.new(:surface, dilution_rate: 0.0)
       |> Phase.update_metabolite(:glucose, 100.0)
       |> Phase.update_signal("sig-a", 50.0)
-      |> Map.put(:phage_pool, %{"phage-a" => 40})
+      |> Phase.add_virion(virion)
 
     source =
       build_state(
@@ -149,7 +159,11 @@ defmodule Arkea.Sim.MigrationTest do
 
     assert dst_phase.metabolite_pool == %{glucose: 100.0}
     assert dst_phase.signal_pool == %{"sig-a" => 50.0}
-    assert dst_phase.phage_pool == %{"phage-a" => 40}
+
+    assert match?(
+             %{"phage-a" => %Arkea.Sim.HGT.Virion{abundance: 40}},
+             dst_phase.phage_pool
+           )
   end
 
   defp build_state(opts) do

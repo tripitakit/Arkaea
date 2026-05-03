@@ -243,10 +243,15 @@ defmodule Arkea.Sim.HGTTest do
 
     rng = Mutator.init_seed("prophage-test")
 
-    # Run induction 200 times; P(no induction in 200 rolls at p=0.03) ≈ 0.0025
-    {lineages_after, _rng} =
-      Enum.reduce(1..200, {[lineage], rng}, fn _i, {ls, acc_rng} ->
-        HGT.induction_step(ls, atp_yields, phenotypes, acc_rng)
+    phase = surface_phase()
+
+    # Run induction 200 times; P(no induction in 200 rolls at p=0.015) ≈ 0.05
+    # Note: with the Phase 12 repressor_strength = 0.5 default, p_induction
+    # is halved compared to the pre-12 model, so the per-tick Bernoulli rate
+    # is ~0.015. After 200 rolls a single burst is expected with high prob.
+    {lineages_after, _phases_after, _rng} =
+      Enum.reduce(1..200, {[lineage], [phase], rng}, fn _i, {ls, ps, acc_rng} ->
+        HGT.induction_step(ls, ps, atp_yields, phenotypes, 0, acc_rng)
       end)
 
     final_abundance =

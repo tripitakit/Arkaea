@@ -42,8 +42,10 @@ defmodule Arkea.Sim.HGT do
   """
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Ecology.Phase
   alias Arkea.Genome
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.HGT.Phage
   alias Arkea.Sim.Intergenic
   alias Arkea.Sim.Phenotype
 
@@ -51,7 +53,6 @@ defmodule Arkea.Sim.HGT do
   @p_conj_max 0.3
   @p_induction_max 0.1
   @p_induction_base 0.03
-  @lysis_fraction 0.5
 
   # ---------------------------------------------------------------------------
   # Public API
@@ -127,33 +128,54 @@ defmodule Arkea.Sim.HGT do
   end
 
   @doc """
-  Prophage induction step.
+  Prophage induction step (Phase 12 — DESIGN.md Block 8).
 
-  For each lineage with at least one integrated prophage, compute a per-cassette
-  induction probability driven by metabolic stress. On induction, the lineage
-  loses `floor(abundance × 0.5)` cells (lytic burst).
+  For each lineage with at least one integrated prophage cassette in
+  `:lysogenic` state, compute a per-cassette induction probability driven
+  by metabolic stress. On induction, the cassette is committed to the
+  lytic cycle: `Arkea.Sim.HGT.Phage.lytic_burst/5` reduces the host
+  abundance, deposits free virions in the phase `phage_pool`, drops the
+  cassette from the host genome, and appends a chromosomal fragment to
+  the phase `dna_pool`.
 
-  Returns `{updated_lineages, new_rng}`.
+  Returns `{updated_lineages, updated_phases, new_rng}`.
 
   ## Stress formula
 
       energy_cost = phenotype.energy_cost  (0.0..5.0)
       stress_factor = max(0.0, 1.0 - atp_yield / max(energy_cost × 5.0, 0.1))
-      p_induction = clamp(0.03 × stress_factor, 0.0, 0.1)
+      p_induction = clamp(0.03 × stress_factor × (1 - repressor_strength), 0.0, 0.1)
 
-  When `atp_yield == 0.0` and `energy_cost > 0.0`, `stress_factor == 1.0` and
-  induction probability is at its maximum (`0.1` per cassette).
+  When `atp_yield == 0.0` and `energy_cost > 0.0`, `stress_factor == 1.0`
+  and induction probability is `0.03 × (1 - repressor_strength)` per
+  cassette. A high-repressor cassette (`repressor_strength = 1.0`) is
+  effectively immune to stress-driven induction; this gives selection a
+  handle on the lysogeny↔lysis trade-off.
   """
   @spec induction_step(
           lineages :: [Lineage.t()],
+          phases :: [Phase.t()],
           atp_yields :: %{binary() => float()},
           phenotypes :: %{binary() => Phenotype.t() | nil},
+          tick :: non_neg_integer(),
           rng :: :rand.state()
-        ) :: {[Lineage.t()], :rand.state()}
-  def induction_step(lineages, atp_yields, phenotypes, rng) do
-    Enum.map_reduce(lineages, rng, fn lineage, acc_rng ->
-      maybe_induce(lineage, atp_yields, phenotypes, acc_rng)
-    end)
+        ) :: {[Lineage.t()], [Phase.t()], :rand.state()}
+  def induction_step(lineages, phases, atp_yields, phenotypes, tick, rng) do
+    phases_by_name = Map.new(phases, fn p -> {p.name, p} end)
+
+    {updated_lineages, updated_phase_map, rng_out} =
+      Enum.reduce(lineages, {[], phases_by_name, rng}, fn lineage,
+                                                          {acc_lineages, acc_phases, acc_rng} ->
+        {lineage_out, acc_phases_out, acc_rng_out} =
+          maybe_induce(lineage, acc_phases, atp_yields, phenotypes, tick, acc_rng)
+
+        {[lineage_out | acc_lineages], acc_phases_out, acc_rng_out}
+      end)
+
+    new_phases =
+      Enum.map(phases, fn p -> Map.get(updated_phase_map, p.name, p) end)
+
+    {Enum.reverse(updated_lineages), new_phases, rng_out}
   end
 
   # ---------------------------------------------------------------------------
@@ -308,17 +330,17 @@ defmodule Arkea.Sim.HGT do
   # ---------------------------------------------------------------------------
   # Private — prophage induction helpers
 
-  defp maybe_induce(lineage, _atp_yields, _phenotypes, rng)
+  defp maybe_induce(lineage, phases_by_name, _atp_yields, _phenotypes, _tick, rng)
        when lineage.genome == nil do
-    {lineage, rng}
+    {lineage, phases_by_name, rng}
   end
 
-  defp maybe_induce(lineage, _atp_yields, _phenotypes, rng)
+  defp maybe_induce(lineage, phases_by_name, _atp_yields, _phenotypes, _tick, rng)
        when lineage.genome.prophages == [] do
-    {lineage, rng}
+    {lineage, phases_by_name, rng}
   end
 
-  defp maybe_induce(lineage, atp_yields, phenotypes, rng) do
+  defp maybe_induce(lineage, phases_by_name, atp_yields, phenotypes, tick, rng) do
     atp = Map.get(atp_yields, lineage.id, 0.0)
     phenotype = Map.get(phenotypes, lineage.id)
 
@@ -327,36 +349,75 @@ defmodule Arkea.Sim.HGT do
 
     denom = max(energy_cost * 5.0, 0.1)
     stress_factor = max(0.0, 1.0 - atp / denom)
-    p_induction = min(@p_induction_base * stress_factor, @p_induction_max)
 
-    n_cassettes = length(lineage.genome.prophages)
-    apply_induction_rolls(lineage, p_induction, n_cassettes, rng)
+    apply_induction_rolls(lineage, phases_by_name, stress_factor, tick, rng)
   end
 
-  # Roll p_induction once per prophage cassette.
-  defp apply_induction_rolls(lineage, _p, 0, rng), do: {lineage, rng}
+  # Walk each cassette in order, rolling its own induction probability.
+  # On induction, delegate to `Phage.lytic_burst/5` which mutates both the
+  # lineage genome (cassette dropped) and the lineage's primary phase.
+  defp apply_induction_rolls(lineage, phases_by_name, stress_factor, tick, rng) do
+    indexed = Enum.with_index(lineage.genome.prophages)
 
-  defp apply_induction_rolls(lineage, p, n, rng) when n > 0 do
+    Enum.reduce(indexed, {lineage, phases_by_name, rng}, fn
+      {cassette, _idx}, {acc_lineage, acc_phases, acc_rng} ->
+        roll_for_cassette(acc_lineage, acc_phases, cassette, stress_factor, tick, acc_rng)
+    end)
+  end
+
+  defp roll_for_cassette(lineage, phases_by_name, cassette, stress_factor, tick, rng) do
+    p =
+      min(
+        @p_induction_base * stress_factor * (1.0 - cassette.repressor_strength),
+        @p_induction_max
+      )
+
     {roll, rng1} = :rand.uniform_s(rng)
 
-    lineage_out =
-      if roll < p do
-        apply_lytic_burst(lineage)
-      else
-        lineage
-      end
-
-    apply_induction_rolls(lineage_out, p, n - 1, rng1)
+    if roll < p do
+      trigger_burst(lineage, phases_by_name, cassette, tick, rng1)
+    else
+      {lineage, phases_by_name, rng1}
+    end
   end
 
-  # Reduce all abundances by the lysis fraction (floor of 50%).
-  defp apply_lytic_burst(lineage) do
-    new_abundances =
-      Map.new(lineage.abundance_by_phase, fn {phase_name, count} ->
-        lost = floor(count * @lysis_fraction)
-        {phase_name, max(count - lost, 0)}
-      end)
+  defp trigger_burst(lineage, phases_by_name, cassette, tick, rng) do
+    primary_phase_name = primary_phase_for(lineage, phases_by_name)
 
-    %{lineage | abundance_by_phase: new_abundances, fitness_cache: nil}
+    case Map.get(phases_by_name, primary_phase_name) do
+      nil ->
+        {lineage, phases_by_name, rng}
+
+      phase ->
+        idx = Enum.find_index(lineage.genome.prophages, fn c -> c == cassette end)
+
+        if is_nil(idx) do
+          {lineage, phases_by_name, rng}
+        else
+          {l_out, p_out, _virion, rng_out} = Phage.lytic_burst(lineage, phase, idx, tick, rng)
+          {l_out, Map.put(phases_by_name, p_out.name, p_out), rng_out}
+        end
+    end
+  end
+
+  defp primary_phase_for(lineage, phases_by_name) do
+    case Map.keys(phases_by_name) do
+      [] ->
+        nil
+
+      [first | _] = phase_names ->
+        inhabited =
+          Enum.filter(phase_names, fn name ->
+            Map.get(lineage.abundance_by_phase, name, 0) > 0
+          end)
+
+        if inhabited != [] do
+          Enum.max_by(inhabited, fn name ->
+            Map.get(lineage.abundance_by_phase, name, 0)
+          end)
+        else
+          first
+        end
+    end
   end
 end

@@ -13,16 +13,21 @@ defmodule Arkea.Ecology.Phase do
   all per-phase. The 2D positions of cells in the WebGL view are purely
   rendering — derived from these per-phase aggregates.
 
-  ## Phase 1 simplifications
+  ## Phase 12 additions
 
-  - `metabolite_pool` and `signal_pool` are empty maps (`%{}`); their
-    population starts in Phase 5 (metabolism) and Phase 7 (quorum sensing).
-  - `phage_pool` is also empty in Phase 1 (mobile elements are Phase 6).
-  - `lineage_ids` is a `MapSet` of UUIDs — `MapSet` gives O(log n)
-    membership and is transparent to `:erlang.term_to_binary/1`.
+  - `phage_pool` is now `%{phage_id => Virion.t()}` (was `=> integer`):
+    each free phage particle carries cassette genes, surface signature and
+    a methylation profile so `Phage.infection_step/3` and
+    `HGT.Defense.restriction_check/3` can run on it.
+  - `dna_pool :: %{binary() => non_neg_integer()}` — fragments of free DNA
+    released by lytic bursts and lysis-on-division. The map key is the
+    origin-lineage id; the value is the residual abundance index.
+    Consumed by Phase 13 (natural transformation).
   """
 
   use TypedStruct
+
+  alias Arkea.Sim.HGT.Virion
 
   @ph_min 0.0
   @ph_max 14.0
@@ -39,7 +44,8 @@ defmodule Arkea.Ecology.Phase do
     field :dilution_rate, float()
     field :metabolite_pool, %{atom() => float()}, default: %{}
     field :signal_pool, %{binary() => float()}, default: %{}
-    field :phage_pool, %{binary() => non_neg_integer()}, default: %{}
+    field :phage_pool, %{binary() => Virion.t()}, default: %{}
+    field :dna_pool, %{binary() => non_neg_integer()}, default: %{}
     field :lineage_ids, MapSet.t(binary()), default: MapSet.new()
   end
 
@@ -67,6 +73,7 @@ defmodule Arkea.Ecology.Phase do
       metabolite_pool: %{},
       signal_pool: %{},
       phage_pool: %{},
+      dna_pool: %{},
       lineage_ids: MapSet.new()
     }
 
@@ -118,9 +125,31 @@ defmodule Arkea.Ecology.Phase do
     %{phase | signal_pool: Map.put(pool, id, conc)}
   end
 
+  @doc "Sum of virion abundances across the entire phage_pool. O(n)."
+  @spec phage_total(t()) :: non_neg_integer()
+  def phage_total(%__MODULE__{phage_pool: pool}) do
+    pool |> Map.values() |> Enum.reduce(0, fn v, acc -> acc + v.abundance end)
+  end
+
   @doc """
-  Apply the phase's `dilution_rate` to all metabolite, signal, and phage
-  pools. Each value becomes `value * (1 - dilution_rate)`.
+  Add a virion to the pool. Existing entries (same id) accumulate abundance
+  while preserving their metadata; new ids store the supplied virion as-is.
+  Pure.
+  """
+  @spec add_virion(t(), Virion.t()) :: t()
+  def add_virion(%__MODULE__{phage_pool: pool} = phase, %Virion{} = virion) do
+    new_pool =
+      Map.update(pool, virion.id, virion, fn existing ->
+        %{existing | abundance: existing.abundance + virion.abundance}
+      end)
+
+    %{phase | phage_pool: new_pool}
+  end
+
+  @doc """
+  Apply the phase's `dilution_rate` to all metabolite, signal, phage, and
+  DNA pools. Each value becomes `value * (1 - dilution_rate)`; integer
+  pools floor the result.
 
   **Invariant**: every concentration after `dilute/1` is ≤ its previous
   value (monotonic decrease). Pure.
@@ -133,7 +162,8 @@ defmodule Arkea.Ecology.Phase do
       phase
       | metabolite_pool: dilute_pool(phase.metabolite_pool, factor),
         signal_pool: dilute_pool(phase.signal_pool, factor),
-        phage_pool: dilute_phage_pool(phase.phage_pool, factor)
+        phage_pool: dilute_phage_pool(phase.phage_pool, factor),
+        dna_pool: dilute_integer_pool(phase.dna_pool, factor)
     }
   end
 
@@ -167,6 +197,7 @@ defmodule Arkea.Ecology.Phase do
       {fn -> valid_pool?(phase.metabolite_pool) end, :invalid_metabolite_pool},
       {fn -> valid_signal_pool?(phase.signal_pool) end, :invalid_signal_pool},
       {fn -> valid_phage_pool?(phase.phage_pool) end, :invalid_phage_pool},
+      {fn -> valid_dna_pool?(phase.dna_pool) end, :invalid_dna_pool},
       {fn -> match?(%MapSet{}, phase.lineage_ids) end, :invalid_lineage_ids}
     ]
   end
@@ -187,17 +218,30 @@ defmodule Arkea.Ecology.Phase do
   defp valid_signal_pool?(_), do: false
 
   defp valid_phage_pool?(pool) when is_map(pool) do
-    Enum.all?(pool, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
+    Enum.all?(pool, fn {k, v} -> is_binary(k) and Virion.valid?(v) and v.id == k end)
   end
 
   defp valid_phage_pool?(_), do: false
+
+  defp valid_dna_pool?(pool) when is_map(pool) do
+    Enum.all?(pool, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
+  end
+
+  defp valid_dna_pool?(_), do: false
 
   defp dilute_pool(pool, factor) when is_map(pool) do
     Map.new(pool, fn {k, v} -> {k, v * factor} end)
   end
 
-  defp dilute_phage_pool(pool, factor) when is_map(pool) do
-    # Phage counts are integers; we floor the result so dilution never grows.
+  defp dilute_integer_pool(pool, factor) when is_map(pool) do
     Map.new(pool, fn {k, v} -> {k, trunc(v * factor)} end)
+  end
+
+  defp dilute_phage_pool(pool, factor) when is_map(pool) do
+    pool
+    |> Enum.map(fn {k, %Virion{abundance: a} = v} ->
+      {k, %{v | abundance: trunc(a * factor)}}
+    end)
+    |> Map.new()
   end
 end

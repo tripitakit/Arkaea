@@ -738,12 +738,12 @@ defmodule Arkea.Game.SeedLab do
 
     prophages =
       Enum.with_index(genome.prophages, 1)
-      |> Enum.map(fn {genes, index} ->
+      |> Enum.map(fn {prophage, index} ->
         %{
           scope: "Prophage",
           label: "Latent cassette #{index}",
           domains:
-            genes
+            prophage.genes
             |> List.flatten()
             |> Enum.flat_map(&Enum.map(&1.domains, fn d -> domain_label(d.type) end))
         }

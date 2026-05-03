@@ -73,6 +73,7 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Genome.Mutation.Applicator
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.HGT
+  alias Arkea.Sim.HGT.Phage
   alias Arkea.Sim.Intergenic
   alias Arkea.Sim.Metabolism
   alias Arkea.Sim.Mutator
@@ -98,6 +99,7 @@ defmodule Arkea.Sim.Tick do
       |> step_expression()
       |> step_cell_events()
       |> step_hgt()
+      |> step_phage_infection()
       |> step_environment()
       |> step_pruning()
       |> increment_tick()
@@ -299,13 +301,61 @@ defmodule Arkea.Sim.Tick do
 
     all_lineages = conjugated_lineages ++ new_children
 
-    # Step 4b: prophage induction — stress-triggered lysis
+    # Step 4b: prophage induction — stress-triggered lytic burst that
+    # produces free virions in `phase.phage_pool` and DNA fragments in
+    # `phase.dna_pool`. Phase 12: also drops the lysed cassette from the
+    # host genome (Phage.lytic_burst).
     phenotypes = build_phenotype_map(all_lineages)
 
-    {induced_lineages, rng2} =
-      HGT.induction_step(all_lineages, state.atp_yield_by_lineage, phenotypes, rng1)
+    {induced_lineages, induced_phases, rng2} =
+      HGT.induction_step(
+        all_lineages,
+        phases,
+        state.atp_yield_by_lineage,
+        phenotypes,
+        tick,
+        rng1
+      )
 
-    %{state | lineages: induced_lineages, rng_seed: rng2}
+    %{state | lineages: induced_lineages, phases: induced_phases, rng_seed: rng2}
+  end
+
+  @doc """
+  Step 5 — Phage infection (Phase 12 — DESIGN.md Block 8).
+
+  For each phase, runs `Arkea.Sim.HGT.Phage.infection_step/4`: every free
+  virion in the phage_pool attempts to infect any compatible recipient
+  lineage in the same phase. The pipeline gates each entry through
+  receptor matching, `HGT.Defense.restriction_check_virion/3`, and a
+  lytic-vs-lysogenic decision derived from the cassette
+  `repressor_strength`. Successful lysogenic integrations append a
+  freshly generated child lineage; immediate lytic events shrink the
+  recipient and append a chromosomal fragment to `phase.dna_pool`.
+
+  Pure: reads and updates `state.rng_seed`; no I/O, no messages.
+  """
+  @spec step_phage_infection(BiotopeState.t()) :: BiotopeState.t()
+  def step_phage_infection(
+        %BiotopeState{lineages: lineages, phases: phases, tick_count: tick} = state
+      ) do
+    rng = get_rng(state)
+
+    {updated_lineages, updated_phases, all_children, rng_out} =
+      Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
+                                                      {acc_lineages, acc_phases, acc_children,
+                                                       acc_rng} ->
+        {ls_out, p_out, children, rng_out} =
+          Phage.infection_step(acc_lineages, phase, tick, acc_rng)
+
+        {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+      end)
+
+    %{
+      state
+      | lineages: updated_lineages ++ all_children,
+        phases: updated_phases,
+        rng_seed: rng_out
+    }
   end
 
   @doc """
@@ -352,7 +402,13 @@ defmodule Arkea.Sim.Tick do
       end)
 
     # Phase 5: dilute phase pools, then replenish via inflow
-    diluted_phases = Enum.map(phases, &Phase.dilute/1)
+    # Phase 12: free virions also age and undergo R-M-independent decay
+    # (Phage.decay_step) on top of dilution.
+    diluted_phases =
+      phases
+      |> Enum.map(&Phase.dilute/1)
+      |> Enum.map(&Phage.decay_step/1)
+
     replenished_phases = apply_inflow(diluted_phases, inflow)
 
     %{state | lineages: diluted_lineages, phases: replenished_phases}

@@ -78,7 +78,7 @@ defmodule Arkea.Sim.Intergenic do
 
     donor_background_orit =
       count_modules(
-        donor_genome.chromosome ++ List.flatten(donor_genome.prophages),
+        donor_genome.chromosome ++ Enum.flat_map(donor_genome.prophages, & &1.genes),
         :transfer,
         "orit_site"
       )

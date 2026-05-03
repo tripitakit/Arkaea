@@ -151,7 +151,7 @@ defmodule Arkea.Sim.Intervention do
   defp homogenize_phase_pools(phases) do
     metabolite_mean = mean_float_pool(phases, & &1.metabolite_pool)
     signal_mean = mean_float_pool(phases, & &1.signal_pool)
-    phage_mean = mean_int_pool(phases, & &1.phage_pool)
+    phage_mean = mean_phage_pool(phases)
 
     Enum.map(phases, fn phase ->
       %{
@@ -179,17 +179,31 @@ defmodule Arkea.Sim.Intervention do
     end)
   end
 
-  defp mean_int_pool(phases, accessor) do
-    keys =
-      phases
-      |> Enum.flat_map(fn phase -> phase |> accessor.() |> Map.keys() end)
-      |> Enum.uniq()
-
+  # Mixing intervention: redistribute phage abundances evenly across all phases
+  # while preserving the virion metadata of the first phase that owns each id.
+  defp mean_phage_pool(phases) do
     divisor = max(length(phases), 1)
 
+    keys =
+      phases
+      |> Enum.flat_map(fn phase -> Map.keys(phase.phage_pool) end)
+      |> Enum.uniq()
+
     Map.new(keys, fn key ->
-      total = Enum.sum(Enum.map(phases, fn phase -> phase |> accessor.() |> Map.get(key, 0) end))
-      {key, round(total / divisor)}
+      total =
+        Enum.sum(
+          Enum.map(phases, fn phase ->
+            case Map.get(phase.phage_pool, key) do
+              nil -> 0
+              %Arkea.Sim.HGT.Virion{abundance: a} -> a
+            end
+          end)
+        )
+
+      mean = round(total / divisor)
+
+      template = Enum.find_value(phases, fn phase -> Map.get(phase.phage_pool, key) end)
+      {key, %{template | abundance: mean}}
     end)
   end
 

@@ -388,6 +388,16 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **CRISPR**: omitted from v1 (requires qualitatively different adaptive memory). Reserve for future extension.
 - **Co-evolution**: phages mutate like Arkeons (same generative system) → genuine arms race.
 
+##### Phase 12 — Implementation status
+
+- **Prophage cassettes** (`Genome.prophage()` → `%{genes, state, repressor_strength}`): the `state :: :lysogenic | :induced` flag makes the commitment to the lytic cycle explicit; `repressor_strength :: float()` (0.0..1.0) modulates sensitivity to stress-driven induction: `p_induction = 0.03 × stress_factor × (1 − repressor_strength)`.
+- **Free virions** (`Arkea.Sim.HGT.Virion`): pool of persistent particles per phase, with `genes` (packaged cassette), `surface_signature` (4-codon key for receptor matching), `methylation_profile` (inherited host modification), `decay_age`. Decay via `Phage.decay_step/1` independent of dilution: `decay = 0.20 + 0.05 × decay_age`.
+- **`HGT.Phage.lytic_burst/5`**: produces virions into the `phage_pool` of the primary phase (burst size emergent from `Σ multimerization_n` of `:structural_fold` domains in the cassette, biologically plausible range 10–500); releases chromosomal fragments into the `dna_pool` of the same phase (substrate for Phase 13 transformation); removes the cassette from the lysed host's genome.
+- **`HGT.Phage.infection_step/4`** (`Tick.step_phage_infection/1` in the pipeline): each virion attempts infection on compatible recipients in the same phase. Receptor matching via `surface_signature`. Uniform gating via `HGT.Defense.restriction_check_virion/3`. Lytic/lysogenic decision driven by the cassette's `repressor_strength`: high repression → lysogeny (child lineage with integrated prophage), low repression → immediate lysis.
+- **`HGT.Defense.restriction_check/3`**: generative R-M gate. Site recognition = `signal_key` of the Catalytic site of a gene containing both `:dna_binding` and `:catalytic_site(reaction_class: :hydrolysis)` (restriction) or `:isomerization` (methylation). Bypass via methylation of the donor sharing a `signal_key` with the recipient's enzyme (Arber-Dussoix host-modification). Probabilistic cleavage (`@cleave_p = 0.70` per vulnerable site) to reproduce the in-vivo baseline escape rate (Tock & Dryden 2005).
+- **Extended phenotype** (Phase 12): `restriction_profile :: [signal_key]` and `methylation_profile :: [signal_key]` derived from the composition of genes with co-occurring `dna_binding + catalytic_site`.
+- **Audit log mobile_elements**: existing schema; the write path for phage-cycle events (`:phage_infection`, `:rm_digestion`) will be wired in Phase 16 with the `HGT.Channel` behaviour.
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).
