@@ -75,7 +75,10 @@ defmodule Arkea.Sim.BiomassTest do
     end
 
     test "oxygen below threshold has no effect" do
-      assert Metabolism.toxicity_factor(%{oxygen: 100.0}, MapSet.new()) == 1.0
+      # Phase 20: oxygen toxicity threshold lowered to 50 (Imlay
+      # 2008). Anaerobes are now affected from 50 upward; below 50
+      # they remain unaffected.
+      assert Metabolism.toxicity_factor(%{oxygen: 30.0}, MapSet.new()) == 1.0
     end
 
     test "oxygen above threshold drags survival down for unprotected lineages" do

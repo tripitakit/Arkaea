@@ -53,13 +53,26 @@ defmodule Arkea.Sim.HGT.Phage do
   @burst_default 30
 
   # Phase 16 — generalised transduction.
-  # Probability that a lytic burst also packages a chromosomal fragment
-  # in some of its capsids: ~0.3% in real biology (Chen et al. 2018).
-  # We collapse it to a single transducing virion per burst with this
-  # probability — the abundance of that virion is a small fraction of
-  # the main burst, mirroring the rare-but-non-zero rate observed in
-  # vivo.
-  @transduction_probability 0.05
+  #
+  # Probability that a lytic burst also packages a chromosomal
+  # fragment in some of its capsids. In vivo rate is ~10⁻⁶–10⁻³ per
+  # phage particle (Chen et al. 2018). The Arkea default is
+  # **amplified to 0.05 per burst** to make transduction observable
+  # within a few thousand canary ticks — at the realistic biological
+  # rate a typical canary scenario would never witness a single
+  # transduction event. Phase 20 makes this a config-tunable
+  # constant; benchmark / publication runs should override to a
+  # biologically realistic value (e.g. 0.001) and accept the
+  # corresponding loss of test-suite signal.
+  #
+  # Override at compile time:
+  #
+  #     config :arkea, :transduction_probability, 0.001
+  #
+  # `@transducing_burst_fraction` (0.03) caps the abundance of the
+  # mis-packaged virion at ~3 % of the main lytic burst — biologically
+  # realistic regardless of the per-burst trigger rate.
+  @transduction_probability Application.compile_env(:arkea, :transduction_probability, 0.05)
   @transducing_burst_fraction 0.03
 
   # Per-tick decay applied on top of phase dilution. The full decay rate is
@@ -543,22 +556,47 @@ defmodule Arkea.Sim.HGT.Phage do
     {new_lineages, new_phase, children, rng}
   end
 
+  # Phase 20 — Cassette repressor_strength is now derived from the
+  # mean `binding_affinity` of `:dna_binding` domains in the cassette.
+  # A cassette without DNA-binding regulators defaults to `0.5`
+  # (Phase 12 baseline). High-binding-affinity repressors push the
+  # cassette toward stable lysogeny; low-affinity ones make it
+  # induction-prone — selection then sees the trade-off it should.
   defp build_cassette(%Virion{genes: genes}) do
-    %{genes: genes, state: :lysogenic, repressor_strength: 0.5}
+    %{genes: genes, state: :lysogenic, repressor_strength: derive_repressor_strength(genes)}
   end
 
+  defp derive_repressor_strength(genes) do
+    affinities =
+      genes
+      |> Enum.flat_map(fn gene -> gene.domains end)
+      |> Enum.filter(fn d -> d.type == :dna_binding end)
+      |> Enum.map(fn d -> d.params[:binding_affinity] || 0.0 end)
+
+    case affinities do
+      [] -> 0.5
+      values -> Enum.sum(values) / length(values)
+    end
+  end
+
+  # Phase 20 — Receptor matching is biologically correct: a virion
+  # carrying a `surface_signature` can only enter cells that present
+  # at least one `:phage_receptor` surface tag. Loss-of-receptor
+  # mutants (chromosomal `:surface_tag` flipped away from
+  # `:phage_receptor`) escape infection — the canonical Phase 12
+  # arms-race mechanism described in DESIGN.md Block 8.
+  #
+  # Pre-Phase-20 the fallback `phenotype.surface_tags == []`
+  # (no surface tags at all) erroneously *granted* infection,
+  # inverting the biology. Fixed.
   defp receptor_match?(%Virion{surface_signature: nil}, _lineage), do: true
 
-  defp receptor_match?(%Virion{surface_signature: sig}, %Lineage{} = lineage) do
-    phenotype = Phenotype.from_genome(lineage.genome)
-    sig in receptor_signal_keys(phenotype) or phenotype.surface_tags == []
-  end
+  defp receptor_match?(%Virion{surface_signature: _sig}, %Lineage{genome: nil}), do: false
 
-  # Receptor signal_keys from any `:catalytic_site` co-located with a
-  # `:surface_tag(phage_receptor)` are not currently tracked; as a proxy we
-  # accept any phage_receptor surface_tag in the phenotype as a valid match
-  # gate. Phase 16+ will refine this with co-located signal_key matching.
-  defp receptor_signal_keys(_phenotype), do: []
+  defp receptor_match?(%Virion{surface_signature: _sig}, %Lineage{} = lineage) do
+    phenotype = Phenotype.from_genome(lineage.genome)
+    :phage_receptor in phenotype.surface_tags
+  end
 
   defp compute_infection_probability(virion_abundance, n_recipient, n_total) do
     denom = max(n_total, 1)

@@ -741,26 +741,28 @@ defmodule Arkea.Sim.Tick do
   Pure: no I/O, no message sends.
   """
   @spec step_dna_damage(BiotopeState.t()) :: BiotopeState.t()
-  def step_dna_damage(%BiotopeState{lineages: lineages} = state) do
+  def step_dna_damage(%BiotopeState{lineages: lineages, phases: phases} = state) do
     deltas = state.growth_delta_by_lineage
+    phase_by_name = Map.new(phases, fn p -> {p.name, p} end)
 
     new_lineages =
       Enum.map(lineages, fn lineage ->
-        update_lineage_dna_damage(lineage, deltas)
+        update_lineage_dna_damage(lineage, deltas, state, phase_by_name)
       end)
 
     %{state | lineages: new_lineages}
   end
 
-  defp update_lineage_dna_damage(%Lineage{genome: nil} = lineage, _deltas), do: lineage
+  defp update_lineage_dna_damage(%Lineage{genome: nil} = lineage, _deltas, _state, _phases),
+    do: lineage
 
-  defp update_lineage_dna_damage(%Lineage{} = lineage, deltas) do
+  defp update_lineage_dna_damage(%Lineage{} = lineage, deltas, state, phase_by_name) do
     phenotype = Phenotype.from_genome(lineage.genome)
     delta_map = Map.get(deltas, lineage.id, %{})
     replications = positive_growth_total(delta_map)
     abundance = Lineage.total_abundance(lineage)
 
-    increment =
+    replication_increment =
       Mutator.dna_damage_increment(
         phenotype.repair_efficiency,
         replications,
@@ -768,9 +770,33 @@ defmodule Arkea.Sim.Tick do
         lineage.dna_damage
       )
 
-    decayed = Mutator.decay_damage(lineage.dna_damage + increment)
+    # Phase 20 — ROS-coupled damage from oxidative stress in the
+    # primary phase: when a lineage lacks the matching detoxify
+    # enzyme for its phase's toxic metabolites, the resulting
+    # toxicity_factor < 1.0 leaks into the SOS substrate. This
+    # surfaces a second pathway into SOS independent of replication
+    # rate — anaerobes "drowning" in O₂ enter SOS even at zero
+    # growth.
+    ros_increment = ros_damage_for(lineage, phenotype, state, phase_by_name)
+
+    decayed = Mutator.decay_damage(lineage.dna_damage + replication_increment + ros_increment)
     clamped = decayed |> max(0.0) |> min(Lineage.dna_damage_max())
     %{lineage | dna_damage: clamped}
+  end
+
+  defp ros_damage_for(lineage, phenotype, state, phase_by_name) do
+    phase_name = primary_phase_name(lineage, state)
+
+    case Map.get(phase_by_name, phase_name) do
+      nil ->
+        0.0
+
+      phase ->
+        toxicity_factor =
+          Metabolism.toxicity_factor(phase.metabolite_pool, phenotype.detoxify_targets)
+
+        Mutator.ros_damage_increment(toxicity_factor)
+    end
   end
 
   defp positive_growth_total(delta_map) when is_map(delta_map) do

@@ -81,8 +81,30 @@ defmodule Arkea.Sim.SelectionTest do
     assert energy.type == :energy_coupling
     assert energy.params.atp_cost > 1.0
 
-    gene = Gene.from_domains([glucose_binding, energy])
-    Genome.new([gene])
+    # Phase 20: catalase-like protection from oxygen toxicity. The
+    # aerobic glucose specialist needs to detoxify O₂ to occupy the
+    # aerobic niche; without this gene the O₂ pool present in the
+    # aerobic biotope drives the lineage into ROS-coupled SOS and
+    # death.
+    # - :substrate_binding(target=oxygen) — type_tag [0,0,0],
+    #   first parameter codon 6 (= rem(6,13) → :oxygen, id 6).
+    o2_binding = Domain.new([0, 0, 0], [6 | List.duplicate(0, 19)])
+    assert o2_binding.params.target_metabolite_id == 6
+
+    # - :catalytic_site(reaction_class=:reduction) — type_tag
+    #   [0,0,1] (sum%11 == 1). Reaction class is rem(sum_first_3 of
+    #   parameter_codons, 6). To hit :reduction (index 2) the first
+    #   three parameter codons must sum to 2 — e.g. [2, 0, 0, ...].
+    catalase_catalytic =
+      Domain.new([0, 0, 1], [2, 0, 0 | List.duplicate(0, 17)])
+
+    assert catalase_catalytic.type == :catalytic_site
+    assert catalase_catalytic.params.reaction_class == :reduction
+
+    catalase_gene = Gene.from_domains([o2_binding, catalase_catalytic])
+
+    metabolic_gene = Gene.from_domains([glucose_binding, energy])
+    Genome.new([metabolic_gene, catalase_gene])
   end
 
   # Genome B: NO₃ specialist with no energy cost.

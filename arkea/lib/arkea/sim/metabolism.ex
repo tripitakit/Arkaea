@@ -94,6 +94,32 @@ defmodule Arkea.Sim.Metabolism do
     po4: 0.0
   }
 
+  # Phase 20 — Aerobic respiration upregulation (DESIGN.md Block 8 /
+  # CALIBRATION.md).
+  #
+  # Pre-Phase-20 ATP coefficients were anaerobic baselines
+  # (glucose 2.0 ≈ mixed-acid fermentation). When oxygen is co-
+  # uptaken with an organic substrate the cell switches to aerobic
+  # respiration, where each glucose nets ~32 ATP — a 16× boost. To
+  # surface the heterotroph-aerobic niche distinctly from the
+  # heterotroph-fermentative niche, the effective ATP coefficient is
+  # multiplied by `1 + @aerobic_boost × oxygen_share`, where
+  # `oxygen_share = oxygen_uptake / max(total_organic_uptake, 1.0)`.
+  #
+  # Conservative ceiling: 1 + 7 × oxygen_share ⇒ at oxygen_share =
+  # 1.0 the coefficient grows 8× (glucose ATP = 16). This is below
+  # the textbook 32 ATP / glucose because real fermenters extracting
+  # ~6 ATP via NADH→ETC partial respiration occupy the middle
+  # ground; the simulation collapses that gradient into a single
+  # smooth multiplier.
+  #
+  # Only metabolites in `@aerobic_substrates` are upregulated —
+  # purely fermentative substrates (h2, h2s, fe²⁺) and electron
+  # acceptors (no3, so4) keep their anaerobic coefficient regardless
+  # of oxygen presence.
+  @aerobic_boost 7.0
+  @aerobic_substrates [:glucose, :acetate, :lactate, :ch4]
+
   # Phase 14 — Metabolite toxicity profile (DESIGN.md Block 8.A.2).
   #
   # Each entry maps a metabolite id to `{threshold, scale}`:
@@ -123,8 +149,15 @@ defmodule Arkea.Sim.Metabolism do
   # triggering on background levels. Toxicity bites only at
   # concentrations associated with rapid radical chemistry (oxidative
   # stress) or metal-protein cytochrome poisoning.
+  # Phase 20 calibration — oxygen toxicity threshold lowered from
+  # 200 → 50 so that obligate anaerobes (no detoxify enzyme for O₂)
+  # actually take damage in moderately aerobic phases. The Phase 14
+  # baseline of 200 made anaerobes near-immune in surface phases,
+  # erasing the niche separation between aerobic and anaerobic
+  # specialists. Reference: Imlay 2008 (cellular defences against
+  # superoxide and H₂O₂).
   @toxicity_profile %{
-    oxygen: {200.0, 800.0},
+    oxygen: {50.0, 200.0},
     h2s: {20.0, 80.0},
     lactate: {30.0, 100.0}
   }
@@ -290,10 +323,43 @@ defmodule Arkea.Sim.Metabolism do
   """
   @spec atp_yield(%{atom() => float()}) :: float()
   def atp_yield(uptake_map) when is_map(uptake_map) do
+    boost = aerobic_boost_factor(uptake_map)
+
     Enum.reduce(uptake_map, 0.0, fn {metabolite, amount}, acc ->
       coeff = Map.get(@atp_coefficients, metabolite, 0.0)
-      acc + amount * coeff
+      multiplier = if metabolite in @aerobic_substrates, do: boost, else: 1.0
+      acc + amount * coeff * multiplier
     end)
+  end
+
+  @doc """
+  Aerobic-respiration boost factor for an uptake map (Phase 20).
+
+  Returns `1.0` when no oxygen is co-uptaken; up to `1.0 +
+  @aerobic_boost` (≈ 8.0) at full aerobic conditions. The factor
+  multiplies the ATP coefficient of every organic substrate in
+  `@aerobic_substrates`.
+  """
+  @spec aerobic_boost_factor(%{atom() => float()}) :: float()
+  def aerobic_boost_factor(uptake_map) when is_map(uptake_map) do
+    oxygen = Map.get(uptake_map, :oxygen, 0.0)
+
+    if oxygen <= 0.0 do
+      1.0
+    else
+      total_organic =
+        @aerobic_substrates
+        |> Enum.reduce(0.0, fn substrate, acc -> acc + Map.get(uptake_map, substrate, 0.0) end)
+
+      oxygen_share =
+        if total_organic > 0.0 do
+          min(oxygen / total_organic, 1.0)
+        else
+          0.0
+        end
+
+      1.0 + @aerobic_boost * oxygen_share
+    end
   end
 
   @doc """

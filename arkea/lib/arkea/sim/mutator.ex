@@ -72,10 +72,25 @@ defmodule Arkea.Sim.Mutator do
   # least one lethal mutation. Phase 17 implements the soft boundary:
   # spawn rolls ignored above `@critical_mu_per_gene` × genome_size.
   @dna_damage_decay 0.10
-  @sos_active_threshold 0.50
+  # Phase 20 calibration — SOS threshold lowered to make hypermutation
+  # a routine response to genuine stress rather than an extreme corner
+  # case. In vivo SOS activates within minutes of a single double-strand
+  # break (Cox et al. 2000); Arkea's collapsed-time model targets a few
+  # ticks of accumulated damage to enter the stress regime.
+  @sos_active_threshold 0.20
   @sos_mutation_amplifier 4.0
   @sos_induction_amplifier 3.0
   @critical_mu_per_gene 0.20
+
+  # Phase 20 — ROS-coupled DNA damage.
+  # When a lineage has no detoxify enzyme for oxygen (no catalase-like
+  # gene), oxidative stress drives guanine oxidation and double-strand
+  # breaks (Imlay 2008). The simulation translates the unprotected
+  # exposure into a per-tick damage increment proportional to the
+  # *toxicity factor deficit* — i.e. how much oxygen damage actually
+  # gets through the cell's defences. The constant below is the
+  # per-tick increment ceiling at full unprotected exposure.
+  @ros_damage_max_per_tick 0.05
 
   @type rng_state :: :rand.state()
 
@@ -166,6 +181,30 @@ defmodule Arkea.Sim.Mutator do
 
   @doc "Per-tick decay applied to `dna_damage` independent of new accumulation."
   def dna_damage_decay, do: @dna_damage_decay
+
+  @doc "Per-tick ceiling on ROS-coupled DNA damage."
+  def ros_damage_max_per_tick, do: @ros_damage_max_per_tick
+
+  @doc """
+  Per-tick ROS-coupled DNA damage increment (Phase 20 — DESIGN.md
+  Block 8 / CALIBRATION.md).
+
+  Argument is the *toxicity factor* `0.0..1.0` produced by
+  `Arkea.Sim.Metabolism.toxicity_factor/2`: 1.0 means the cell is
+  fully protected (all detoxify targets owned, or no toxic
+  metabolite present), 0.0 means full oxidative-stress exposure
+  with no enzymatic protection. The damage ceiling is reached at
+  zero toxicity factor.
+
+  Pure.
+  """
+  @spec ros_damage_increment(float()) :: float()
+  def ros_damage_increment(toxicity_factor)
+      when is_float(toxicity_factor) and toxicity_factor >= 0.0 and toxicity_factor <= 1.0 do
+    @ros_damage_max_per_tick * (1.0 - toxicity_factor)
+  end
+
+  def ros_damage_increment(_), do: 0.0
 
   @doc "Mutation-rate multiplier when SOS is active."
   def sos_mutation_amplifier, do: @sos_mutation_amplifier

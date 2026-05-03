@@ -60,12 +60,17 @@ defmodule Arkea.Sim.EvolutionTest do
     # codon = 5 → target_metabolite_id = rem(5, 13) = 5 → :h2 (hydrogen).
     # We also add glucose so that mutant offspring with :glucose affinity can grow.
     # Inflow keeps pools non-zero so lineages continuously generate ATP yield.
+    # Phase 20: oxygen toxicity threshold lowered to 50; the evolution
+    # canary uses an unprotected (no catalase-like) seed genome, so we
+    # keep the phase oxygen below the toxicity floor (30 ≤ 50) to
+    # avoid driving the seed extinct via ROS-coupled SOS before it
+    # has time to mutate.
     phase =
       :surface
       |> Phase.new(dilution_rate: 0.02)
       |> Phase.update_metabolite(:h2, 500.0)
       |> Phase.update_metabolite(:glucose, 500.0)
-      |> Phase.update_metabolite(:oxygen, 200.0)
+      |> Phase.update_metabolite(:oxygen, 30.0)
 
     state =
       BiotopeState.new_from_opts(
@@ -75,7 +80,7 @@ defmodule Arkea.Sim.EvolutionTest do
         dilution_rate: 0.02,
         lineages: [seed_lineage],
         rng_seed: Mutator.init_seed("evolution-test-seed"),
-        metabolite_inflow: %{h2: 10.0, glucose: 10.0, oxygen: 5.0}
+        metabolite_inflow: %{h2: 10.0, glucose: 10.0, oxygen: 1.0}
       )
 
     # Run 100 ticks via Tick.tick/1 directly (no GenServer, pure function)

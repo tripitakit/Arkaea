@@ -225,7 +225,11 @@ defmodule Arkea.Sim.HGT.PhageTest do
 
     test "high-abundance virions produce at least one infection event over many ticks" do
       lineage_donor = founder(seed_genome(), 200)
-      lineage_recipient = founder(Genome.new([chromosome_gene()]), 200)
+      # Phase 20: receptor matching now requires the recipient to
+      # carry a :phage_receptor surface_tag. `surface_domain/0`
+      # produces exactly that (rem(10,3) == 1 → :phage_receptor).
+      receptor_gene = Gene.from_domains([surface_domain()])
+      lineage_recipient = founder(Genome.new([chromosome_gene(), receptor_gene]), 200)
       rng = Mutator.init_seed("phage-infection-many")
       phase = surface_phase()
 

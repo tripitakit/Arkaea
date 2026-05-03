@@ -34,6 +34,7 @@ Poi apri [`localhost:4000`](http://localhost:4000) e crea o riprendi un player d
 - [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md) — walk-through "Cronache di un estuario contestato" che valida la coerenza del design attraversando tutti i 15 blocchi
 - [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) — scelta architetturale (Active Record + audit log strutturato + tick pure-functional), analisi dell'alternativa Event Sourcing scartata, roadmap implementata e note di consolidamento su UI, persistenza e onboarding player
 - [BIOLOGICAL-MODEL-REVIEW.md](BIOLOGICAL-MODEL-REVIEW.md) — revisione scientifica del modello biologico implementato e piano di intervento per chiudere i gap (HGT completo, ciclo fagico, R-M, trasformazione, trasduzione, xenobiotici/RAS, biomassa, SOS, error catastrophe, operoni, bacteriocine)
+- [CALIBRATION.md](CALIBRATION.md) — appendice di calibrazione: scale temporali e di concentrazione dichiarate, costanti chiave del codice mappate al range biologico, changelog Phase 20 e override per benchmark scientifici
 
 ## Subagent di progetto
 

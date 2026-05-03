@@ -36,10 +36,13 @@ defmodule Arkea.Sim.HGT.DefenseTest do
         end)
         |> elem(0)
 
-      # With @cleave_p = 0.7, we expect ~280/400 digestions.
-      # The 99% confidence band around 280 is ~248..312.
-      assert digestions >= 220
-      assert digestions <= 340
+      # Phase 20: with `@cleave_p = 0.95`, we expect ~380/400
+      # digestions. The 99 % confidence band around 380 is ~365..395.
+      # Pre-Phase-20 baseline (cleave_p = 0.70 → ~280/400 with band
+      # 248..312) was permissive of unrealistic phage / plasmid
+      # breakthrough.
+      assert digestions >= 350
+      assert digestions <= 400
     end
 
     property "no recipient restriction sites ⇒ always passed" do

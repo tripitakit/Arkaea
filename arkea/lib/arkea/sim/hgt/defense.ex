@@ -57,7 +57,14 @@ defmodule Arkea.Sim.HGT.Defense do
 
   alias Arkea.Sim.HGT.Virion
 
-  @cleave_p 0.70
+  # Phase 20 calibration — per-site cleavage probability raised to
+  # 0.95, in line with the in vivo efficiency of restriction enzymes
+  # (Type II 95–99 % per recognition site, Tock & Dryden 2005).
+  # The Phase 12 baseline of 0.70 modelled escape rates ~30 %/site,
+  # which is permissive of unrealistic phage / plasmid breakthrough.
+  # With 0.95 a payload that crosses 1 vulnerable site has a 5 %
+  # escape rate; multi-site payloads compound to <1 %.
+  @cleave_p 0.95
 
   @typedoc "Outcome of an R-M check on a single payload."
   @type outcome ::

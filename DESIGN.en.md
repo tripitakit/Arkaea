@@ -482,6 +482,24 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 - **Anti-deck-building gating** (player_progression milestones): planned as a separate schema `Arkea.Game.PlayerProgression` wired to the UI runtime; not part of the sim core.
 - **UI viewport changes** (per-founder palette, lineage board filter): planned but deferred — the sim core holds all the necessary information via `lineage.original_seed_id` for the rendering layer.
 
+##### Phase 20 — Scientific calibration pass
+
+Addresses the P0/P1 points of the post-Phase 19 scientific review. **See [CALIBRATION.en.md](CALIBRATION.en.md)** for the full mapping of each constant to the primary literature and for the simulator's temporal / concentration scales.
+
+Bug fix:
+- **Inverted receptor matching** (`HGT.Phage.receptor_match?`): the fallback `phenotype.surface_tags == []` accepted infection on lineages without tags — the opposite of real biology. Phase 20 explicitly requires `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants now correctly escape phage infection, consistent with the arms race described in Block 8.
+
+Calibration updates:
+- `@cleave_p` 0.70 → **0.95** (R-M efficiency 95–99% per site, Tock & Dryden 2005)
+- `@sos_active_threshold` 0.50 → **0.20** (near-immediate SOS in vivo, Cox 2000)
+- `oxygen` toxic threshold 200 → **50** (obligate anaerobes now discriminated, Imlay 2008)
+- `@transduction_probability` is now `Application.compile_env`-tunable (default 0.05 amplified for canary visibility; scientific benchmarks override to 0.001 for biologically realistic rate)
+
+New mechanisms:
+- **Aerobic ATP upregulation** (`Metabolism.aerobic_boost_factor/1`): multiplicative boost `1 + 7 × oxygen_share` on organic substrates (`:glucose`, `:acetate`, `:lactate`, `:ch4`) co-uptaken with O₂. Surface aerobic vs anaerobic niche now distinct (~8× more ATP for glucose-aerobic vs glucose-fermentation).
+- **ROS-coupled DNA damage** (`Mutator.ros_damage_increment/1`): unprotected cells (no detoxify_targets for a toxic metabolite in phase) accumulate DNA damage regardless of replication. SOS trigger active also in starvation/stationary phase. Imlay 2008.
+- **Dynamically derived cassette repressor_strength**: `Phage.derive_repressor_strength/1` computes repressor_strength from the mean `binding_affinity` of the `:dna_binding` domains of the cassette. Selection on the cI/cro switch is now visible (cassettes with strong repressors = stable lysogeny; weak ones = induction-prone).
+
 #### Senescence & error-handling
 
 - **Senescence/aging**: omitted (immortal bacteria at this level of abstraction).

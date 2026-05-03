@@ -34,6 +34,7 @@ Then open [`localhost:4000`](http://localhost:4000) and create or resume a playe
 - [DESIGN_STRESS-TEST.en.md](DESIGN_STRESS-TEST.en.md) — walk-through "Chronicles of a contested estuary" that validates design coherence by traversing all 15 blocks
 - [IMPLEMENTATION-PLAN.en.md](IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick), analysis of the discarded Event Sourcing alternative, implemented roadmap, and consolidation notes on UI, persistence, and player onboarding
 - [BIOLOGICAL-MODEL-REVIEW.en.md](BIOLOGICAL-MODEL-REVIEW.en.md) — scientific review of the implemented biological model and intervention plan to close the gaps (complete HGT, phage cycle, R-M, transformation, transduction, xenobiotics/RAS, biomass, SOS, error catastrophe, operons, bacteriocins)
+- [CALIBRATION.en.md](CALIBRATION.en.md) — calibration appendix: declared time and concentration scales, key code constants mapped to biological ranges, Phase 20 changelog, and overrides for scientific benchmarks
 
 ## Project subagents
 
