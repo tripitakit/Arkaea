@@ -489,20 +489,32 @@ I neighbor sono usati dalla migration: cellule possono passare da un biotope all
 
 ### 5.8 Ricolonizzare un home estinto
 
-Quando la popolazione totale del tuo biotopo home crolla a zero, sopra la scena compare un **banner "Colony extinct"** con un pulsante **"Recolonize home"**.
+Quando la popolazione totale del tuo biotopo home crolla a zero, sopra la scena compare un **banner "Colony extinct"** con **due CTA**, perché ricolonizzare con il seed identico spesso porta alla stessa estinzione (stesso fenotipo, stesso ambiente):
 
-- Il banner è visibile **solo all'owner** del biotopo, e **solo** quando `BiotopeState.total_abundance(state) == 0`.
-- Click → confirm dialog → il sistema costruisce un **fondatore fresco dallo stesso blueprint locked** (genoma identico a quello che avevi progettato originariamente nel Seed Lab) e lo inocula nel biotopo. Distribuzione iniziale: **N=420** spalmati sulle fasi correnti del biotopo.
-- Il biotope mantiene il suo `id` e il suo `tick_count`: la sequenza temporale è continua. Quello che cambia è solo il pool di cellule.
-- L'operazione è loggata in Audit come `intervention` con kind `home_recolonized` e l'`actor_player_id` del provisioning. Forensic-traceable.
+- **"Re-inoculate as-is"** — costruisce un fondatore fresco dallo **stesso blueprint locked** (genoma identico a quello originariamente progettato) e lo inocula. Utile quando ritieni che la precedente estinzione sia stata frutto di sfortuna stocastica e la strategia del seed sia comunque sana.
+- **"Edit seed and recolonize →"** — apre il **Seed Lab in modalità recolonize**: il form si sblocca con il blueprint corrente pre-caricato; puoi modificare ogni campo *eccetto* `starter_archetype` (fissato dal biotope esistente, che vive già in quell'archetype). Il submit "Recolonize home with this seed" salva un nuovo blueprint, lascia il vecchio nell'audit log, e re-inocula il biotope con il fondatore aggiornato.
+
+Entrambi i percorsi:
+
+- Sono visibili **solo all'owner** del biotopo, e **solo** quando `BiotopeState.total_abundance(state) == 0`.
+- Distribuiscono il fondatore con `N=420` sulle fasi correnti del biotopo.
+- Mantengono `id` e `tick_count` del biotope (la sequenza temporale è continua; cambia solo il pool di cellule + eventualmente il blueprint).
+- Loggano l'evento in Audit come `intervention` con kind `home_recolonized` + `actor_player_id` + `with_edit: true` per il percorso edit. Forensic-traceable.
+
+Quando in modalità recolonize il Seed Lab mostra:
+
+- Un banner blu **"Edit seed to recolonize"** in cima al form (anziché il banner di lock).
+- Lo `starter_archetype` evidenziato come "locked — recolonization keeps the existing biotope" e i radio button disabilitati.
+- Un pulsante di submit con label **"Recolonize home with this seed"** (anziché "Colonize selected biotope").
+- Una "Back to home viewport" link che ti riporta al biotopo senza cambiare nulla.
 
 Limiti correnti:
 
 - Funziona solo sul biotopo home del player. Wild biotopes e biotopi di altri player non si possono ricolonizzare.
 - La ricolonizzazione **non resetta** la chimica, i pool fagici, i plasmidi liberi nel `dna_pool` o l'ambiente: il fondatore eredita lo stato ambientale corrente del biotopo. Se il biotopo era stato sterilizzato da un fago dilagante, la ricolonizzazione lo riapre allo stesso stress.
-- Non c'è rate limit dedicato (a differenza degli intervention): se la colonia ricolonizzata si estingue di nuovo dopo un tick, puoi premere ancora subito.
+- Non c'è rate limit dedicato: se la colonia ricolonizzata si estingue di nuovo dopo un tick, puoi premere ancora subito (e magari editare di nuovo il seed).
 
-> **Suggerimento**: dopo una ricolonizzazione, è spesso utile applicare anche un **mixing event** (Interventions tab) per omogeneizzare il chimismo che ha portato alla precedente estinzione, oppure un **nutrient pulse** sulla fase con popolazione iniziale dominante.
+> **Suggerimento**: dopo una ricolonizzazione "as-is" che si estingue ancora, prova "Edit seed and recolonize" e cambia il `regulation_profile` o `metabolism_profile`. Spesso la causa di estinzione è un mismatch tra il seed e l'ambiente attuale del biotope — qualcosa di evolvibile in 1-2 iterazioni di edit.
 
 ---
 

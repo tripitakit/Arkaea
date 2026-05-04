@@ -474,22 +474,42 @@ defmodule ArkeaWeb.SimLive do
       <div class="arkea-recolonize-banner__body">
         <span class="arkea-recolonize-banner__title">Colony extinct</span>
         <p class="arkea-recolonize-banner__copy">
-          The seeded population has collapsed to zero. You can re-inoculate the
-          home biotope with a fresh founder lineage built from the same locked
-          blueprint — the genome you originally designed in the Seed Lab.
+          The seeded population has collapsed to zero. Two paths to restart
+          the home biotope:
         </p>
+        <ul class="arkea-recolonize-banner__list">
+          <li>
+            <strong>Re-inoculate as-is</strong> — fresh founder built from
+            the same locked blueprint. Useful when the previous extinction
+            looked like bad luck and the seed strategy is otherwise sound.
+          </li>
+          <li>
+            <strong>Edit seed and recolonize</strong> — open the Seed Lab
+            with the previous spec pre-loaded; change every field except
+            the starter archetype, then submit. The old blueprint stays in
+            the audit log, the new one becomes the home's founder.
+          </li>
+        </ul>
         <p :if={@operator_error} class="arkea-recolonize-banner__error">
           {@operator_error}
         </p>
       </div>
-      <button
-        type="button"
-        phx-click="recolonize_home"
-        phx-confirm="Re-inoculate the home biotope with a fresh founder colony from the locked seed?"
-        class="arkea-button arkea-button--primary arkea-recolonize-banner__cta"
-      >
-        Recolonize home
-      </button>
+      <div class="arkea-recolonize-banner__actions">
+        <button
+          type="button"
+          phx-click="recolonize_home"
+          phx-confirm="Re-inoculate the home biotope with a fresh founder colony from the locked seed?"
+          class="arkea-button arkea-button--secondary arkea-recolonize-banner__cta"
+        >
+          Re-inoculate as-is
+        </button>
+        <.link
+          navigate={~p"/seed-lab"}
+          class="arkea-button arkea-button--primary arkea-recolonize-banner__cta"
+        >
+          Edit seed and recolonize →
+        </.link>
+      </div>
     </div>
     """
   end

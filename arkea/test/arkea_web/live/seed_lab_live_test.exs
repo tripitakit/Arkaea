@@ -302,6 +302,54 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert draft_li_content =~ "Substrate Binding"
   end
 
+  test "extinct home unlocks the seed lab in recolonize mode (archetype stays fixed)", %{
+    conn: conn
+  } do
+    {:ok, biotope_id} =
+      SeedLab.provision_home(%{
+        "seed_name" => "Pre-Recolonize",
+        "starter_archetype" => "oligotrophic_lake",
+        "metabolism_profile" => "thrifty",
+        "membrane_profile" => "porous",
+        "regulation_profile" => "responsive",
+        "mobile_module" => "none"
+      })
+
+    # Force extinction so SeedLab.home_extinct?/1 returns true.
+    [{pid, _}] = Registry.lookup(Arkea.Sim.Registry, {:biotope, biotope_id})
+    :sys.replace_state(pid, fn state -> %{state | lineages: []} end)
+
+    {:ok, view, html} = live(conn, ~p"/seed-lab")
+
+    # Recolonize banner shown (not the lock banner).
+    assert html =~ "Edit seed to recolonize"
+    refute html =~ "Arkeon seed locked"
+    # Submit button label flipped.
+    assert html =~ "Recolonize home with this seed"
+    # Archetype radios are disabled but the rest of the form is editable.
+    assert html =~ ~s|name="seed[starter_archetype]"|
+    assert html =~ ~s|disabled|
+
+    # Editing a non-archetype field works (the form is no longer in the
+    # locked fieldset). starter_archetype is omitted from the form payload
+    # because its radios are disabled — the server keeps the locked
+    # archetype anyway.
+    html_after =
+      view
+      |> form("form.arkea-seed-form", %{
+        "seed" => %{
+          "metabolism_profile" => "bloom",
+          "membrane_profile" => "fortified",
+          "regulation_profile" => "mutator",
+          "mobile_module" => "latent_prophage",
+          "seed_name" => "Edited Seed"
+        }
+      })
+      |> render_change()
+
+    assert html_after =~ "Edited Seed"
+  end
+
   defp cleanup_owned_biotopes do
     World.list_biotopes(PrototypePlayer.id())
     |> Enum.filter(&(&1.owner_player_id == PrototypePlayer.id()))

@@ -126,6 +126,40 @@ defmodule Arkea.Game.PlayerAssets do
     |> Repo.transaction()
   end
 
+  @doc """
+  Insert a new blueprint and re-link the player's existing home biotope to
+  it. Used when an extinct home is recolonized with an edited seed: the
+  old blueprint stays in the table for audit/history and the
+  `player_biotope.source_blueprint_id` foreign key is moved to the new row.
+  """
+  @spec register_home_recolonization(map(), map(), term()) ::
+          {:ok, %{blueprint: ArkeonBlueprint.t(), player_biotope: PlayerBiotope.t()}}
+          | {:error, atom(), term(), map()}
+  def register_home_recolonization(player_profile, spec, genome) do
+    blueprint_attrs = %{
+      player_id: player_profile.id,
+      name: spec.seed_name,
+      starter_archetype: Atom.to_string(spec.starter_archetype),
+      phenotype_spec: blueprint_spec(spec),
+      genome_binary: ArkeonBlueprint.dump_genome!(genome)
+    }
+
+    Multi.new()
+    |> Multi.insert(:blueprint, ArkeonBlueprint.changeset(%ArkeonBlueprint{}, blueprint_attrs))
+    |> Multi.run(:player_biotope, fn repo, %{blueprint: new_blueprint} ->
+      case active_home_with_blueprint(player_profile.id) do
+        %PlayerBiotope{} = pb ->
+          pb
+          |> PlayerBiotope.changeset(%{source_blueprint_id: new_blueprint.id})
+          |> repo.update()
+
+        nil ->
+          {:error, :no_home}
+      end
+    end)
+    |> Repo.transaction()
+  end
+
   defp blueprint_spec(spec) do
     %{
       "seed_name" => spec.seed_name,

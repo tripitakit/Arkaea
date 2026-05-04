@@ -284,16 +284,39 @@
   line-height: 1.45;
 }
 
+.arkea-recolonize-banner__list {
+  margin: var(--arkea-space-2) 0 0;
+  padding-left: var(--arkea-space-4);
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  line-height: 1.5;
+}
+
+.arkea-recolonize-banner__list li + li {
+  margin-top: 4px;
+}
+
+.arkea-recolonize-banner__list strong {
+  color: var(--arkea-fg);
+}
+
 .arkea-recolonize-banner__error {
   margin: var(--arkea-space-1) 0 0;
   font-size: var(--arkea-text-xs);
   color: var(--arkea-accent-stress);
 }
 
+.arkea-recolonize-banner__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
 .arkea-recolonize-banner__cta {
   width: auto !important;
   margin-top: 0 !important;
-  flex-shrink: 0;
 }
 
 /* Lineage row selected state */

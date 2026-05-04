@@ -425,6 +425,103 @@ defmodule Arkea.Game.SeedLab do
   end
 
   @doc """
+  Re-inoculate the home biotope with a *modified* seed.
+
+  The player can change every spec field except the `starter_archetype`,
+  which is locked to the existing biotope's archetype (the running biotope
+  has phases / zone / coords already shaped by it; allowing a change would
+  effectively be a brand-new biotope, not a recolonization).
+
+  Returns `{:ok, ...}` on success, or one of the same error atoms returned
+  by `recolonize_home/1` plus `{:error, %{...}}` for spec validation
+  errors and `{:error, :archetype_mismatch}` if the supplied params try to
+  change the archetype.
+  """
+  @spec recolonize_home_with_spec(%{id: binary()} | binary(), map()) ::
+          {:ok,
+           %{
+             biotope_id: binary(),
+             lineage_id: binary(),
+             tick: non_neg_integer(),
+             blueprint_id: binary()
+           }}
+          | {:error, atom() | %{atom() => binary()}}
+  def recolonize_home_with_spec(player_or_id, params) when is_map(params) do
+    player_profile = normalize_player_profile(player_or_id)
+    spec = normalize_params(params)
+
+    with %{biotope_id: biotope_id} = locked <- locked_seed(player_profile) || :no_home,
+         %BiotopeState{} = state <- safe_get_state(biotope_id),
+         :ok <- ensure_extinct(state),
+         :ok <- validate(spec),
+         :ok <- ensure_archetype_unchanged(spec, locked),
+         {:ok, %{blueprint: blueprint, player_biotope: _}} <-
+           PlayerAssets.register_home_recolonization(
+             player_profile,
+             spec,
+             build_genome(spec)
+           ) do
+      genome = build_genome(spec)
+      lineage = build_seed_lineage(genome, state.phases)
+
+      case BiotopeServer.recolonize(biotope_id, lineage,
+             actor: player_profile.display_name,
+             actor_player_id: player_profile.id,
+             seed_name: spec.seed_name,
+             blueprint_id: blueprint.id,
+             with_edit: true
+           ) do
+        {:ok, %{tick: tick}} ->
+          Phoenix.PubSub.broadcast(
+            Arkea.PubSub,
+            "world:registry",
+            {:world_changed, biotope_id}
+          )
+
+          {:ok,
+           %{
+             biotope_id: biotope_id,
+             lineage_id: lineage.id,
+             tick: tick,
+             blueprint_id: blueprint.id
+           }}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      :no_home -> {:error, :no_home}
+      nil -> {:error, :biotope_missing}
+      {:error, %Ecto.Changeset{}} -> {:error, :blueprint_persist_failed}
+      {:error, _, _, _} -> {:error, :blueprint_persist_failed}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp ensure_archetype_unchanged(spec, %{params: locked_params}) do
+    locked_archetype =
+      locked_params
+      |> Map.get("starter_archetype")
+      |> normalize_archetype()
+
+    if Atom.to_string(spec.starter_archetype) == Atom.to_string(locked_archetype) do
+      :ok
+    else
+      {:error, :archetype_mismatch}
+    end
+  end
+
+  defp normalize_archetype(nil), do: :unknown
+  defp normalize_archetype(""), do: :unknown
+  defp normalize_archetype(value) when is_atom(value), do: value
+
+  defp normalize_archetype(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> :unknown
+  end
+
+  @doc """
   True when the player owns a home biotope and the biotope is currently
   extinct (`total_abundance == 0`). Used by the UI to gate the
   "Recolonize home" affordance.

@@ -34,6 +34,7 @@ defmodule ArkeaWeb.SeedLabLive do
        selected_replicon_id: "chromosome",
        selected_gene_index: 1,
        inspector_expanded: false,
+       recolonize_mode?: false,
        page_title: "Arkea Seed Lab"
      )
      |> apply_form(SeedLab.form_defaults())}
@@ -226,23 +227,67 @@ defmodule ArkeaWeb.SeedLabLive do
   end
 
   def handle_event("provision_seed", %{"seed" => params}, socket) do
-    if socket.assigns.seed_locked? do
-      {:noreply,
-       socket
-       |> assign(
-         errors: %{starter_archetype: "This Arkeon seed is already committed to a home biotope."}
-       )
-       |> apply_form(%{})}
-    else
-      case SeedLab.provision_home(socket.assigns.player, params) do
-        {:ok, biotope_id} ->
-          {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
+    cond do
+      socket.assigns.seed_locked? ->
+        {:noreply,
+         socket
+         |> assign(
+           errors: %{
+             starter_archetype: "This Arkeon seed is already committed to a home biotope."
+           }
+         )
+         |> apply_form(%{})}
 
-        {:error, errors} ->
-          {:noreply, socket |> assign(errors: errors) |> apply_form(params)}
-      end
+      socket.assigns[:recolonize_mode?] ->
+        # Force the archetype back to the locked value before validation
+        # so a tampered client cannot widen the recolonization scope.
+        locked_archetype =
+          socket.assigns.seed_params
+          |> Map.get("starter_archetype")
+
+        params = Map.put(params, "starter_archetype", locked_archetype)
+
+        case SeedLab.recolonize_home_with_spec(socket.assigns.player, params) do
+          {:ok, %{biotope_id: biotope_id}} ->
+            {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
+
+          {:error, errors} when is_map(errors) ->
+            {:noreply, socket |> assign(errors: errors) |> apply_form(params)}
+
+          {:error, reason} ->
+            {:noreply,
+             socket
+             |> assign(errors: %{starter_archetype: recolonize_error(reason)})
+             |> apply_form(params)}
+        end
+
+      true ->
+        case SeedLab.provision_home(socket.assigns.player, params) do
+          {:ok, biotope_id} ->
+            {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
+
+          {:error, errors} ->
+            {:noreply, socket |> assign(errors: errors) |> apply_form(params)}
+        end
     end
   end
+
+  defp recolonize_error(:not_extinct),
+    do: "Recolonization is only allowed when the home biotope is extinct."
+
+  defp recolonize_error(:no_home),
+    do: "No locked home biotope is associated with this player."
+
+  defp recolonize_error(:biotope_missing),
+    do: "The home biotope process is no longer running on this node."
+
+  defp recolonize_error(:archetype_mismatch),
+    do: "The starter archetype is fixed by the existing home biotope."
+
+  defp recolonize_error(:blueprint_persist_failed),
+    do: "Could not persist the new blueprint; recolonization aborted."
+
+  defp recolonize_error(other), do: "Recolonization failed: #{inspect(other)}."
 
   @impl Phoenix.LiveView
   def render(assigns) do
@@ -300,23 +345,45 @@ defmodule ArkeaWeb.SeedLabLive do
               </div>
             </div>
 
-            <%= if @seed_locked? do %>
-              <div class="arkea-seed-lock-banner">
-                <div>
-                  <div class="arkea-seed-lock-banner__title">Arkeon seed locked</div>
-                  <div class="arkea-seed-lock-banner__copy">
-                    This phenotype/genome configuration is already bound to the first colonized home biotope and can no longer be edited.
+            <%= cond do %>
+              <% @seed_locked? -> %>
+                <div class="arkea-seed-lock-banner">
+                  <div>
+                    <div class="arkea-seed-lock-banner__title">Arkeon seed locked</div>
+                    <div class="arkea-seed-lock-banner__copy">
+                      This phenotype/genome configuration is already bound to the first colonized home biotope and can no longer be edited.
+                    </div>
                   </div>
-                </div>
 
-                <.link
-                  :if={@home_biotope_id}
-                  href={~p"/biotopes/#{@home_biotope_id}"}
-                  class="arkea-action-button"
-                >
-                  Open home viewport
-                </.link>
-              </div>
+                  <.link
+                    :if={@home_biotope_id}
+                    href={~p"/biotopes/#{@home_biotope_id}"}
+                    class="arkea-action-button"
+                  >
+                    Open home viewport
+                  </.link>
+                </div>
+              <% @recolonize_mode? -> %>
+                <div class="arkea-seed-lock-banner arkea-seed-lock-banner--recolonize">
+                  <div>
+                    <div class="arkea-seed-lock-banner__title">Edit seed to recolonize</div>
+                    <div class="arkea-seed-lock-banner__copy">
+                      The home biotope is extinct. You can edit every spec field except the
+                      starter archetype (fixed by the existing biotope) and submit to
+                      re-inoculate with the modified founder. The previous blueprint is
+                      preserved in the audit log.
+                    </div>
+                  </div>
+
+                  <.link
+                    :if={@home_biotope_id}
+                    href={~p"/biotopes/#{@home_biotope_id}"}
+                    class="arkea-action-button"
+                  >
+                    Back to home viewport
+                  </.link>
+                </div>
+              <% true -> %>
             <% end %>
 
             <form phx-change="change_seed" phx-submit="provision_seed" class="arkea-seed-form">
@@ -337,14 +404,19 @@ defmodule ArkeaWeb.SeedLabLive do
                 </div>
 
                 <div class="arkea-seed-field">
-                  <div class="arkea-seed-field__label">Biotope archetype to colonize</div>
+                  <div class="arkea-seed-field__label">
+                    Biotope archetype to colonize
+                    <span :if={@recolonize_mode?} class="arkea-seed-field__hint">
+                      (locked — recolonization keeps the existing biotope)
+                    </span>
+                  </div>
                   <div class="arkea-seed-choice-grid">
                     <label
                       :for={ecotype <- @starter_ecotypes}
                       class={[
                         "arkea-seed-choice",
                         @form[:starter_archetype].value == ecotype.id && "arkea-seed-choice--active",
-                        @seed_locked? && "arkea-seed-choice--locked"
+                        (@seed_locked? || @recolonize_mode?) && "arkea-seed-choice--locked"
                       ]}
                     >
                       <input
@@ -352,6 +424,7 @@ defmodule ArkeaWeb.SeedLabLive do
                         name="seed[starter_archetype]"
                         value={ecotype.id}
                         checked={@form[:starter_archetype].value == ecotype.id}
+                        disabled={@recolonize_mode?}
                       />
                       <span class="arkea-seed-choice__title">{ecotype.label}</span>
                       <span class="arkea-seed-choice__copy">{ecotype.strapline}</span>
@@ -402,13 +475,21 @@ defmodule ArkeaWeb.SeedLabLive do
                   class="arkea-action-button arkea-seed-submit"
                   disabled={!@seed_ready?}
                 >
-                  Colonize selected biotope
+                  <%= cond do %>
+                    <% @recolonize_mode? -> %>
+                      Recolonize home with this seed
+                    <% true -> %>
+                      Colonize selected biotope
+                  <% end %>
                 </button>
                 <p class="arkea-muted">
-                  <%= if @seed_locked? do %>
-                    The committed seed stays readable here, but its phenotype and genome options are frozen after first colonization.
-                  <% else %>
-                    The player must name the seed and explicitly choose the first biotope archetype before colonization can start.
+                  <%= cond do %>
+                    <% @seed_locked? -> %>
+                      The committed seed stays readable here, but its phenotype and genome options are frozen after first colonization.
+                    <% @recolonize_mode? -> %>
+                      The home biotope is extinct. Editing the seed and submitting will re-inoculate it with the modified founder. The previous blueprint stays in the audit log.
+                    <% true -> %>
+                      The player must name the seed and explicitly choose the first biotope archetype before colonization can start.
                   <% end %>
                 </p>
               </div>
@@ -1029,20 +1110,62 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp apply_form(socket, params) do
     case SeedLab.locked_seed(socket.assigns.player) do
-      %{params: locked_params, preview: preview, biotope_id: biotope_id} ->
-        socket
-        |> assign(
-          form: to_form(locked_params, as: :seed),
-          preview: preview,
-          can_provision_home?: false,
-          home_slot_open?: false,
-          seed_ready?: false,
-          seed_locked?: true,
-          home_biotope_id: biotope_id,
-          seed_params: locked_params,
-          custom_gene_specs: preview.spec.custom_genes
-        )
-        |> assign_editor_focus(preview)
+      %{params: locked_params, preview: locked_preview, biotope_id: biotope_id} = locked ->
+        if SeedLab.home_extinct?(socket.assigns.player) do
+          # Extinct home: form is editable for recolonization. The
+          # starter_archetype is fixed (the existing biotope already lives
+          # at that archetype), but every other field is up for change so
+          # the player can iterate the seed strategy.
+          base =
+            socket
+            |> Map.get(:assigns)
+            |> Map.get(:seed_params, locked_params)
+
+          merged =
+            base
+            |> Map.merge(Map.new(params))
+            # Force the archetype back to the locked one in case the
+            # client tried to override it.
+            |> Map.put(
+              "starter_archetype",
+              Map.get(locked_params, "starter_archetype")
+            )
+
+          preview = SeedLab.preview(merged, socket.assigns.player)
+
+          socket
+          |> assign(
+            form: to_form(merged, as: :seed),
+            preview: preview,
+            can_provision_home?: false,
+            home_slot_open?: false,
+            seed_ready?: seed_ready_for_provision?(preview),
+            seed_locked?: false,
+            recolonize_mode?: true,
+            home_biotope_id: biotope_id,
+            seed_params: merged,
+            custom_gene_specs: preview.spec.custom_genes
+          )
+          |> assign_editor_focus(preview)
+        else
+          # Alive locked home: read-only form, the original behaviour.
+          _ = locked
+
+          socket
+          |> assign(
+            form: to_form(locked_params, as: :seed),
+            preview: locked_preview,
+            can_provision_home?: false,
+            home_slot_open?: false,
+            seed_ready?: false,
+            seed_locked?: true,
+            recolonize_mode?: false,
+            home_biotope_id: biotope_id,
+            seed_params: locked_params,
+            custom_gene_specs: locked_preview.spec.custom_genes
+          )
+          |> assign_editor_focus(locked_preview)
+        end
 
       nil ->
         merged =
@@ -1062,6 +1185,7 @@ defmodule ArkeaWeb.SeedLabLive do
           home_slot_open?: home_slot_open?,
           seed_ready?: home_slot_open? and seed_ready_for_provision?(preview),
           seed_locked?: false,
+          recolonize_mode?: false,
           home_biotope_id: nil,
           seed_params: merged,
           custom_gene_specs: preview.spec.custom_genes

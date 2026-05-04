@@ -62,6 +62,81 @@ defmodule Arkea.Game.SeedLab.RecolonizeTest do
     refute SeedLab.home_extinct?(PrototypePlayer.id())
   end
 
+  test "recolonize_home_with_spec/2 swaps the blueprint and re-inoculates an extinct home" do
+    {:ok, biotope_id} = provision_test_home()
+    force_extinction(biotope_id)
+
+    pre_blueprint = Arkea.Repo.one!(Arkea.Persistence.ArkeonBlueprint)
+
+    new_params = %{
+      "seed_name" => "Recolonize Variant",
+      "starter_archetype" => "eutrophic_pond",
+      "metabolism_profile" => "thrifty",
+      "membrane_profile" => "fortified",
+      "regulation_profile" => "responsive",
+      "mobile_module" => "conjugative_plasmid"
+    }
+
+    assert {:ok,
+            %{
+              biotope_id: ^biotope_id,
+              lineage_id: lineage_id,
+              tick: _tick,
+              blueprint_id: new_blueprint_id
+            }} = SeedLab.recolonize_home_with_spec(PrototypePlayer.id(), new_params)
+
+    assert new_blueprint_id != pre_blueprint.id
+
+    # Two blueprints persisted: the old one stays for audit, the new one
+    # is now linked to the home.
+    assert Arkea.Repo.aggregate(Arkea.Persistence.ArkeonBlueprint, :count) == 2
+
+    pb = Arkea.Repo.one!(Arkea.Persistence.PlayerBiotope)
+    assert pb.source_blueprint_id == new_blueprint_id
+
+    state_after = BiotopeServer.get_state(biotope_id)
+    assert length(state_after.lineages) == 1
+    assert hd(state_after.lineages).id == lineage_id
+    # The recolonized founder is built with the new metabolism/membrane
+    # profile, so its phenotype must reflect the edited spec — we don't
+    # check the genome bytes here (they're a different blueprint anyway),
+    # we just confirm the founder is fresh.
+    assert BiotopeState.total_abundance(state_after) == 420
+  end
+
+  test "recolonize_home_with_spec/2 refuses to change the starter_archetype" do
+    {:ok, biotope_id} = provision_test_home()
+    force_extinction(biotope_id)
+
+    other_archetype_params = %{
+      "seed_name" => "Different Archetype",
+      "starter_archetype" => "mesophilic_soil",
+      "metabolism_profile" => "balanced",
+      "membrane_profile" => "porous",
+      "regulation_profile" => "responsive",
+      "mobile_module" => "none"
+    }
+
+    assert {:error, :archetype_mismatch} =
+             SeedLab.recolonize_home_with_spec(PrototypePlayer.id(), other_archetype_params)
+  end
+
+  test "recolonize_home_with_spec/2 refuses on a non-extinct home" do
+    {:ok, _biotope_id} = provision_test_home()
+
+    params = %{
+      "seed_name" => "Won't Apply",
+      "starter_archetype" => "eutrophic_pond",
+      "metabolism_profile" => "balanced",
+      "membrane_profile" => "porous",
+      "regulation_profile" => "responsive",
+      "mobile_module" => "none"
+    }
+
+    assert {:error, :not_extinct} =
+             SeedLab.recolonize_home_with_spec(PrototypePlayer.id(), params)
+  end
+
   test "recolonize_home/1 returns :no_home for a player with no provisioned home" do
     {:ok, %{id: other_id}} =
       Arkea.Accounts.register_player(%{

@@ -489,20 +489,32 @@ Neighbors are used by migration: cells can pass from one biotope to another alon
 
 ### 5.8 Recolonizing an extinct home
 
-When your home biotope's total population drops to zero, a **"Colony extinct" banner** appears above the scene with a **"Recolonize home"** button.
+When your home biotope's total population drops to zero, a **"Colony extinct" banner** appears above the scene with **two CTAs**, because recolonizing with the identical seed often leads to the same extinction (same phenotype, same environment):
 
-- The banner is visible **only to the owner** of the biotope, and **only** when `BiotopeState.total_abundance(state) == 0`.
-- Click → confirm dialog → the system builds a **fresh founder from the same locked blueprint** (genome identical to the one you originally designed in the Seed Lab) and inoculates it into the biotope. Initial distribution: **N=420** spread across the biotope's current phases.
-- The biotope keeps its `id` and `tick_count`: the timeline is continuous. Only the cell pool changes.
-- The operation is logged in Audit as an `intervention` with kind `home_recolonized` and the `actor_player_id` of the provisioning. Forensic-traceable.
+- **"Re-inoculate as-is"** — builds a fresh founder from the **same locked blueprint** (genome identical to the one you originally designed) and inoculates it. Useful when you think the previous extinction was stochastic bad luck and the seed strategy is otherwise sound.
+- **"Edit seed and recolonize →"** — opens the **Seed Lab in recolonize mode**: the form unlocks with the current blueprint pre-loaded; you can edit every field *except* `starter_archetype` (fixed by the existing biotope, which already lives at that archetype). Submitting "Recolonize home with this seed" persists a new blueprint, leaves the old one in the audit log, and re-inoculates the biotope with the updated founder.
+
+Both paths:
+
+- Are visible **only to the owner** of the biotope, and **only** when `BiotopeState.total_abundance(state) == 0`.
+- Distribute the founder with `N=420` across the biotope's current phases.
+- Keep the biotope's `id` and `tick_count` (the timeline is continuous; only the cell pool changes — and possibly the blueprint).
+- Log the event in Audit as an `intervention` with kind `home_recolonized` + `actor_player_id`, plus `with_edit: true` for the edit path. Forensic-traceable.
+
+When in recolonize mode, the Seed Lab shows:
+
+- A blue **"Edit seed to recolonize"** banner at the top of the form (instead of the lock banner).
+- The `starter_archetype` field labelled "locked — recolonization keeps the existing biotope" with the radio buttons disabled.
+- A submit button reading **"Recolonize home with this seed"** (instead of "Colonize selected biotope").
+- A "Back to home viewport" link that returns to the biotope without changing anything.
 
 Current limits:
 
 - Works only on the player's home biotope. Wild biotopes and other players' biotopes cannot be recolonized.
 - Recolonization **does not reset** chemistry, phage pools, free plasmids in the `dna_pool`, or the environment: the founder inherits the biotope's current ambient state. If the biotope had been sterilized by a runaway phage, recolonization re-exposes it to the same stress.
-- No dedicated rate limit (unlike interventions): if the recolonized colony goes extinct again on the next tick, you can press the button again immediately.
+- No dedicated rate limit: if the recolonized colony goes extinct again on the next tick, you can press the button again immediately (and possibly edit the seed once more).
 
-> **Tip**: after a recolonization it is often useful to also apply a **mixing event** (Interventions tab) to homogenise the chemistry that drove the previous extinction, or a **nutrient pulse** on the phase carrying the dominant initial population.
+> **Tip**: if a "re-inoculate as-is" recolonization extincts again, try "Edit seed and recolonize" and change the `regulation_profile` or `metabolism_profile`. The cause of extinction is often a seed/environment mismatch — usually evolvable in 1–2 edit iterations.
 
 ---
 
