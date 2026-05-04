@@ -52,8 +52,9 @@ defmodule ArkeaWeb.CommunityLive do
           <h1 class="arkea-seed-lab__title">Multi-seed runs</h1>
           <p class="arkea-seed-lab__copy">
             Read-only browser of biotopes that received a community-mode
-            inoculation (DESIGN.md Block 19). The founder list is reconstructed
-            from the persisted `community_provisioned` audit events.
+            inoculation (BIOLOGICAL-MODEL-REVIEW.md Phase 19). The founder
+            list is reconstructed from the persisted `community_provisioned`
+            audit events.
           </p>
         </header>
 

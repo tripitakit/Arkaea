@@ -209,7 +209,7 @@ L'audit è **append-only** e sopravvive alla rimozione dei biotopi. È la fonte 
 
 ## 7. Community — multi-seed runs
 
-`/community` lista i **biotopi inoculati con community-mode** (DESIGN Block 19). Sono biotopi avviati con più seed founder simultaneamente — utili per studiare interazioni inter-strain dal tick 0.
+`/community` lista i **biotopi inoculati con community-mode** (BIOLOGICAL-MODEL-REVIEW Phase 19). Sono biotopi avviati con più seed founder simultaneamente — utili per studiare interazioni inter-strain dal tick 0.
 
 Ogni entry ha: archetipo, count founder, fase di inoculo, timestamp, tick corrente, lineage count, link "Open →" alla viewport.
 

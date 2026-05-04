@@ -209,7 +209,7 @@ The audit log is **append-only** and survives biotope removal. It is the source 
 
 ## 7. Community — multi-seed runs
 
-`/community` lists **biotopes inoculated in community mode** (DESIGN Block 19). These are biotopes started with multiple founder seeds simultaneously — useful for studying inter-strain interactions from tick 0.
+`/community` lists **biotopes inoculated in community mode** (BIOLOGICAL-MODEL-REVIEW Phase 19). These are biotopes started with multiple founder seeds simultaneously — useful for studying inter-strain interactions from tick 0.
 
 Each entry has: archetype, founder count, inoculation phase, timestamp, current tick, lineage count, "Open →" link to the viewport.
 

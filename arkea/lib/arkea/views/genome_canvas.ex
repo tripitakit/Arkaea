@@ -80,8 +80,16 @@ defmodule Arkea.Views.GenomeCanvas do
 
   defp layout_replicon(genes, cx, cy, r_outer, r_inner) do
     n = length(genes)
-    sweep = 2 * :math.pi() / n
-    gap = sweep * 0.04
+    # Single-gene replicon: a 2π SVG arc is a degenerate path (start ≈ end on
+    # the same point → invisible). Synthesize two near-half arcs joined at the
+    # bottom of the ring so the wedge actually renders.
+    {sweep, gap} =
+      if n == 1 do
+        {2 * :math.pi() - 0.0001, 0.0}
+      else
+        s = 2 * :math.pi() / n
+        {s, s * 0.04}
+      end
 
     laid_genes =
       genes

@@ -178,8 +178,8 @@ defmodule ArkeaWeb.DashboardLive do
         <:body>
           <p class="arkea-dashboard__copy">
             Browse biotopes that received a community-mode inoculation
-            (DESIGN.md Block 19). Founder lists are reconstructed from
-            persisted audit events.
+            (BIOLOGICAL-MODEL-REVIEW.md Phase 19). Founder lists are
+            reconstructed from persisted audit events.
           </p>
           <div class="arkea-dashboard__cta">Browse runs</div>
         </:body>

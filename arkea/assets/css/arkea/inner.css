@@ -1271,12 +1271,24 @@ body {
   background: #38bdf8;
 }
 
+.arkea-seed-domain--channel {
+  background: #06b6d4;
+}
+
 .arkea-seed-domain--regulation {
   background: #a78bfa;
 }
 
+.arkea-seed-domain--regulator {
+  background: #c084fc;
+}
+
 .arkea-seed-domain--sensor {
   background: #22d3ee;
+}
+
+.arkea-seed-domain--surface {
+  background: #10b981;
 }
 
 .arkea-seed-domain--repair {
@@ -1303,8 +1315,11 @@ body {
 .arkea-seed-domain-legend__swatch--catalytic { background: #f97316; }
 .arkea-seed-domain-legend__swatch--energy { background: #f59e0b; }
 .arkea-seed-domain-legend__swatch--membrane { background: #38bdf8; }
+.arkea-seed-domain-legend__swatch--channel { background: #06b6d4; }
 .arkea-seed-domain-legend__swatch--regulation { background: #a78bfa; }
+.arkea-seed-domain-legend__swatch--regulator { background: #c084fc; }
 .arkea-seed-domain-legend__swatch--sensor { background: #22d3ee; }
+.arkea-seed-domain-legend__swatch--surface { background: #10b981; }
 .arkea-seed-domain-legend__swatch--repair { background: #f472b6; }
 .arkea-seed-domain-legend__swatch--structure { background: #cbd5e1; }
 .arkea-seed-domain-legend__swatch--other { background: #64748b; }

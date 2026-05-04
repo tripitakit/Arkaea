@@ -6,8 +6,11 @@ defmodule ArkeaWeb.SimLive do
   selected `"biotope:<id>"`, receives `{:biotope_tick, new_state, events}` from
   `Arkea.Sim.Biotope.Server`, and turns the current `BiotopeState` into:
 
-    - a LiveView dashboard for operator-facing telemetry
-    - a PixiJS snapshot consumed by a `phx-hook` for the procedural 2D scene
+    - a LiveView dashboard for operator-facing telemetry (sidebar +
+      bottom tabs: Events / Lineages / Chemistry / Interventions);
+    - a `scene_layout` consumed by `ArkeaWeb.Components.BiotopeScene` to
+      render the procedural 2D scene as native SVG (since UI rewrite phase
+      U3, no Pixi/canvas/WebGL hop).
 
   No tick logic runs here. The browser scene is a pure visualization derived
   from per-phase authoritative state, consistent with DESIGN.md Blocks 12 and 14.
@@ -78,6 +81,14 @@ defmodule ArkeaWeb.SimLive do
   @impl Phoenix.LiveView
   def handle_params(%{"id" => biotope_id}, _uri, socket) do
     if Phoenix.LiveView.connected?(socket) and socket.assigns.biotope_id != biotope_id do
+      # Drop the previous subscription so cross-biotope ticks don't keep
+      # arriving and overwriting `sim_state` with stale data.
+      previous = socket.assigns.biotope_id
+
+      if is_binary(previous) do
+        Phoenix.PubSub.unsubscribe(Arkea.PubSub, "biotope:#{previous}")
+      end
+
       Phoenix.PubSub.subscribe(Arkea.PubSub, "biotope:#{biotope_id}")
     end
 
@@ -144,6 +155,7 @@ defmodule ArkeaWeb.SimLive do
   def handle_event("select_lineage", %{"id" => id}, socket) do
     selected =
       cond do
+        is_nil(socket.assigns.sim_state) -> nil
         socket.assigns.selected_lineage_id == id -> nil
         Enum.any?(socket.assigns.sim_state.lineages, &(&1.id == id)) -> id
         true -> nil
@@ -1366,6 +1378,12 @@ defmodule ArkeaWeb.SimLive do
 
   @metabolites ~w[glucose acetate lactate oxygen no3 so4 h2s nh3 h2 po4 co2 ch4 iron]a
 
+  defp chemistry_matrix(%BiotopeState{phases: []}) do
+    # Empty biotope: short-circuit to avoid Enum.max/1 on []. The template
+    # already guards `@chem.rows == []`, so callers stay happy.
+    %{rows: [], metabolites: @metabolites, max_per_met: List.duplicate(0.0, length(@metabolites))}
+  end
+
   defp chemistry_matrix(%BiotopeState{phases: phases}) do
     rows =
       Enum.map(phases, fn phase ->
@@ -1375,7 +1393,9 @@ defmodule ArkeaWeb.SimLive do
 
     max_per_met =
       Enum.map(0..(length(@metabolites) - 1), fn i ->
-        rows |> Enum.map(&Enum.at(&1.concentrations, i)) |> Enum.max()
+        rows
+        |> Enum.map(&Enum.at(&1.concentrations, i))
+        |> Enum.max(fn -> 0.0 end)
       end)
 
     %{rows: rows, metabolites: @metabolites, max_per_met: max_per_met}

@@ -244,8 +244,9 @@ defmodule ArkeaWeb.SeedLabLive do
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    canvas_layout = CanvasLayout.build(CanvasLayout.from_preview(assigns.preview))
-
+    # canvas_layout is computed once per genome change (in apply_form/2) and
+    # cached on socket.assigns; here we only resolve the currently selected
+    # gene id, which is a cheap lookup.
     selected_gene_id =
       selected_gene_id(
         assigns.preview,
@@ -253,7 +254,7 @@ defmodule ArkeaWeb.SeedLabLive do
         assigns.selected_gene_index
       )
 
-    assigns = assign(assigns, canvas_layout: canvas_layout, selected_gene_id: selected_gene_id)
+    assigns = assign(assigns, selected_gene_id: selected_gene_id)
 
     ~H"""
     <Shell.shell sidebar?={false}>
@@ -1074,20 +1075,28 @@ defmodule ArkeaWeb.SeedLabLive do
   defp assign_editor_focus(socket, preview) do
     replicons = replicon_views(preview, preview.spec.custom_genes)
 
-    case find_gene_view(
-           replicons,
-           socket.assigns[:selected_replicon_id],
-           socket.assigns[:selected_gene_index]
-         ) do
-      nil ->
-        assign(socket,
-          selected_replicon_id: "chromosome",
-          selected_gene_index: 1
-        )
+    socket =
+      case find_gene_view(
+             replicons,
+             socket.assigns[:selected_replicon_id],
+             socket.assigns[:selected_gene_index]
+           ) do
+        nil ->
+          assign(socket,
+            selected_replicon_id: "chromosome",
+            selected_gene_index: 1
+          )
 
-      _gene ->
-        socket
-    end
+        _gene ->
+          socket
+      end
+
+    assign_canvas_layout(socket)
+  end
+
+  defp assign_canvas_layout(socket) do
+    layout = CanvasLayout.build(CanvasLayout.from_preview(socket.assigns.preview))
+    assign(socket, canvas_layout: layout)
   end
 
   defp replace_custom_genes(socket, custom_gene_specs) do
@@ -1506,14 +1515,18 @@ defmodule ArkeaWeb.SeedLabLive do
     end)
   end
 
+  # All 11 functional domain types map to a distinct CSS tone (Block 7).
   defp domain_tone(:substrate_binding), do: "binding"
   defp domain_tone(:catalytic_site), do: "catalytic"
-  defp domain_tone(:energy_coupling), do: "energy"
   defp domain_tone(:transmembrane_anchor), do: "membrane"
+  defp domain_tone(:channel_pore), do: "channel"
+  defp domain_tone(:energy_coupling), do: "energy"
   defp domain_tone(:dna_binding), do: "regulation"
+  defp domain_tone(:regulator_output), do: "regulator"
   defp domain_tone(:ligand_sensor), do: "sensor"
-  defp domain_tone(:repair_fidelity), do: "repair"
   defp domain_tone(:structural_fold), do: "structure"
+  defp domain_tone(:surface_tag), do: "surface"
+  defp domain_tone(:repair_fidelity), do: "repair"
   defp domain_tone(_type), do: "other"
 
   defp domain_label(:dna_binding), do: "DNA Binding"
@@ -1526,10 +1539,19 @@ defmodule ArkeaWeb.SeedLabLive do
     |> Enum.map_join(" ", &String.capitalize/1)
   end
 
+  # Resolve a palette `domain_id` (string) to its canonical Domain.Type atom.
+  # The palette is server-rendered, so a mismatched id is always a bug rather
+  # than user input — return `:unknown` so the UI shows a neutral tone instead
+  # of silently masquerading as Substrate Binding.
   defp domain_type_from_id(domain_id) when is_binary(domain_id) do
-    domain_id
-    |> String.to_existing_atom()
+    atom = String.to_existing_atom(domain_id)
+
+    if Arkea.Genome.Domain.Type.valid?(atom) do
+      atom
+    else
+      :unknown
+    end
   rescue
-    ArgumentError -> :substrate_binding
+    ArgumentError -> :unknown
   end
 end

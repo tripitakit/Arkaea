@@ -7,8 +7,10 @@ defmodule ArkeaWeb.CommunityLiveTest do
   alias Arkea.Repo
 
   setup %{conn: conn} do
+    # Sandbox rolls back the test transaction on exit; no on_exit cleanup
+    # needed (and running it inside the rolled-back sandbox produces
+    # sporadic OwnershipError in CI).
     Repo.delete_all(AuditLog)
-    on_exit(fn -> Repo.delete_all(AuditLog) end)
     {:ok, conn: log_in_prototype_player(conn)}
   end
 

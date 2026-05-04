@@ -7,8 +7,11 @@ defmodule ArkeaWeb.AuditLiveTest do
   alias Arkea.Repo
 
   setup %{conn: conn} do
+    # The Ecto sandbox rolls back the test transaction on exit, so we only
+    # need to clear stale rows committed by previous (non-sandboxed) runs at
+    # setup. No on_exit cleanup — running it inside the rolled-back sandbox
+    # can produce sporadic OwnershipError in CI.
     Repo.delete_all(AuditLog)
-    on_exit(fn -> Repo.delete_all(AuditLog) end)
     {:ok, conn: log_in_prototype_player(conn)}
   end
 
