@@ -115,6 +115,7 @@
 @import "./arkea/scene.css";
 @import "./arkea/biotope.css";
 @import "./arkea/seed_lab.css";
+@import "./arkea/audit.css";
 
 :root {
   --sim-bg: oklch(13% 0.012 253);

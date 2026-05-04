@@ -1,0 +1,186 @@
+/*
+ * Arkea audit + community views (UI rewrite — phase U6)
+ */
+
+.arkea-audit {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-5) var(--arkea-space-6);
+  min-height: 0;
+}
+
+.arkea-audit__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+  max-width: 56rem;
+}
+
+.arkea-audit__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-3);
+}
+
+.arkea-audit__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-audit__pager-info {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.arkea-audit__pager-btn {
+  width: 32px !important;
+  margin-top: 0 !important;
+  padding: var(--arkea-space-1) !important;
+}
+
+.arkea-audit__panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.arkea-audit__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--arkea-text-sm);
+}
+
+.arkea-audit__table th {
+  text-align: left;
+  font-size: var(--arkea-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--arkea-fg-faint);
+  font-weight: 500;
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  border-bottom: 1px solid var(--arkea-border);
+  position: sticky;
+  top: 0;
+  background: var(--arkea-surface-2);
+  z-index: 1;
+}
+
+.arkea-audit__table td {
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  border-bottom: 1px solid var(--arkea-border);
+  color: var(--arkea-fg);
+  vertical-align: top;
+}
+
+.arkea-audit__time {
+  white-space: nowrap;
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--arkea-text-xs);
+}
+
+.arkea-audit__tick {
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--arkea-text-xs);
+}
+
+.arkea-audit__id {
+  color: var(--arkea-fg-muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--arkea-text-xs);
+  white-space: nowrap;
+}
+
+.arkea-audit__payload {
+  color: var(--arkea-fg-muted);
+  font-size: var(--arkea-text-xs);
+  word-break: break-word;
+  max-width: 28rem;
+}
+
+.arkea-audit__type {
+  display: inline-block;
+  padding: 2px var(--arkea-space-2);
+  font-size: var(--arkea-text-xs);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  border-radius: var(--arkea-radius-sm);
+  border: 1px solid var(--arkea-border);
+  background: var(--arkea-surface-2);
+  color: var(--arkea-fg);
+  letter-spacing: 0.04em;
+}
+
+.arkea-audit__type--metabolite { color: var(--arkea-accent-metabolite); border-color: color-mix(in oklch, var(--arkea-accent-metabolite) 40%, transparent); }
+.arkea-audit__type--signal { color: var(--arkea-accent-signal); border-color: color-mix(in oklch, var(--arkea-accent-signal) 40%, transparent); }
+.arkea-audit__type--stress { color: var(--arkea-accent-stress); border-color: color-mix(in oklch, var(--arkea-accent-stress) 40%, transparent); }
+.arkea-audit__type--growth { color: var(--arkea-accent-growth); border-color: color-mix(in oklch, var(--arkea-accent-growth) 40%, transparent); }
+.arkea-audit__type--gold { color: var(--arkea-accent-gold); border-color: color-mix(in oklch, var(--arkea-accent-gold) 40%, transparent); }
+.arkea-audit__type--teal { color: var(--arkea-accent-teal); border-color: color-mix(in oklch, var(--arkea-accent-teal) 40%, transparent); }
+.arkea-audit__type--rust { color: var(--arkea-accent-rust); border-color: color-mix(in oklch, var(--arkea-accent-rust) 40%, transparent); }
+
+/* ─── Community list ────────────────────────────────────────────────────── */
+
+.arkea-community-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-community-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-3) var(--arkea-space-4);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-md);
+  background: var(--arkea-surface-2);
+}
+
+.arkea-community-list__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.arkea-community-list__title {
+  font-size: var(--arkea-text-md);
+  font-weight: 600;
+  color: var(--arkea-fg);
+}
+
+.arkea-community-list__meta {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.arkea-community-list__metrics {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-3);
+  flex-shrink: 0;
+}
+
+.arkea-community-list__metric {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.arkea-community-list__link {
+  width: auto !important;
+  margin-top: 0 !important;
+  padding: var(--arkea-space-2) var(--arkea-space-3) !important;
+}

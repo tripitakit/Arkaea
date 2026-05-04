@@ -172,27 +172,36 @@ defmodule ArkeaWeb.DashboardLive do
 
   defp community_panel(assigns) do
     ~H"""
-    <Panel.panel class="arkea-dashboard__card arkea-dashboard__card--soon">
-      <:header eyebrow="Community" title="Multi-seed runs" meta="phase U6" />
-      <:body>
-        <Panel.empty_state title="Coming online">
-          Public read-only view of community-mode biotopes (DESIGN.md Block 19).
-        </Panel.empty_state>
-      </:body>
-    </Panel.panel>
+    <.link navigate={~p"/community"} class="arkea-dashboard__card-link" aria-label="Open community view">
+      <Panel.panel class="arkea-dashboard__card">
+        <:header eyebrow="Community" title="Multi-seed runs" meta="read-only" />
+        <:body>
+          <p class="arkea-dashboard__copy">
+            Browse biotopes that received a community-mode inoculation
+            (DESIGN.md Block 19). Founder lists are reconstructed from
+            persisted audit events.
+          </p>
+          <div class="arkea-dashboard__cta">Browse runs</div>
+        </:body>
+      </Panel.panel>
+    </.link>
     """
   end
 
   defp audit_panel(assigns) do
     ~H"""
-    <Panel.panel class="arkea-dashboard__card arkea-dashboard__card--soon">
-      <:header eyebrow="Audit" title="Global event stream" meta="phase U6" />
-      <:body>
-        <Panel.empty_state title="Coming online">
-          Paginated audit feed (HGT, mutation, lysis, error catastrophe).
-        </Panel.empty_state>
-      </:body>
-    </Panel.panel>
+    <.link navigate={~p"/audit"} class="arkea-dashboard__card-link" aria-label="Open audit view">
+      <Panel.panel class="arkea-dashboard__card">
+        <:header eyebrow="Audit" title="Global event stream" meta="paginated" />
+        <:body>
+          <p class="arkea-dashboard__copy">
+            Append-only typed event log: HGT, mutations, mass lysis,
+            interventions, colonisation, mobile element release.
+          </p>
+          <div class="arkea-dashboard__cta">Open feed</div>
+        </:body>
+      </Panel.panel>
+    </.link>
     """
   end
 
