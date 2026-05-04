@@ -22,7 +22,8 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.Phenotype
   alias Arkea.Views.BiotopeScene, as: SceneLayout
   alias ArkeaWeb.Components.BiotopeScene
-  alias ArkeaWeb.GameChrome
+  alias ArkeaWeb.Components.Panel
+  alias ArkeaWeb.Components.Shell
 
   @max_event_log 20
   @max_operator_log 8
@@ -45,6 +46,8 @@ defmodule ArkeaWeb.SimLive do
        not_found?: false,
        lineage_sort: :abundance,
        bottom_tab: :events,
+       selected_lineage_id: nil,
+       interventions_open: false,
        page_title: "Arkea Biotope"
      )}
   end
@@ -127,8 +130,34 @@ defmodule ArkeaWeb.SimLive do
   end
 
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
-    tab_atom = if tab == "interventions", do: :interventions, else: :events
+    tab_atom =
+      case tab do
+        "lineages" -> :lineages
+        "chemistry" -> :chemistry
+        "interventions" -> :interventions
+        _ -> :events
+      end
+
     {:noreply, assign(socket, bottom_tab: tab_atom)}
+  end
+
+  def handle_event("select_lineage", %{"id" => id}, socket) do
+    selected =
+      cond do
+        socket.assigns.selected_lineage_id == id -> nil
+        Enum.any?(socket.assigns.sim_state.lineages, &(&1.id == id)) -> id
+        true -> nil
+      end
+
+    {:noreply, assign(socket, selected_lineage_id: selected)}
+  end
+
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply, assign(socket, selected_lineage_id: nil)}
+  end
+
+  def handle_event("toggle_interventions", _params, socket) do
+    {:noreply, assign(socket, interventions_open: not socket.assigns.interventions_open)}
   end
 
   def handle_event("apply_intervention", params, socket) do
@@ -162,65 +191,302 @@ defmodule ArkeaWeb.SimLive do
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    ~H"""
-    <div class="sim-shell" data-selected-phase={atom_to_string(@selected_phase_name)}>
-      <div class="sim-shell__grid"></div>
-      <div class="sim-shell__content">
-        <GameChrome.top_nav
-          active={:biotope}
-          player_name={@player.display_name}
-          biotope_label={biotope_nav_label(@sim_state, @biotope_id)}
-        />
+    selected_lineage =
+      assigns.sim_state &&
+        Enum.find(assigns.sim_state.lineages, &(&1.id == assigns.selected_lineage_id))
 
-        <%= cond do %>
-          <% @not_found? -> %>
-            <.missing_view biotope_id={@biotope_id} />
-          <% is_nil(@sim_state) -> %>
-            <.loading_view />
-          <% true -> %>
-            <div class="biotope-shell">
-              <.biotope_header
-                sim_state={@sim_state}
-                running={@running}
-                intervention_status={@intervention_status}
+    assigns = assign(assigns, selected_lineage: selected_lineage)
+
+    ~H"""
+    <Shell.shell sidebar?={not is_nil(@sim_state) and not @not_found?}>
+      <:header>
+        <Shell.shell_brand>Arkea</Shell.shell_brand>
+        <Shell.shell_nav items={nav_items()} />
+        <span :if={@sim_state} class="arkea-biotope__title-chip">
+          <span
+            class="arkea-biotope__title-dot"
+            style={"background: #{archetype_color(@sim_state.archetype)}"}
+            aria-hidden="true"
+          />
+          <span>{phase_label(@sim_state.archetype)}</span>
+        </span>
+        <div class="arkea-shell__spacer"></div>
+        <button
+          :if={@sim_state}
+          type="button"
+          phx-click="toggle_interventions"
+          class="arkea-biotope__header-btn"
+          aria-pressed={@interventions_open}
+        >
+          Interventions
+        </button>
+        <button
+          :if={@sim_state}
+          type="button"
+          class="arkea-biotope__header-btn"
+          onclick="document.getElementById('topology-modal').showModal()"
+          title="Topology details"
+          aria-label="Topology details"
+        >
+          ⚙
+        </button>
+        <Shell.shell_user name={@player.display_name} logout_href={~p"/players/log-out"} />
+      </:header>
+
+      <:sidebar :if={not is_nil(@sim_state) and not @not_found?}>
+        <.phase_sidebar
+          sim_state={@sim_state}
+          selected_phase_name={@selected_phase_name}
+          running={@running}
+          intervention_status={@intervention_status}
+        />
+      </:sidebar>
+
+      <%= cond do %>
+        <% @not_found? -> %>
+          <.missing_view biotope_id={@biotope_id} />
+        <% is_nil(@sim_state) -> %>
+          <.loading_view />
+        <% true -> %>
+          <div class="arkea-biotope">
+            <div class="arkea-biotope__main">
+              <BiotopeScene.biotope_scene
+                layout={@scene_layout}
+                class="arkea-biotope__scene"
               />
 
-              <div class="biotope-grid">
-                <div class="biotope-canvas-col">
-                  <.scene_panel
-                    sim_state={@sim_state}
-                    selected_phase_name={@selected_phase_name}
-                    scene_layout={@scene_layout}
-                  />
-                </div>
+              <aside
+                :if={@selected_lineage}
+                class="arkea-drawer arkea-drawer--right"
+                aria-label="Lineage detail"
+              >
+                <.lineage_drawer
+                  lineage={@selected_lineage}
+                  phenotype_cache={@phenotype_cache}
+                />
+              </aside>
+            </div>
 
-                <div class="biotope-right-col">
-                  <.phase_inspector
-                    sim_state={@sim_state}
+            <section class="arkea-biotope__bottom" aria-label="Auxiliary panel">
+              <div class="arkea-tabs" role="tablist">
+                <button
+                  :for={{id, label} <- bottom_tabs()}
+                  role="tab"
+                  type="button"
+                  phx-click="switch_tab"
+                  phx-value-tab={Atom.to_string(id)}
+                  aria-selected={@bottom_tab == id}
+                  class={["arkea-tabs__tab", @bottom_tab == id && "arkea-tabs__tab--active"]}
+                >
+                  {label}
+                </button>
+              </div>
+              <div class="arkea-biotope__bottom-body arkea-scrollable">
+                <%= case @bottom_tab do %>
+                  <% :events -> %>
+                    <.event_log_content event_log={@event_log} />
+                  <% :lineages -> %>
+                    <.lineage_table
+                      sim_state={@sim_state}
+                      phenotype_cache={@phenotype_cache}
+                      lineage_sort={@lineage_sort}
+                      selected_lineage_id={@selected_lineage_id}
+                    />
+                  <% :chemistry -> %>
+                    <.chemistry_panel sim_state={@sim_state} />
+                  <% :interventions -> %>
+                    <.operator_content
+                      selected_phase_name={@selected_phase_name}
+                      operator_log={@operator_log}
+                      operator_error={@operator_error}
+                      intervention_status={@intervention_status}
+                    />
+                <% end %>
+              </div>
+            </section>
+
+            <aside
+              :if={@interventions_open}
+              class="arkea-drawer arkea-drawer--left"
+              aria-label="Intervention controls"
+            >
+              <Panel.panel>
+                <:header eyebrow="Operator" title="Interventions" />
+                <:body scroll>
+                  <.operator_content
                     selected_phase_name={@selected_phase_name}
-                  />
-                  <.lineage_table
-                    sim_state={@sim_state}
-                    phenotype_cache={@phenotype_cache}
-                    lineage_sort={@lineage_sort}
-                  />
-                  <.chemistry_panel sim_state={@sim_state} />
-                  <.bottom_tabs
-                    event_log={@event_log}
                     operator_log={@operator_log}
                     operator_error={@operator_error}
                     intervention_status={@intervention_status}
-                    selected_phase_name={@selected_phase_name}
-                    active_tab={@bottom_tab}
                   />
-                </div>
-              </div>
+                </:body>
+                <:footer>
+                  <button
+                    type="button"
+                    phx-click="toggle_interventions"
+                    class="arkea-button arkea-button--secondary"
+                  >
+                    Close
+                  </button>
+                </:footer>
+              </Panel.panel>
+            </aside>
 
-              <.topology_modal sim_state={@sim_state} />
-            </div>
-        <% end %>
+            <.topology_modal sim_state={@sim_state} />
+          </div>
+      <% end %>
+    </Shell.shell>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Sidebar (phase list + KPIs)
+
+  attr :sim_state, :map, required: true
+  attr :selected_phase_name, :atom, default: nil
+  attr :running, :boolean, default: false
+  attr :intervention_status, :map, required: true
+
+  defp phase_sidebar(assigns) do
+    total_population = BiotopeState.total_abundance(assigns.sim_state)
+    lineage_count = length(assigns.sim_state.lineages)
+
+    assigns =
+      assign(assigns, total_population: total_population, lineage_count: lineage_count)
+
+    ~H"""
+    <div class="arkea-biotope__sidebar arkea-scrollable">
+      <div class="arkea-biotope__sidebar-section">
+        <div class="arkea-biotope__sidebar-eyebrow">Biotope</div>
+        <div class="arkea-biotope__sidebar-stats">
+          <div class="arkea-biotope__sidebar-stat">
+            <span>Tick</span>
+            <span class="arkea-biotope__sidebar-stat-value">{@sim_state.tick_count}</span>
+          </div>
+          <div class="arkea-biotope__sidebar-stat">
+            <span>Lineages</span>
+            <span class="arkea-biotope__sidebar-stat-value">{@lineage_count}</span>
+          </div>
+          <div class="arkea-biotope__sidebar-stat">
+            <span>N total</span>
+            <span class="arkea-biotope__sidebar-stat-value">{format_compact(@total_population)}</span>
+          </div>
+          <div class="arkea-biotope__sidebar-stat">
+            <span>Stream</span>
+            <span class={[
+              "arkea-biotope__sidebar-stat-value",
+              @running && "arkea-biotope__sidebar-stat-value--ok"
+            ]}>
+              {if @running, do: "live", else: "shell"}
+            </span>
+          </div>
+        </div>
       </div>
+
+      <div class="arkea-biotope__sidebar-section">
+        <div class="arkea-biotope__sidebar-eyebrow">Phases</div>
+        <ul class="arkea-phase-list" role="list">
+          <li :for={phase <- @sim_state.phases}>
+            <button
+              type="button"
+              phx-click="select_phase"
+              phx-value-phase={Atom.to_string(phase.name)}
+              class={[
+                "arkea-phase-list__item",
+                @selected_phase_name == phase.name && "arkea-phase-list__item--active"
+              ]}
+              aria-current={@selected_phase_name == phase.name && "true"}
+            >
+              <span
+                class="arkea-phase-list__swatch"
+                style={"background: #{phase_color(phase.name)}"}
+                aria-hidden="true"
+              />
+              <span class="arkea-phase-list__main">
+                <span class="arkea-phase-list__label">{phase_label(phase.name)}</span>
+                <span class="arkea-phase-list__meta">
+                  T {format_float(phase.temperature, 1)}°C · pH {format_float(phase.ph, 1)}
+                </span>
+              </span>
+              <span class="arkea-phase-list__count">
+                {format_compact(phase_population(@sim_state.lineages, phase.name))}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <.phase_inspector
+        sim_state={@sim_state}
+        selected_phase_name={@selected_phase_name}
+      />
     </div>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Lineage drawer
+
+  attr :lineage, :map, required: true
+  attr :phenotype_cache, :map, required: true
+
+  defp lineage_drawer(assigns) do
+    phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
+    cluster = phenotype_cluster(phenotype)
+    abundance = Lineage.total_abundance(assigns.lineage)
+
+    assigns =
+      assign(assigns,
+        phenotype: phenotype,
+        cluster: cluster,
+        abundance: abundance,
+        color: lineage_color(assigns.lineage.id, phenotype)
+      )
+
+    ~H"""
+    <Panel.panel>
+      <:header
+        eyebrow="Selected lineage"
+        title={short_id(@lineage.id)}
+        meta={@cluster}
+      />
+      <:body scroll>
+        <div class="arkea-drawer__swatch-row">
+          <span class="arkea-drawer__swatch" style={"background: #{@color}"} />
+          <span class="arkea-drawer__id">{@lineage.id}</span>
+        </div>
+
+        <ul class="arkea-drawer__kv">
+          <li><span>N total</span><span>{@abundance}</span></li>
+          <li><span>Born</span><span>tick {@lineage.created_at_tick}</span></li>
+          <li :if={@phenotype}><span>µ (h⁻¹)</span><span>{format_float(@phenotype.base_growth_rate, 3)}</span></li>
+          <li :if={@phenotype}><span>ε (repair)</span><span>{format_float(@phenotype.repair_efficiency, 3)}</span></li>
+          <li :if={@phenotype}>
+            <span>Surface tags</span>
+            <span>{format_surface_tags(@phenotype.surface_tags)}</span>
+          </li>
+        </ul>
+
+        <div class="arkea-drawer__section">
+          <div class="arkea-drawer__section-title">Per-phase abundance</div>
+          <ul class="arkea-drawer__kv">
+            <li :for={{phase, count} <- sorted_phase_abundances(@lineage)}>
+              <span>{phase_label(phase)}</span>
+              <span>{count}</span>
+            </li>
+          </ul>
+        </div>
+      </:body>
+      <:footer>
+        <button
+          type="button"
+          phx-click="close_drawer"
+          class="arkea-button arkea-button--secondary"
+        >
+          Close
+        </button>
+      </:footer>
+    </Panel.panel>
     """
   end
 
@@ -252,101 +518,6 @@ defmodule ArkeaWeb.SimLive do
         </.link>
       </div>
     </div>
-    """
-  end
-
-  defp biotope_header(assigns) do
-    total_population = BiotopeState.total_abundance(assigns.sim_state)
-    lineage_count = length(assigns.sim_state.lineages)
-    phase_count = length(assigns.sim_state.phases)
-    budget_label = if assigns.intervention_status.allowed?, do: "open", else: "locked"
-
-    assigns =
-      assign(assigns,
-        total_population: total_population,
-        lineage_count: lineage_count,
-        phase_count: phase_count,
-        budget_label: budget_label
-      )
-
-    ~H"""
-    <header class="biotope-header">
-      <span
-        class="biotope-header__dot"
-        style={"background: #{archetype_color(@sim_state.archetype)}"}
-      >
-      </span>
-      <span class="biotope-header__name">{phase_label(@sim_state.archetype)}</span>
-      <div class="biotope-header__chips">
-        <.header_chip label="tick" value={@sim_state.tick_count} tone="gold" />
-        <.header_chip label="lineages" value={@lineage_count} tone="teal" />
-        <.header_chip label="N" value={format_compact(@total_population)} tone="teal" />
-        <.header_chip label="phases" value={@phase_count} tone="slate" />
-        <.header_chip
-          label="stream"
-          value={if(@running, do: "live", else: "shell")}
-          tone={if @running, do: "green", else: "amber"}
-        />
-        <.header_chip
-          label="budget"
-          value={@budget_label}
-          tone={if @intervention_status.allowed?, do: "green", else: "amber"}
-        />
-      </div>
-      <button
-        type="button"
-        class="biotope-header__detail-btn"
-        onclick="document.getElementById('topology-modal').showModal()"
-        title="Topology details"
-      >
-        <span class="hero-cog-6-tooth w-4 h-4"></span>
-      </button>
-    </header>
-    """
-  end
-
-  defp header_chip(assigns) do
-    ~H"""
-    <span class={["sim-header-chip", "sim-header-chip--#{@tone}"]}>
-      <span class="sim-header-chip__label">{@label}</span>
-      <span class="sim-header-chip__value">{@value}</span>
-    </span>
-    """
-  end
-
-  defp scene_panel(assigns) do
-    ~H"""
-    <section
-      class="sim-card sim-scene-card"
-      style="flex: 1; min-height: 0; display: flex; flex-direction: column;"
-    >
-      <div
-        class="sim-scene-frame"
-        style="flex: 1; min-height: 0;"
-        title="Procedural render derived from authoritative phase aggregates. Click a band to select the phase."
-      >
-        <BiotopeScene.biotope_scene layout={@scene_layout} class="sim-scene-canvas" />
-      </div>
-
-      <div class="sim-phase-tabs--inline">
-        <button
-          :for={phase <- @sim_state.phases}
-          type="button"
-          phx-click="select_phase"
-          phx-value-phase={Atom.to_string(phase.name)}
-          class={["sim-phase-tab--inline", @selected_phase_name == phase.name && "active"]}
-          data-phase={Atom.to_string(phase.name)}
-        >
-          <span class="sim-phase-tab__swatch" style={"background: #{phase_color(phase.name)}"}></span>
-          <span class="label">{phase_label(phase.name)}</span>
-          <span class="meta">
-            T {format_float(phase.temperature, 1)}°C &nbsp;pH {format_float(phase.ph, 1)} &nbsp;N {format_compact(
-              phase_population(@sim_state.lineages, phase.name)
-            )}
-          </span>
-        </button>
-      </div>
-    </section>
     """
   end
 
@@ -480,44 +651,6 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
-  defp bottom_tabs(assigns) do
-    ~H"""
-    <section class="sim-card biotope-bottom-tabs">
-      <div role="tablist" class="tabs tabs-box">
-        <button
-          role="tab"
-          class={["tab", @active_tab == :events && "tab-active"]}
-          phx-click="switch_tab"
-          phx-value-tab="events"
-        >
-          Events
-        </button>
-        <button
-          role="tab"
-          class={["tab", @active_tab == :interventions && "tab-active"]}
-          phx-click="switch_tab"
-          phx-value-tab="interventions"
-        >
-          Interventions
-        </button>
-      </div>
-
-      <div class="mt-3">
-        <%= if @active_tab == :events do %>
-          <.event_log_content event_log={@event_log} />
-        <% else %>
-          <.operator_content
-            selected_phase_name={@selected_phase_name}
-            operator_log={@operator_log}
-            operator_error={@operator_error}
-            intervention_status={@intervention_status}
-          />
-        <% end %>
-      </div>
-    </section>
-    """
-  end
-
   defp operator_content(assigns) do
     phase_actions_disabled =
       not assigns.intervention_status.owner? or
@@ -646,7 +779,8 @@ defmodule ArkeaWeb.SimLive do
     max_abundance =
       lineages |> Enum.map(&Lineage.total_abundance/1) |> Enum.max(fn -> 1 end) |> max(1)
 
-    assigns = assign(assigns, sorted_lineages: lineages, max_abundance: max_abundance)
+    selected_id = assigns[:selected_lineage_id]
+    assigns = assign(assigns, sorted_lineages: lineages, max_abundance: max_abundance, selected_id: selected_id)
 
     ~H"""
     <section class="sim-card">
@@ -658,7 +792,7 @@ defmodule ArkeaWeb.SimLive do
         <div class="sim-card__meta">{length(@sorted_lineages)}</div>
       </div>
 
-      <div class="overflow-x-auto" style="max-height: 20rem; overflow-y: auto;">
+      <div class="overflow-x-auto">
         <table class="sim-table">
           <thead>
             <tr>
@@ -698,6 +832,7 @@ defmodule ArkeaWeb.SimLive do
                 lineage={lineage}
                 phenotype_cache={@phenotype_cache}
                 max_abundance={@max_abundance}
+                selected_id={@selected_id}
               />
             <% end %>
           </tbody>
@@ -726,11 +861,16 @@ defmodule ArkeaWeb.SimLive do
         color: lineage_color(lineage.id, phenotype),
         cluster: cluster,
         cluster_color: cluster_color,
-        dominant_phase: dominant_phase_label(lineage)
+        dominant_phase: dominant_phase_label(lineage),
+        is_selected: assigns[:selected_id] == lineage.id
       )
 
     ~H"""
-    <tr style="height: 2rem;">
+    <tr
+      phx-click="select_lineage"
+      phx-value-id={@lineage.id}
+      class={["arkea-lineage-row", @is_selected && "arkea-lineage-row--selected"]}
+      style="height: 2rem; cursor: pointer;">
       <td style="padding: 0.45rem 0.5rem;">
         <div class="sim-lineage-id">
           <span class="sim-lineage-swatch" style={"background: #{@color}"}></span>
@@ -879,12 +1019,6 @@ defmodule ArkeaWeb.SimLive do
 
   defp page_title(%BiotopeState{} = state, _biotope_id) do
     "Arkea Biotope · " <> phase_label(state.archetype)
-  end
-
-  defp biotope_nav_label(nil, biotope_id), do: "Biotope " <> short_id(biotope_id || "")
-
-  defp biotope_nav_label(%BiotopeState{} = state, _biotope_id) do
-    phase_label(state.archetype)
   end
 
   defp assign_scene_snapshot(%{assigns: %{sim_state: nil}} = socket) do
@@ -1121,6 +1255,28 @@ defmodule ArkeaWeb.SimLive do
 
   defp short_id(""), do: ""
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
+
+  defp nav_items do
+    [
+      %{label: "Dashboard", href: "/dashboard", active: false},
+      %{label: "World", href: "/world", active: false},
+      %{label: "Seed Lab", href: "/seed-lab", active: false}
+    ]
+  end
+
+  defp bottom_tabs do
+    [
+      {:events, "Events"},
+      {:lineages, "Lineages"},
+      {:chemistry, "Chemistry"},
+      {:interventions, "Interventions"}
+    ]
+  end
+
+  defp format_surface_tags([]), do: "—"
+  defp format_surface_tags(tags) when is_list(tags) do
+    tags |> Enum.take(4) |> Enum.map_join(" · ", &humanize_string(Atom.to_string(&1)))
+  end
 
   defp phase_label(nil), do: "unassigned"
 
