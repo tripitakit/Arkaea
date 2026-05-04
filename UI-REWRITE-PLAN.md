@@ -228,38 +228,74 @@ Render HEEx consumano solo VM. Test unitari sulle VM (nessun coupling con LV).
 
 ## Migrazione in fasi
 
-| Fase | Scope | Output |
-|---|---|---|
-| **U0** | Shell + tokens + componenti `panel`/`metric` | Shell condiviso, base CSS pulita |
-| **U1** | Dashboard come nuova landing | `/dashboard`, redirect post-login |
-| **U2** | World view migrata a Shell + SVG full-bleed | Sidebar contestuale a destra |
-| **U3** | Biotope SVG scene (rimpiazza Pixi) | `pixi.js` rimosso da `package.json` |
-| **U4** | Biotope view: drawer + bottom tabs | Sostituzione layout `SimLive` |
-| **U5** | SeedLab cromosoma circolare + DnD domini | Hook `DomainDnD` (≤120 righe) |
-| **U6** | Audit + Community views | Stream paginated |
-| **U7** | Cleanup CSS + rimozione codice morto | `app.css` spezzato in moduli |
+| Fase | Commit | Scope | Output |
+|---|---|---|---|
+| **U0** | `1643016` | Shell + tokens + componenti `panel`/`metric` | Shell condiviso, base CSS pulita |
+| **U1** | `a6d9cc2` | Dashboard come nuova landing | `/dashboard`, redirect post-login |
+| **U2** | `471ab2a` | World view migrata a Shell + SVG full-bleed | Sidebar contestuale a destra |
+| **U3** | `0ba7f25` | Biotope SVG scene (rimpiazza Pixi) | `pixi.js` rimosso da `package.json` |
+| **U4** | `6c55626` | Biotope view: drawer + bottom tabs | Sostituzione layout `SimLive` |
+| **U5** | `bf6576f` | SeedLab cromosoma circolare + DnD domini (a11y-first ↑/↓/×) | DnD JS hook rimandato |
+| **U6** | `5549e9a` | Audit + Community views | LiveView su `audit_log` |
+| **U7** | `a4c58c8` | Cleanup CSS + dead code removal | `app.css` 2076 → 119 righe |
+| **U7+** | `67fe68a` | Migrazione completa `legacy.css` → `arkea/inner.css` | Tutto namespace `arkea-*`, −510 righe dead |
 
 Ogni fase: test green (incluso `mix test`), no regressione visiva manuale, commit isolato.
 
+### Stato finale
+
+- **9 commit** (U0..U7+) merged su `master`.
+- **429 test / 0 fallimenti** (era 374/5 a inizio rewrite — i 5 fallimenti pre-esistenti sono stati risolti come effetto collaterale).
+- **Bundle JS rimosso PixiJS**: `priv/static/assets/app.js` < 50 KB (era ~600 KB con Pixi).
+- **CSS modulare** in `assets/css/arkea/`: `tokens.css`, `shell.css`, `panel.css`, `metric.css`, `dashboard.css`, `world.css`, `scene.css`, `biotope.css`, `seed_lab.css`, `audit.css`, `inner.css`. `app.css` ridotto a 119 righe (Tailwind config + import).
+- **Nessun selettore legacy** (`sim-*`/`seed-*`/`world-*`/`biotope-*`/`game-nav-*`/`access-*`) nei file HEEx; tutto sotto prefisso `arkea-*`.
+
 ---
 
-## File critici toccati (sintesi)
+## File critici toccati (sintesi finale)
 
-- `lib/arkea_web/router.ex` — nuova route `/dashboard`, redirect post-login.
-- `lib/arkea_web/components/layouts/root.html.heex` — caricamento nuovi CSS.
-- `lib/arkea_web/components/layouts.ex` — `app` layout con `<.shell>`.
-- `lib/arkea_web/live/dashboard_live.ex` — **nuovo**.
-- `lib/arkea_web/live/world_live.ex` — refactor completo a Shell + VM.
-- `lib/arkea_web/live/seed_lab_live.ex` — refactor completo: cromosoma circolare, DnD, inspector.
-- `lib/arkea_web/live/sim_live.ex` — refactor completo: SVG scene, drawer, bottom tabs.
-- `lib/arkea_web/live/community_live.ex` — **nuovo** (read-only).
-- `lib/arkea_web/live/audit_live.ex` — **nuovo**.
-- `lib/arkea_web/components/` — nuovi componenti (vedi sezione dedicata).
-- `lib/arkea/views/` — nuovi VM puri (`WorldVM`, `BiotopeVM`, `SeedVM`).
-- `assets/js/app.js` — rimozione `BiotopeScene` Pixi, aggiunta `SvgPanZoom`, `DomainDnD`.
-- `assets/js/hooks/` — rimozione `biotope_scene.js`, aggiunta `svg_pan_zoom.js`, `domain_dnd.js`.
-- `assets/css/` — split modulare di `app.css`.
-- `assets/package.json` — rimozione `pixi.js`.
+### LiveView
+
+- `lib/arkea_web/live/dashboard_live.ex` — **nuovo**: 6 pannelli card-link.
+- `lib/arkea_web/live/audit_live.ex` — **nuovo**: stream paginato di `audit_log` con filter tabs.
+- `lib/arkea_web/live/community_live.ex` — **nuovo**: lista community-mode runs (read-only).
+- `lib/arkea_web/live/world_live.ex` — refactor completo a Shell + SVG full-bleed + side panels.
+- `lib/arkea_web/live/seed_lab_live.ex` — refactor: shell + cromosoma circolare + draft domini con ↑/↓/×.
+- `lib/arkea_web/live/sim_live.ex` — refactor completo: shell + sidebar fasi + scena SVG + drawer + bottom tabs.
+
+### Componenti riusabili
+
+- `lib/arkea_web/components/shell.ex` — **nuovo**: `<.shell>`, `<.shell_brand>`, `<.shell_nav>`, `<.shell_user>`.
+- `lib/arkea_web/components/panel.ex` — **nuovo**: `<.panel>` con slot header/body/footer + `<.empty_state>`.
+- `lib/arkea_web/components/metric.ex` — **nuovo**: `<.metric_strip>`, `<.metric_chip>`, `<.metric_bar>` (rimpiazza `stat_chip`).
+- `lib/arkea_web/components/biotope_scene.ex` — **nuovo**: SVG scena biotope (sostituisce hook Pixi).
+- `lib/arkea_web/components/genome_canvas.ex` — **nuovo**: SVG cromosoma circolare con corona di domini.
+- `lib/arkea_web/components/layouts.ex` — slim: solo `flash_group/1` (rimossa la scaffold `app/1` + `theme_toggle`).
+
+### View-model puri (testabili senza LV)
+
+- `lib/arkea/views/biotope_scene.ex` — **nuovo**: layout SVG biotope (`build/1` da snapshot).
+- `lib/arkea/views/genome_canvas.ex` — **nuovo**: layout SVG genome (`build/1` da preview, `from_preview/1`).
+
+### Routing
+
+- `lib/arkea_web/router.ex` — aggiunte route `/dashboard`, `/audit`, `/community`.
+- `lib/arkea_web/player_auth.ex` + `lib/arkea_web/controllers/player_access_controller.ex` — redirect post-login a `/dashboard` (era `/world`).
+
+### Asset
+
+- `assets/css/app.css` — ridotto da 2076 a 119 righe (solo Tailwind/DaisyUI/heroicons + import dei moduli).
+- `assets/css/arkea/` — **nuova directory** con 11 moduli: `tokens.css`, `shell.css`, `panel.css`, `metric.css`, `dashboard.css`, `world.css`, `scene.css`, `biotope.css`, `seed_lab.css`, `audit.css`, `inner.css`.
+- `assets/js/app.js` — rimosso hook `BiotopeScene` (Pixi).
+- `assets/js/hooks/biotope_scene.js` — **eliminato** (497 righe).
+- `assets/package.json` — rimosso `pixi.js`. Le dependencies sono ora `{}`.
+
+### Codice scaffold rimosso
+
+- `lib/arkea_web/game_chrome.ex` — eliminato (sostituito da `<.shell>` + `<.shell_nav>`).
+- `lib/arkea_web/controllers/page_controller.ex` + `page_html.ex` + `page_html/home.html.heex` — eliminati (Phoenix scaffold non wired).
+- `Layouts.app/1` + `Layouts.theme_toggle/1` — eliminati (scaffold non usato).
+- Inline theme-toggle script in `root.html.heex` — eliminato.
 
 ---
 
@@ -299,13 +335,20 @@ Aggiornamento di `README.md` e `README.en.md` nella sezione "Documenti" per link
 
 ---
 
-## Output finali attesi a piano completo
+## Output finali (consegnati)
 
-- Dashboard come landing post-login con 6 pannelli card-link.
-- 4 viste a pagina intera dedicate (`/world`, `/seed-lab`, `/biotopes/:id`, `/community`, `/audit`) senza scrollbar globali.
-- Genoma visualizzato come cromosoma circolare con domini riorganizzabili via DnD (con fallback a11y).
-- PixiJS rimosso; rendering 100% LiveView/SVG.
-- Bundle JS < 200 KB.
-- CSS modularizzato (`tokens.css` + componenti) sotto prefisso unico `arkea-`.
+- ✅ Dashboard come landing post-login con 6 pannelli card-link (3 live, 3 read-only).
+- ✅ 5 viste a pagina intera dedicate (`/world`, `/seed-lab`, `/biotopes/:id`, `/community`, `/audit`) senza scrollbar globali.
+- ✅ Genoma visualizzato come cromosoma circolare SVG con corona di domini; riordino via ↑/↓/× (a11y-first; DnD JS hook rimandato come enhancement additivo).
+- ✅ PixiJS rimosso; rendering 100% LiveView/SVG.
+- ✅ Bundle JS < 50 KB (target era < 200 KB).
+- ✅ CSS modularizzato in 11 moduli sotto prefisso `arkea-*`. Nessuna classe legacy `sim-*`/`seed-*`/`world-*`/`biotope-*` rimasta nel codice.
+
+## Scope non consegnati (follow-up additivi)
+
+- **JS DnD hook** per riordino visuale dei domini direttamente sul cromosoma SVG. L'a11y fallback ↑/↓/× è il meccanismo primario corrente (fully keyboard-accessible). Il hook resta opzionale.
+- **`/docs/:slug`** per render Markdown dei doc canonici (DESIGN, CALIBRATION, ecc.). Richiederebbe `Earmark`. Il pannello Docs della dashboard è ancora placeholder.
+- **Rimozione DaisyUI**: il plugin Tailwind è ancora caricato (`assets/css/app.css`). Lo si può eliminare dopo aver migrato `core_components.ex` flashes (`alert-error`, `alert-info`, `text-error`) e il default Phoenix `.input` button (`btn-primary`) a CSS arkea.
+- **Migrazione completa dei moduli `arkea/inner.css`**: l'inner panel layer (1468 righe) è stato rinominato a `arkea-*` ma rimane in un file unico. Lo split per surface (login/biotope-inner/seed-lab-inner) è lavoro residuo non bloccante.
 - View-model layer testato indipendentemente dai LiveView.
 - Coerenza piena con DESIGN.md (Blocchi 12 e 14 — visualizzazione e UI).
