@@ -11,6 +11,7 @@ defmodule Arkea.Persistence.Store do
   alias Arkea.Persistence.BiotopeWalEntry
   alias Arkea.Persistence.Serializer
   alias Arkea.Persistence.SnapshotWorker
+  alias Arkea.Persistence.TimeSeries
   alias Arkea.Repo
   alias Arkea.Sim.BiotopeState
   alias Ecto.Multi
@@ -40,6 +41,9 @@ defmodule Arkea.Persistence.Store do
         )
         |> Multi.run(:audit_log, fn repo, _changes ->
           AuditWriter.insert_events(repo, state.id, state.tick_count, events, occurred_at)
+        end)
+        |> Multi.run(:time_series, fn repo, _changes ->
+          TimeSeries.persist(repo, state, occurred_at)
         end)
         |> maybe_enqueue_snapshot(state)
 

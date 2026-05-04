@@ -990,7 +990,31 @@ defmodule Arkea.Sim.Tick do
 
     - `:hgt_transfer` for every new lineage whose parent carried fewer plasmids,
       indicating a successful conjugation event (transconjugant detected).
+
+  UI Phase B (data pipeline backfill) adds events derivable from
+  state-diff alone, without changing the per-step internal signatures:
+
+    - `:mutation_notable` — a child lineage whose phenotype differs by
+      more than `@notable_phenotype_threshold` (20 %) from the parent on
+      `base_growth_rate`, `repair_efficiency`, `energy_cost`, or
+      surface tag count. Carried alongside the regular `:lineage_born`.
+    - `:mass_lysis` — when the per-phase total abundance dropped by
+      more than `@mass_lysis_drop_fraction` (30 %) in this tick. One
+      event per affected phase.
+    - `:colonization` — when a (lineage, phase) pair whose abundance
+      was 0 in `old_state` reaches at least
+      `@colonization_threshold` cells in `new_state`. Excludes
+      lineages that did not exist in `old_state` (those produce
+      `:lineage_born` instead). One event per (lineage, phase) pair.
+    - `:phage_burst` — when a phase's `phage_pool` total virion count
+      grew by more than `@phage_burst_threshold` virions in this tick
+      (proxy for prophage induction or infection wave).
   """
+  @notable_phenotype_threshold 0.2
+  @mass_lysis_drop_fraction 0.3
+  @colonization_threshold 50
+  @phage_burst_threshold 25
+
   @spec derive_events(BiotopeState.t(), BiotopeState.t()) :: [event()]
   def derive_events(%BiotopeState{} = old_state, %BiotopeState{} = new_state) do
     old_ids = MapSet.new(old_state.lineages, & &1.id)
@@ -1004,12 +1028,14 @@ defmodule Arkea.Sim.Tick do
       Enum.map(born_lineages, fn l ->
         %{
           type: :lineage_born,
-          payload: %{
-            lineage_id: l.id,
-            parent_id: l.parent_id,
-            original_seed_id: l.original_seed_id,
-            tick: new_state.tick_count
-          }
+          payload:
+            %{
+              lineage_id: l.id,
+              parent_id: l.parent_id,
+              original_seed_id: l.original_seed_id,
+              tick: new_state.tick_count
+            }
+            |> Map.merge(mutation_summary(l, old_by_id))
         }
       end)
 
@@ -1028,7 +1054,20 @@ defmodule Arkea.Sim.Tick do
         detect_hgt_transfer(l, old_by_id, new_state.tick_count)
       end)
 
-    born_events ++ extinct_events ++ hgt_events
+    notable_events =
+      Enum.flat_map(born_lineages, fn l -> detect_mutation_notable(l, old_by_id, new_state) end)
+
+    mass_lysis_events = detect_mass_lysis(old_state, new_state)
+    colonization_events = detect_colonization(old_state, new_state)
+    phage_burst_events = detect_phage_burst(old_state, new_state)
+
+    born_events ++
+      extinct_events ++
+      hgt_events ++
+      notable_events ++
+      mass_lysis_events ++
+      colonization_events ++
+      phage_burst_events
   end
 
   # ---------------------------------------------------------------------------
@@ -1064,6 +1103,220 @@ defmodule Arkea.Sim.Tick do
   defp plasmid_count_gain(new_genome, parent) do
     parent_count = if parent.genome != nil, do: length(parent.genome.plasmids), else: 0
     max(length(new_genome.plasmids) - parent_count, 0)
+  end
+
+  # ---------------------------------------------------------------------------
+  # UI Phase B — extra event detectors derived from old/new state diff
+
+  # Returns a small map merged into the :lineage_born payload to surface
+  # a structured summary of the phenotypic delta vs the parent (used by
+  # the UI to colour the audit row and feed Phase D phylogeny edge labels).
+  # Empty map when parent is unknown or genomes are not comparable.
+  defp mutation_summary(%{parent_id: nil}, _old_by_id), do: %{}
+  defp mutation_summary(%{genome: nil}, _old_by_id), do: %{}
+
+  defp mutation_summary(child, old_by_id) do
+    case Map.get(old_by_id, child.parent_id) do
+      %{genome: parent_genome} when not is_nil(parent_genome) ->
+        child_pheno = Phenotype.from_genome(child.genome)
+        parent_pheno = Phenotype.from_genome(parent_genome)
+
+        %{
+          mutation_summary: %{
+            d_growth_rate:
+              round_delta(parent_pheno.base_growth_rate, child_pheno.base_growth_rate),
+            d_repair: round_delta(parent_pheno.repair_efficiency, child_pheno.repair_efficiency),
+            d_energy_cost: round_delta(parent_pheno.energy_cost, child_pheno.energy_cost),
+            child_gene_count: child.genome.gene_count,
+            parent_gene_count: parent_genome.gene_count
+          }
+        }
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp round_delta(a, b) when is_number(a) and is_number(b) do
+    Float.round((b - a) * 1.0, 4)
+  end
+
+  defp round_delta(_a, _b), do: 0.0
+
+  # Emit a :mutation_notable event when a child's phenotype differs from
+  # its parent by more than @notable_phenotype_threshold on at least one
+  # of the headline scalar fields. The parent must still be alive in
+  # `new_state` (otherwise the event would coincide with extinction —
+  # less interesting to surface as a "notable mutation").
+  defp detect_mutation_notable(child, old_by_id, new_state) do
+    with %{} = parent <- Map.get(old_by_id, child.parent_id),
+         parent_genome when not is_nil(parent_genome) <- parent.genome,
+         child_genome when not is_nil(child_genome) <- child.genome do
+      child_pheno = Phenotype.from_genome(child_genome)
+      parent_pheno = Phenotype.from_genome(parent_genome)
+
+      notable =
+        notable?(parent_pheno.base_growth_rate, child_pheno.base_growth_rate) or
+          notable?(parent_pheno.repair_efficiency, child_pheno.repair_efficiency) or
+          notable?(parent_pheno.energy_cost, child_pheno.energy_cost)
+
+      if notable do
+        [
+          %{
+            type: :mutation_notable,
+            payload: %{
+              lineage_id: child.id,
+              parent_id: child.parent_id,
+              tick: new_state.tick_count,
+              d_growth_rate:
+                round_delta(parent_pheno.base_growth_rate, child_pheno.base_growth_rate),
+              d_repair:
+                round_delta(parent_pheno.repair_efficiency, child_pheno.repair_efficiency),
+              d_energy_cost: round_delta(parent_pheno.energy_cost, child_pheno.energy_cost)
+            }
+          }
+        ]
+      else
+        []
+      end
+    else
+      _ -> []
+    end
+  end
+
+  # Relative-difference test, guarded against the small-divisor case
+  # where a 0.0 → 0.05 jump would naively read as "infinity %".
+  defp notable?(a, b) do
+    base = max(abs(a), 0.05)
+    abs(b - a) / base >= @notable_phenotype_threshold
+  end
+
+  # One :mass_lysis event per phase that lost more than
+  # @mass_lysis_drop_fraction of its total population in this tick.
+  defp detect_mass_lysis(old_state, new_state) do
+    old_pop = phase_totals(old_state)
+    new_pop = phase_totals(new_state)
+
+    Enum.flat_map(old_pop, fn {phase_name, before_total} ->
+      after_total = Map.get(new_pop, phase_name, 0)
+
+      cond do
+        before_total < 200 ->
+          []
+
+        after_total >= round(before_total * (1 - @mass_lysis_drop_fraction)) ->
+          []
+
+        true ->
+          [
+            %{
+              type: :mass_lysis,
+              payload: %{
+                phase: Atom.to_string(phase_name),
+                tick: new_state.tick_count,
+                population_before: before_total,
+                population_after: after_total,
+                fraction_lost: Float.round(1.0 - after_total / max(before_total, 1), 3)
+              }
+            }
+          ]
+      end
+    end)
+  end
+
+  defp phase_totals(%BiotopeState{lineages: lineages, phases: phases}) do
+    Map.new(phases, fn p ->
+      total =
+        Enum.sum(Enum.map(lineages, fn l -> Map.get(l.abundance_by_phase, p.name, 0) end))
+
+      {p.name, total}
+    end)
+  end
+
+  # One :colonization event per (lineage, phase) pair whose abundance
+  # crossed from 0 to >= @colonization_threshold in this tick. Skips
+  # newly-born lineages (those carry their own :lineage_born event).
+  defp detect_colonization(old_state, new_state) do
+    old_by_id = Map.new(old_state.lineages, fn l -> {l.id, l} end)
+
+    Enum.flat_map(new_state.lineages, fn lineage ->
+      case Map.get(old_by_id, lineage.id) do
+        nil ->
+          []
+
+        old_lineage ->
+          Enum.flat_map(lineage.abundance_by_phase, fn {phase_name, count} ->
+            old_count = Map.get(old_lineage.abundance_by_phase, phase_name, 0)
+
+            if old_count == 0 and count >= @colonization_threshold do
+              [
+                %{
+                  type: :colonization,
+                  payload: %{
+                    lineage_id: lineage.id,
+                    phase: Atom.to_string(phase_name),
+                    tick: new_state.tick_count,
+                    abundance: count
+                  }
+                }
+              ]
+            else
+              []
+            end
+          end)
+      end
+    end)
+  end
+
+  # One :phage_burst per phase whose free-virion total grew by more
+  # than @phage_burst_threshold this tick. Aggregates across all
+  # phage strains living in that phase's pool.
+  defp detect_phage_burst(old_state, new_state) do
+    old_pool = phase_phage_totals(old_state)
+    new_pool = phase_phage_totals(new_state)
+
+    Enum.flat_map(new_pool, fn {phase_name, after_total} ->
+      before_total = Map.get(old_pool, phase_name, 0)
+      gain = after_total - before_total
+
+      if gain > @phage_burst_threshold do
+        [
+          %{
+            type: :phage_burst,
+            payload: %{
+              phase: Atom.to_string(phase_name),
+              tick: new_state.tick_count,
+              virions_before: before_total,
+              virions_after: after_total,
+              virions_gained: gain
+            }
+          }
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  defp phase_phage_totals(%BiotopeState{phases: phases}) do
+    Map.new(phases, fn p ->
+      total =
+        case p.phage_pool do
+          pool when is_map(pool) ->
+            Enum.sum(
+              Enum.map(pool, fn
+                {_id, %{abundance: a}} when is_integer(a) -> a
+                {_id, n} when is_integer(n) -> n
+                _ -> 0
+              end)
+            )
+
+          _ ->
+            0
+        end
+
+      {p.name, total}
+    end)
   end
 
   defp increment_tick(%BiotopeState{tick_count: n} = state) do
