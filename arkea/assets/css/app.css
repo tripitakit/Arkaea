@@ -104,6 +104,13 @@
 
 /* This file is for your main application CSS */
 
+/* Arkea UI rewrite (phase U0+): modular components under arkea/ namespace.
+   Loaded before legacy --sim-* tokens so the new tokens can alias them. */
+@import "./arkea/tokens.css";
+@import "./arkea/shell.css";
+@import "./arkea/panel.css";
+@import "./arkea/metric.css";
+
 :root {
   --sim-bg: oklch(13% 0.012 253);
   --sim-bg-deep: oklch(9% 0.008 254);

@@ -1,0 +1,85 @@
+/*
+ * Arkea design tokens (UI rewrite — phase U0)
+ *
+ * Aliases the existing --sim-* / --bio-* tokens under a stable --arkea-* namespace
+ * and introduces a few new tokens (shell heights, scrollbar, surface tones) that
+ * the rewrite needs. New components must read --arkea-* tokens only; legacy
+ * --sim-* are kept untouched while migration is in flight.
+ */
+
+:root {
+  /* Surfaces */
+  --arkea-bg: var(--sim-bg);
+  --arkea-bg-deep: var(--sim-bg-deep);
+  --arkea-surface: var(--sim-panel);
+  --arkea-surface-2: oklch(19% 0.014 253 / 92%);
+  --arkea-surface-3: oklch(22% 0.014 253 / 96%);
+  --arkea-border: var(--sim-panel-border);
+  --arkea-border-strong: oklch(55% 0.01 253 / 32%);
+
+  /* Text */
+  --arkea-fg: var(--sim-copy);
+  --arkea-fg-muted: var(--sim-muted);
+  --arkea-fg-faint: oklch(62% 0.013 253 / 70%);
+
+  /* Accents (biology-aligned) */
+  --arkea-accent-growth: var(--bio-growth);
+  --arkea-accent-stress: var(--bio-stress);
+  --arkea-accent-signal: var(--bio-signal);
+  --arkea-accent-metabolite: var(--bio-metabolite);
+  --arkea-accent-gold: var(--sim-gold);
+  --arkea-accent-teal: var(--sim-teal);
+  --arkea-accent-sky: var(--sim-sky);
+  --arkea-accent-rust: var(--sim-rust);
+
+  /* Spacing — alias to existing scale */
+  --arkea-space-1: var(--space-1);
+  --arkea-space-2: var(--space-2);
+  --arkea-space-3: var(--space-3);
+  --arkea-space-4: var(--space-4);
+  --arkea-space-5: var(--space-5);
+  --arkea-space-6: var(--space-6);
+
+  /* Typography */
+  --arkea-text-xs: var(--text-xs);
+  --arkea-text-sm: var(--text-sm);
+  --arkea-text-base: var(--text-base);
+  --arkea-text-md: var(--text-md);
+  --arkea-text-lg: var(--text-lg);
+
+  /* Layout */
+  --arkea-shell-header-height: 48px;
+  --arkea-shell-sidebar-width: 240px;
+  --arkea-radius-sm: 6px;
+  --arkea-radius-md: 10px;
+  --arkea-radius-lg: 14px;
+
+  /* Z-index scale */
+  --arkea-z-base: 0;
+  --arkea-z-content: 1;
+  --arkea-z-sticky: 10;
+  --arkea-z-drawer: 50;
+  --arkea-z-modal: 100;
+  --arkea-z-toast: 200;
+}
+
+/* Custom scrollbars on opt-in containers (no global scrollbar). */
+.arkea-scrollable {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--arkea-border-strong) transparent;
+}
+
+.arkea-scrollable::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.arkea-scrollable::-webkit-scrollbar-thumb {
+  background: var(--arkea-border-strong);
+  border-radius: 4px;
+}
+
+.arkea-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}

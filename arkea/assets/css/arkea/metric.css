@@ -1,0 +1,94 @@
+/*
+ * Arkea metric components (UI rewrite — phase U0)
+ *
+ * - .arkea-metric-chip: compact label/value pair, used inline (e.g. card meta)
+ * - .arkea-metric-strip: horizontal collection of chips
+ * - .arkea-metric-bar: horizontal bar showing a value within a range,
+ *                     used for phenotype trait readouts
+ */
+
+.arkea-metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-metric-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  min-width: 64px;
+}
+
+.arkea-metric-chip__label {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.arkea-metric-chip__value {
+  font-size: var(--arkea-text-md);
+  font-weight: 600;
+  color: var(--arkea-fg);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.arkea-metric-chip--gold .arkea-metric-chip__value { color: var(--arkea-accent-gold); }
+.arkea-metric-chip--teal .arkea-metric-chip__value { color: var(--arkea-accent-teal); }
+.arkea-metric-chip--sky .arkea-metric-chip__value { color: var(--arkea-accent-sky); }
+.arkea-metric-chip--rust .arkea-metric-chip__value { color: var(--arkea-accent-rust); }
+.arkea-metric-chip--growth .arkea-metric-chip__value { color: var(--arkea-accent-growth); }
+.arkea-metric-chip--stress .arkea-metric-chip__value { color: var(--arkea-accent-stress); }
+.arkea-metric-chip--signal .arkea-metric-chip__value { color: var(--arkea-accent-signal); }
+.arkea-metric-chip--metabolite .arkea-metric-chip__value { color: var(--arkea-accent-metabolite); }
+.arkea-metric-chip--muted .arkea-metric-chip__value { color: var(--arkea-fg-muted); }
+
+.arkea-metric-bar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  font-size: var(--arkea-text-xs);
+}
+
+.arkea-metric-bar__label {
+  color: var(--arkea-fg-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.arkea-metric-bar__value {
+  color: var(--arkea-fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.arkea-metric-bar__track {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 6px;
+  background: var(--arkea-surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.arkea-metric-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--arkea-accent-metabolite);
+  border-radius: 3px;
+  transition: width 200ms ease;
+}
+
+.arkea-metric-bar--growth .arkea-metric-bar__fill { background: var(--arkea-accent-growth); }
+.arkea-metric-bar--stress .arkea-metric-bar__fill { background: var(--arkea-accent-stress); }
+.arkea-metric-bar--signal .arkea-metric-bar__fill { background: var(--arkea-accent-signal); }
+.arkea-metric-bar--metabolite .arkea-metric-bar__fill { background: var(--arkea-accent-metabolite); }
+.arkea-metric-bar--gold .arkea-metric-bar__fill { background: var(--arkea-accent-gold); }
+.arkea-metric-bar--teal .arkea-metric-bar__fill { background: var(--arkea-accent-teal); }

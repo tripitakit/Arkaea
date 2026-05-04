@@ -1,0 +1,133 @@
+/*
+ * Arkea shell (UI rewrite — phase U0)
+ *
+ * Three-region layout: top bar (48px) + optional sidebar (240px) + main.
+ * Fills the viewport (100dvh) and locks global scroll — sub-panels opt in
+ * via .arkea-scrollable.
+ */
+
+.arkea-shell {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: var(--arkea-shell-header-height) 1fr;
+  grid-template-columns: 100%;
+  background: var(--arkea-bg);
+  color: var(--arkea-fg);
+  overflow: hidden;
+}
+
+.arkea-shell--with-sidebar .arkea-shell__body {
+  grid-template-columns: var(--arkea-shell-sidebar-width) 1fr;
+}
+
+.arkea-shell__header {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-4);
+  padding: 0 var(--arkea-space-5);
+  background: var(--arkea-surface-2);
+  border-bottom: 1px solid var(--arkea-border);
+  z-index: var(--arkea-z-sticky);
+}
+
+.arkea-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  font-size: var(--arkea-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--arkea-fg);
+}
+
+.arkea-shell__brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--arkea-accent-teal), var(--arkea-accent-gold));
+}
+
+.arkea-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-1);
+  margin-left: var(--arkea-space-4);
+}
+
+.arkea-shell__nav-link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--arkea-space-3);
+  border-radius: var(--arkea-radius-sm);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg-muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.arkea-shell__nav-link:hover {
+  background: var(--arkea-surface);
+  color: var(--arkea-fg);
+}
+
+.arkea-shell__nav-link[aria-current="page"] {
+  background: var(--arkea-surface);
+  color: var(--arkea-fg);
+  border-color: var(--arkea-border);
+}
+
+.arkea-shell__spacer {
+  flex: 1;
+}
+
+.arkea-shell__user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-shell__user-name {
+  color: var(--arkea-fg);
+  font-weight: 600;
+}
+
+.arkea-shell__user-action {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  text-decoration: none;
+  padding: var(--arkea-space-1) var(--arkea-space-2);
+  border-radius: var(--arkea-radius-sm);
+  border: 1px solid transparent;
+}
+
+.arkea-shell__user-action:hover {
+  color: var(--arkea-fg);
+  border-color: var(--arkea-border);
+}
+
+.arkea-shell__body {
+  display: grid;
+  grid-template-columns: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.arkea-shell__sidebar {
+  background: var(--arkea-surface);
+  border-right: 1px solid var(--arkea-border);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.arkea-shell__main {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
