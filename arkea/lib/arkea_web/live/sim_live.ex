@@ -20,6 +20,8 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
+  alias Arkea.Views.BiotopeScene, as: SceneLayout
+  alias ArkeaWeb.Components.BiotopeScene
   alias ArkeaWeb.GameChrome
 
   @max_event_log 20
@@ -39,7 +41,7 @@ defmodule ArkeaWeb.SimLive do
        operator_error: nil,
        intervention_status: default_intervention_status(),
        running: false,
-       scene_snapshot_json: "{}",
+       scene_layout: SceneLayout.build(%{phases: [], lineages: []}),
        not_found?: false,
        lineage_sort: :abundance,
        bottom_tab: :events,
@@ -188,7 +190,7 @@ defmodule ArkeaWeb.SimLive do
                   <.scene_panel
                     sim_state={@sim_state}
                     selected_phase_name={@selected_phase_name}
-                    scene_snapshot_json={@scene_snapshot_json}
+                    scene_layout={@scene_layout}
                   />
                 </div>
 
@@ -323,14 +325,7 @@ defmodule ArkeaWeb.SimLive do
         style="flex: 1; min-height: 0;"
         title="Procedural render derived from authoritative phase aggregates. Click a band to select the phase."
       >
-        <div
-          id="biotope-scene"
-          class="sim-scene-canvas"
-          phx-hook="BiotopeScene"
-          phx-update="ignore"
-          data-biotope-snapshot={@scene_snapshot_json}
-        >
-        </div>
+        <BiotopeScene.biotope_scene layout={@scene_layout} class="sim-scene-canvas" />
       </div>
 
       <div class="sim-phase-tabs--inline">
@@ -893,7 +888,7 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp assign_scene_snapshot(%{assigns: %{sim_state: nil}} = socket) do
-    assign(socket, scene_snapshot_json: "{}")
+    assign(socket, scene_layout: SceneLayout.build(%{phases: [], lineages: []}))
   end
 
   defp assign_scene_snapshot(socket) do
@@ -904,49 +899,43 @@ defmodule ArkeaWeb.SimLive do
         socket.assigns.selected_phase_name
       )
 
-    socket = assign(socket, scene_snapshot_json: Jason.encode!(snapshot))
-
-    if Phoenix.LiveView.connected?(socket) do
-      push_event(socket, "biotope_snapshot", snapshot)
-    else
-      socket
-    end
+    assign(socket, scene_layout: SceneLayout.build(snapshot))
   end
 
   defp build_scene_snapshot(%BiotopeState{} = state, phenotype_cache, selected_phase_name) do
     %{
-      "biotopeId" => state.id,
-      "tick" => state.tick_count,
-      "archetype" => phase_label(state.archetype),
-      "selectedPhase" => atom_to_string(selected_phase_name),
-      "phases" =>
+      biotope_id: state.id,
+      tick: state.tick_count,
+      archetype: phase_label(state.archetype),
+      selected_phase: atom_to_string(selected_phase_name),
+      phases:
         Enum.map(state.phases, fn phase ->
           %{
-            "name" => Atom.to_string(phase.name),
-            "label" => phase_label(phase.name),
-            "color" => phase_color(phase.name),
-            "temperature" => round_metric(phase.temperature),
-            "ph" => round_metric(phase.ph),
-            "osmolarity" => round_metric(phase.osmolarity),
-            "dilutionRate" => round_metric(phase.dilution_rate),
-            "totalAbundance" => phase_population(state.lineages, phase.name),
-            "lineageCount" => phase_richness(state.lineages, phase.name),
-            "metaboliteLoad" => round_metric(sum_pool(phase.metabolite_pool)),
-            "signalLoad" => round_metric(sum_pool(phase.signal_pool)),
-            "phageLoad" => round_metric(sum_phage_pool(phase.phage_pool))
+            name: Atom.to_string(phase.name),
+            label: phase_label(phase.name),
+            color: phase_color(phase.name),
+            temperature: round_metric(phase.temperature),
+            ph: round_metric(phase.ph),
+            osmolarity: round_metric(phase.osmolarity),
+            dilution_rate: round_metric(phase.dilution_rate),
+            total_abundance: phase_population(state.lineages, phase.name),
+            lineage_count: phase_richness(state.lineages, phase.name),
+            metabolite_load: round_metric(sum_pool(phase.metabolite_pool)),
+            signal_load: round_metric(sum_pool(phase.signal_pool)),
+            phage_load: round_metric(sum_phage_pool(phase.phage_pool))
           }
         end),
-      "lineages" =>
+      lineages:
         Enum.map(Enum.sort_by(state.lineages, &Lineage.total_abundance/1, :desc), fn lineage ->
           phenotype = Map.get(phenotype_cache, lineage.id)
 
           %{
-            "id" => lineage.id,
-            "shortId" => short_id(lineage.id),
-            "totalAbundance" => Lineage.total_abundance(lineage),
-            "cluster" => phenotype_cluster(phenotype),
-            "color" => lineage_color(lineage.id, phenotype),
-            "phaseAbundance" => stringify_phase_map(lineage.abundance_by_phase)
+            id: lineage.id,
+            short_id: short_id(lineage.id),
+            total_abundance: Lineage.total_abundance(lineage),
+            cluster: phenotype_cluster(phenotype),
+            color: lineage_color(lineage.id, phenotype),
+            phase_abundance: stringify_phase_map(lineage.abundance_by_phase)
           }
         end)
     }

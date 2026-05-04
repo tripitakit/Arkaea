@@ -1,0 +1,125 @@
+/*
+ * Arkea biotope scene (UI rewrite — phase U3, replaces PixiJS canvas)
+ *
+ * Single SVG with phase bands, particles, labels, tick overlay.
+ * Click bands to select; CSS handles transitions on r/cx/cy/opacity.
+ */
+
+.arkea-scene {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-height: 0;
+}
+
+.arkea-scene__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.arkea-scene__empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--arkea-fg-muted);
+  font-size: var(--arkea-text-sm);
+}
+
+.arkea-scene__backdrop {
+  fill: #08111b;
+  opacity: 0.96;
+  stroke: #334155;
+  stroke-opacity: 0.65;
+  stroke-width: 1.5;
+}
+
+.arkea-scene__grid {
+  pointer-events: none;
+}
+
+/* Phase bands */
+.arkea-scene__band {
+  cursor: pointer;
+  outline: none;
+}
+
+.arkea-scene__band-rect {
+  fill: var(--arkea-band-color, #94a3b8);
+  fill-opacity: 0.13;
+  stroke: var(--arkea-band-color, #94a3b8);
+  stroke-opacity: 0.45;
+  stroke-width: 1.2;
+  transition: fill-opacity 150ms ease, stroke-opacity 150ms ease, stroke-width 150ms ease;
+}
+
+.arkea-scene__band:hover .arkea-scene__band-rect {
+  fill-opacity: 0.18;
+  stroke-opacity: 0.65;
+}
+
+.arkea-scene__band--selected .arkea-scene__band-rect {
+  fill-opacity: 0.22;
+  stroke-opacity: 0.9;
+  stroke-width: 2.8;
+}
+
+.arkea-scene__band-highlight {
+  fill: var(--arkea-band-color, #94a3b8);
+  fill-opacity: 0.9;
+}
+
+.arkea-scene__band-title {
+  fill: #f8fafc;
+  font-size: 11px;
+  font-family: "Azeret Mono", "IBM Plex Mono", "Iosevka", ui-monospace, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.arkea-scene__band-detail {
+  fill: var(--arkea-fg-muted);
+  font-size: 9px;
+  font-family: "Azeret Mono", "IBM Plex Mono", "Iosevka", ui-monospace, monospace;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+.arkea-scene__band:focus-visible .arkea-scene__band-rect {
+  stroke: var(--arkea-accent-teal);
+  stroke-width: 2;
+}
+
+/* Particles */
+.arkea-scene__particles {
+  pointer-events: none;
+}
+
+.arkea-scene__particle {
+  opacity: 0.86;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.arkea-scene__particle circle,
+.arkea-scene__particle ellipse,
+.arkea-scene__particle rect {
+  transition: r 250ms ease, rx 250ms ease, ry 250ms ease;
+}
+
+.arkea-scene__particle--biofilm { opacity: 0.92; }
+.arkea-scene__particle--motile  { opacity: 0.82; }
+
+/* Tick overlay */
+.arkea-scene__tick {
+  fill: #64748b;
+  font-size: 9px;
+  font-family: "Azeret Mono", "IBM Plex Mono", "Iosevka", ui-monospace, monospace;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}

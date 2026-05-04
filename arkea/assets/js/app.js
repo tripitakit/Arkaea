@@ -24,12 +24,10 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/arkea"
 import topbar from "../vendor/topbar"
-import {BiotopeScene} from "./hooks/biotope_scene"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
   ...colocatedHooks,
-  BiotopeScene,
 }
 
 const liveSocket = new LiveSocket("/live", Socket, {
