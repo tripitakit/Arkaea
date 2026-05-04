@@ -237,6 +237,22 @@ defmodule ArkeaWeb.SeedLabLive do
     end
   end
 
+  def handle_event("load_scenario", %{"id" => scenario_id}, socket) do
+    cond do
+      socket.assigns.seed_locked? or socket.assigns[:recolonize_mode?] ->
+        {:noreply, socket}
+
+      scenario = Arkea.Game.Scenarios.find(scenario_id) ->
+        {:noreply,
+         socket
+         |> assign(errors: %{}, gene_editor_error: nil)
+         |> apply_form(scenario.params)}
+
+      true ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("toggle_inspector", _params, socket) do
     {:noreply, assign(socket, inspector_expanded: not socket.assigns.inspector_expanded)}
   end
@@ -407,6 +423,31 @@ defmodule ArkeaWeb.SeedLabLive do
                 </div>
               <% true -> %>
             <% end %>
+
+            <div
+              :if={not @seed_locked? and not @recolonize_mode?}
+              class="arkea-seed-scenarios"
+              role="region"
+              aria-label="Curated scenario presets"
+            >
+              <div class="arkea-card__eyebrow">Quick start scenarios</div>
+              <div class="arkea-seed-scenarios__chips">
+                <button
+                  :for={scenario <- Arkea.Game.Scenarios.list()}
+                  type="button"
+                  class="arkea-seed-scenarios__chip"
+                  phx-click="load_scenario"
+                  phx-value-id={scenario.id}
+                  title={scenario.summary}
+                >
+                  {scenario.title}
+                </button>
+              </div>
+              <p class="arkea-muted arkea-seed-scenarios__hint">
+                Click a scenario to pre-fill the form. You can still tweak any field
+                before colonising.
+              </p>
+            </div>
 
             <form phx-change="change_seed" phx-submit="provision_seed" class="arkea-seed-form">
               <fieldset disabled={@seed_locked?} class="arkea-seed-form__fieldset">

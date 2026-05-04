@@ -422,3 +422,42 @@
   font-size: 0.78rem;
   color: #f1f5f9;
 }
+
+/* Seed Lab quick-start scenario presets (UI Phase G). */
+.arkea-seed-scenarios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.85rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 0.45rem;
+}
+
+.arkea-seed-scenarios__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.arkea-seed-scenarios__chip {
+  background: rgba(103, 232, 249, 0.08);
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.arkea-seed-scenarios__chip:hover {
+  background: rgba(103, 232, 249, 0.18);
+  border-color: rgba(103, 232, 249, 0.6);
+}
+
+.arkea-seed-scenarios__hint {
+  font-size: 0.78rem;
+  margin: 0;
+}

@@ -16,6 +16,18 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     {:ok, conn: log_in_prototype_player(conn)}
   end
 
+  test "scenario chip pre-fills the seed form with the preset's params", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/seed-lab")
+
+    view
+    |> element(~s|button[phx-click="load_scenario"][phx-value-id="cross_feeding_pond"]|)
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "Pond Bloom"
+    assert html =~ "Eutrophic pond"
+  end
+
   test "seed lab updates the ecotype preview", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/seed-lab")
 
