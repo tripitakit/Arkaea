@@ -103,6 +103,7 @@ Subito dopo la registrazione:
 3. La community e l'audit sono vuoti per te (eventi globali da altri player potrebbero essere già visibili).
 4. Click su "Seed Lab" → progetti il seed.
 5. Dopo il provisioning, il Biotope viewport ti porta dentro il tuo primo biotopo. Già al **tick 0** vedi la popolazione fondatrice (`N=420` distribuiti sulle fasi del biotopo).
+6. Puoi tornare al Seed Lab per claimare un secondo o terzo home (limite: 3 simultanei) su archetipi differenti — i tuoi home compaiono nel pannello "My Biotopes".
 
 Nei **primi 10–30 tick** non vedi quasi nulla di dinamico: la popolazione fondatrice è genomicamente uniforme, le mutazioni sono rare. È normale. Da tick ~50 in poi cominciano ad apparire i primi `:lineage_born` events.
 
@@ -115,15 +116,15 @@ La Dashboard è la landing post-login. È strutturata in **6 pannelli card-link*
 | Pannello | Apre | Quando ti serve |
 |---|---|---|
 | **World** | `/world` | Vista d'insieme: chi è dove, quanti biotopi attivi, distribuzione archetipi. |
-| **Seed Lab** | `/seed-lab` | Solo prima del primo provisioning, oppure per ispezionare il seed locked. |
+| **Seed Lab** | `/seed-lab` | Progettare un nuovo home (fino a 3) o ispezionare un seed già locked; il pannello mostra il count `N/3 homes`. |
 | **My Biotopes** | `/biotopes/:id` | Lista compatta dei biotopi che possiedi — quick jump alla viewport. |
-| **Community** | `/community` | Read-only: biotopi avviati con community-mode (multi-seed). |
+| **Community** | `/community` | Read-only: biotopi avviati con community-mode (multi-seed). Linkato dalla shell-nav fin dal primo accesso. |
 | **Audit** | `/audit` | Stream globale di eventi tipizzati persistiti — query forensiche. |
 | **Docs** | (placeholder) | Riferimenti DESIGN/CALIBRATION (rendering Markdown in arrivo). |
 
 ### 3.1 Flusso tipico
 
-- **Sessione di onboarding (prima volta)**: Dashboard → Seed Lab → provision → Biotope viewport. Una volta locked il seed, la Dashboard "Seed Lab" diventa solo ispezionabile.
+- **Sessione di onboarding (prima volta)**: Dashboard → Seed Lab → provision → Biotope viewport. Il Seed Lab resta editabile finché ci sono slot home liberi (fino a 3 totali); dopo il terzo provisioning si lock-a in modalità ispezione.
 - **Sessione di osservazione**: Dashboard → My Biotopes → Biotope viewport (o World → click su nodo → Open biotope).
 - **Sessione di analisi forense**: Dashboard → Audit → filter su `mutation_notable` / `hgt_event` / `community_provisioned` per capire cosa è successo nelle ultime ore.
 
@@ -140,7 +141,7 @@ Il Seed Lab è il punto di leva massima. Le scelte qui determinano:
 - gli **elementi mobili** che il seed porta con sé (plasmidi, profagi, gene custom);
 - il **biotopo destinazione** (archetipo + zona).
 
-Una volta colonizzato il primo biotopo, il seed si **lock-a** e non è più editabile. Per progettare un seed alternativo, devi registrare un nuovo player.
+Ogni player può claimare **fino a 3 home biotopi** (badge `Homes N/3` in alto a destra del Builder). Ognuno è un seed indipendente e committibile su un archetipo distinto: una scelta strategica per spalmare la pressione selettiva su nicchie diverse senza dover gestire più account. Quando tutte e 3 le slot sono occupate il Seed Lab si **lock-a**: vedrai il blueprint dell'home più recente in modalità read-only, finché non ricolonizzi (o estingui) uno degli home esistenti per liberare uno slot.
 
 ### 4.1 Form principale (colonna sinistra)
 
@@ -150,13 +151,18 @@ Identificativo umano del blueprint nel sistema di provisioning. Visibile in Audi
 
 #### Archetipo del biotopo da colonizzare
 
-Tre opzioni starter, ognuna con fasi/metaboliti/zone diversi:
+**8 opzioni starter** (tutti gli archetipi simulativamente supportati, non più solo i tre originali), ognuna con fasi/metaboliti/zone diversi:
 
 - **Eutrophic Pond** — alta densità di nutrienti, turnover rapido. Fasi: surface (high O₂), water column, sediment (anossico). Buon ambiente per generalist con metabolismo flessibile.
 - **Oligotrophic Lake** — acqua pulita, basso C inflow. Fasi simili al pond ma con concentrazioni metaboliche più basse. Premia profili `thrifty` con bassa Km.
 - **Mesophilic Soil** — ambiente patchy (aerobic pore, wet clump, soil water). Fasi più eterogenee → niche partitioning marcato. Premia membrane fortified e regolazione responsive.
+- **Saline Estuary** — gradiente salino tidal (freshwater layer → mixing zone → marine layer). Premia envelope `salinity_tuned` e canali ionici. Buon banco di prova per HGT inter-zonale.
+- **Marine Sediment** — gradiente redox steep (interface ossigenata, bulk anossico). Solfato alto, sulfide accumulato; nicchia per riduttori di solfato e ossidatori H₂S. Turnover lento.
+- **Methanogenic Bog** — anossico, basso pH, H₂/acetato/CO₂ dominanti. Nicchia per metanogeni archeon-like; oxygen è quasi zero.
+- **Hydrothermal Vent** — gradiente termico/redox sharp (vent core ~75°C, mixing zone ~35°C), H₂S e Fe²⁺ abbondanti. Termofili + chemiolitotrofi.
+- **Acid Mine Drainage** — pH ~3, ferro alto, ossigeno disponibile. Nicchia per acidofili e ossidatori del ferro.
 
-Ogni archetipo carica un **starting pool** di metaboliti (vedi `devel-docs/DESIGN.md` Block 6 per la lista completa).
+Ogni archetipo carica un **starting pool** di metaboliti dedicato (vedi `devel-docs/DESIGN.md` Block 6 per la lista completa) e un `inflow_profile` continuo che simula il flusso ambientale di sostanze.
 
 #### Cassette metabolica (`metabolism_profile`)
 
@@ -492,7 +498,7 @@ I neighbor sono usati dalla migration: cellule possono passare da un biotope all
 Quando la popolazione totale del tuo biotopo home crolla a zero, sopra la scena compare un **banner "Colony extinct"** con **due CTA**, perché ricolonizzare con il seed identico spesso porta alla stessa estinzione (stesso fenotipo, stesso ambiente):
 
 - **"Re-inoculate as-is"** — costruisce un fondatore fresco dallo **stesso blueprint locked** (genoma identico a quello originariamente progettato) e lo inocula. Utile quando ritieni che la precedente estinzione sia stata frutto di sfortuna stocastica e la strategia del seed sia comunque sana.
-- **"Edit seed and recolonize →"** — apre il **Seed Lab in modalità recolonize**: il form si sblocca con il blueprint corrente pre-caricato; puoi modificare ogni campo *eccetto* `starter_archetype` (fissato dal biotope esistente, che vive già in quell'archetype). Il submit "Recolonize home with this seed" salva un nuovo blueprint, lascia il vecchio nell'audit log, e re-inocula il biotope con il fondatore aggiornato.
+- **"Edit seed and recolonize →"** — apre il **Seed Lab in modalità recolonize** per *quello specifico biotope* (la URL include `?recolonize=<biotope_id>` per disambiguare quando hai più home claimati): il form si sblocca con il blueprint del biotope estinto pre-caricato; puoi modificare ogni campo *eccetto* `starter_archetype` (fissato dal biotope esistente, che vive già in quell'archetype). Il submit "Recolonize home with this seed" salva un nuovo blueprint, lascia il vecchio nell'audit log, e re-inocula il biotope con il fondatore aggiornato.
 
 Entrambi i percorsi:
 
@@ -510,7 +516,8 @@ Quando in modalità recolonize il Seed Lab mostra:
 
 Limiti correnti:
 
-- Funziona solo sul biotopo home del player. Wild biotopes e biotopi di altri player non si possono ricolonizzare.
+- Funziona solo sui **biotopi home del player** (fino a 3). Wild biotopes e biotopi di altri player non si possono ricolonizzare.
+- Il banner si riferisce sempre al biotope correntemente aperto; per ricolonizzare *un altro* home estinto, naviga prima alla sua viewport (oppure apri direttamente `/seed-lab?recolonize=<id>`).
 - La ricolonizzazione **non resetta** la chimica, i pool fagici, i plasmidi liberi nel `dna_pool` o l'ambiente: il fondatore eredita lo stato ambientale corrente del biotopo. Se il biotopo era stato sterilizzato da un fago dilagante, la ricolonizzazione lo riapre allo stesso stress.
 - Non c'è rate limit dedicato: se la colonia ricolonizzata si estingue di nuovo dopo un tick, puoi premere ancora subito (e magari editare di nuovo il seed).
 

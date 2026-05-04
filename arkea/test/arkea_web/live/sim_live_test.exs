@@ -116,7 +116,12 @@ defmodule ArkeaWeb.SimLiveTest do
     assert html_extinct =~ "Colony extinct"
     # Banner exposes BOTH affordances: quick recolonize + edit-in-Seed-Lab.
     assert has_element?(view, "button[phx-click='recolonize_home']")
-    assert has_element?(view, ~s|a[href="/seed-lab"]|, "Edit seed and recolonize")
+
+    assert has_element?(
+             view,
+             ~s|a[href="/seed-lab?recolonize=#{id}"]|,
+             "Edit seed and recolonize"
+           )
 
     view |> element("button[phx-click='recolonize_home']") |> render_click()
 

@@ -49,8 +49,49 @@ defmodule Arkea.Game.SeedLab do
       label: "Mesophilic soil",
       strapline: "Patchy oxygen and wet clumps, robust generalist play, soil zone.",
       zone: :soil_zone
+    },
+    %{
+      id: "saline_estuary",
+      archetype: :saline_estuary,
+      label: "Saline estuary",
+      strapline: "Tidal salinity gradient; rewards halotolerant envelopes and ion-handling.",
+      zone: :coastal_zone
+    },
+    %{
+      id: "marine_sediment",
+      archetype: :marine_sediment,
+      label: "Marine sediment",
+      strapline: "Steep redox gradient, sulfate-reducer niches, slow turnover sea-floor zone.",
+      zone: :marine_zone
+    },
+    %{
+      id: "methanogenic_bog",
+      archetype: :methanogenic_bog,
+      label: "Methanogenic bog",
+      strapline: "Anoxic, low-pH, H₂-driven; archaeon-favouring methanogenic wetland.",
+      zone: :swampy_zone
+    },
+    %{
+      id: "hydrothermal_vent",
+      archetype: :hydrothermal_vent,
+      label: "Hydrothermal vent",
+      strapline:
+        "Sharp thermal/redox gradients, sulfide-rich; thermophile + chemolithotroph play.",
+      zone: :hydrothermal_zone
+    },
+    %{
+      id: "acid_mine_drainage",
+      archetype: :acid_mine_drainage,
+      label: "Acid mine drainage",
+      strapline: "Extreme low-pH, Fe²⁺/Fe³⁺ cycling; acidophile + iron-oxidiser niches.",
+      zone: :hydrothermal_zone
     }
   ]
+
+  # Maximum number of home biotopes a player can hold simultaneously.
+  # Lifted from 1 to 3 to allow strategic colonisation across distinct
+  # niches without committing the whole roster in a single shot.
+  @max_homes 3
 
   @metabolism_profiles [
     %{
@@ -332,12 +373,53 @@ defmodule Arkea.Game.SeedLab do
     end
   end
 
+  @doc "Maximum number of home biotopes a player can hold simultaneously."
+  @spec max_homes() :: pos_integer()
+  def max_homes, do: @max_homes
+
   @spec can_provision_home?() :: boolean()
   def can_provision_home?, do: can_provision_home?(PrototypePlayer.profile())
 
   @spec can_provision_home?(%{id: binary()} | binary()) :: boolean()
   def can_provision_home?(player_or_id) do
-    is_nil(PlayerAssets.active_home(player_id(player_or_id)))
+    PlayerAssets.home_count(player_id(player_or_id)) < @max_homes
+  end
+
+  @doc """
+  Number of home biotopes the player currently holds (0..@max_homes).
+  """
+  @spec home_count(%{id: binary()} | binary()) :: non_neg_integer()
+  def home_count(player_or_id) do
+    PlayerAssets.home_count(player_id(player_or_id))
+  end
+
+  @doc """
+  Map a `biotope_id` to the player's locked seed for that specific home,
+  or `nil` if the biotope is not registered as a home of the player.
+  """
+  @spec locked_seed_for(%{id: binary()} | binary(), binary()) ::
+          %{biotope_id: binary(), blueprint_id: binary(), params: map(), preview: preview()}
+          | nil
+  def locked_seed_for(player_or_id, biotope_id) when is_binary(biotope_id) do
+    player_profile = normalize_player_profile(player_or_id)
+
+    case PlayerAssets.home_for_biotope(player_profile.id, biotope_id) do
+      %PlayerBiotope{
+        biotope_id: ^biotope_id,
+        source_blueprint: %ArkeonBlueprint{} = blueprint
+      } ->
+        params = blueprint_params(blueprint)
+
+        %{
+          biotope_id: biotope_id,
+          blueprint_id: blueprint.id,
+          params: params,
+          preview: locked_preview(blueprint, params, player_profile)
+        }
+
+      _ ->
+        nil
+    end
   end
 
   @spec owned_biotopes() :: [World.biotope_summary()]
@@ -386,21 +468,23 @@ defmodule Arkea.Game.SeedLab do
   when the population is still alive, or `{:error, :blueprint_unreadable}`
   when the persisted genome cannot be decoded.
   """
-  @spec recolonize_home(%{id: binary()} | binary()) ::
+  @spec recolonize_home(%{id: binary()} | binary(), binary() | nil) ::
           {:ok, %{biotope_id: binary(), lineage_id: binary(), tick: non_neg_integer()}}
           | {:error, atom()}
-  def recolonize_home(player_or_id) do
+  def recolonize_home(player_or_id, biotope_id \\ nil)
+
+  def recolonize_home(player_or_id, biotope_id) do
     player_profile = normalize_player_profile(player_or_id)
 
-    with %{biotope_id: biotope_id, blueprint_id: _, params: params} <-
-           locked_seed(player_profile) || :no_home,
-         %BiotopeState{} = state <- safe_get_state(biotope_id),
+    with %{biotope_id: target_id, blueprint_id: _, params: params} <-
+           lookup_locked_seed(player_profile, biotope_id) || :no_home,
+         %BiotopeState{} = state <- safe_get_state(target_id),
          :ok <- ensure_extinct(state),
-         {:ok, genome} <- load_genome_from_blueprint(player_profile.id) do
+         {:ok, genome} <- load_genome_for_home(player_profile.id, target_id) do
       spec = normalize_params(params)
       lineage = build_seed_lineage(genome, state.phases)
 
-      case BiotopeServer.recolonize(biotope_id, lineage,
+      case BiotopeServer.recolonize(target_id, lineage,
              actor: player_profile.display_name,
              actor_player_id: player_profile.id,
              seed_name: spec.seed_name
@@ -409,10 +493,10 @@ defmodule Arkea.Game.SeedLab do
           Phoenix.PubSub.broadcast(
             Arkea.PubSub,
             "world:registry",
-            {:world_changed, biotope_id}
+            {:world_changed, target_id}
           )
 
-          {:ok, %{biotope_id: biotope_id, lineage_id: lineage.id, tick: tick}}
+          {:ok, %{biotope_id: target_id, lineage_id: lineage.id, tick: tick}}
 
         {:error, reason} ->
           {:error, reason}
@@ -446,17 +530,20 @@ defmodule Arkea.Game.SeedLab do
              blueprint_id: binary()
            }}
           | {:error, atom() | %{atom() => binary()}}
-  def recolonize_home_with_spec(player_or_id, params) when is_map(params) do
+  def recolonize_home_with_spec(player_or_id, params, biotope_id \\ nil)
+      when is_map(params) and (is_binary(biotope_id) or is_nil(biotope_id)) do
     player_profile = normalize_player_profile(player_or_id)
     spec = normalize_params(params)
 
-    with %{biotope_id: biotope_id} = locked <- locked_seed(player_profile) || :no_home,
-         %BiotopeState{} = state <- safe_get_state(biotope_id),
+    with %{biotope_id: target_id} = locked <-
+           lookup_locked_seed(player_profile, biotope_id) || :no_home,
+         %BiotopeState{} = state <- safe_get_state(target_id),
          :ok <- ensure_extinct(state),
          :ok <- validate(spec),
          :ok <- ensure_archetype_unchanged(spec, locked),
          {:ok, %{blueprint: blueprint, player_biotope: _}} <-
            PlayerAssets.register_home_recolonization(
+             target_id,
              player_profile,
              spec,
              build_genome(spec)
@@ -464,7 +551,7 @@ defmodule Arkea.Game.SeedLab do
       genome = build_genome(spec)
       lineage = build_seed_lineage(genome, state.phases)
 
-      case BiotopeServer.recolonize(biotope_id, lineage,
+      case BiotopeServer.recolonize(target_id, lineage,
              actor: player_profile.display_name,
              actor_player_id: player_profile.id,
              seed_name: spec.seed_name,
@@ -475,12 +562,12 @@ defmodule Arkea.Game.SeedLab do
           Phoenix.PubSub.broadcast(
             Arkea.PubSub,
             "world:registry",
-            {:world_changed, biotope_id}
+            {:world_changed, target_id}
           )
 
           {:ok,
            %{
-             biotope_id: biotope_id,
+             biotope_id: target_id,
              lineage_id: lineage.id,
              tick: tick,
              blueprint_id: blueprint.id
@@ -496,6 +583,15 @@ defmodule Arkea.Game.SeedLab do
       {:error, _, _, _} -> {:error, :blueprint_persist_failed}
       {:error, _} = err -> err
     end
+  end
+
+  # When a biotope id is supplied, look up that specific home's locked seed;
+  # otherwise fall back to the most-recently provisioned home (legacy
+  # single-home callers).
+  defp lookup_locked_seed(player_profile, nil), do: locked_seed(player_profile)
+
+  defp lookup_locked_seed(player_profile, biotope_id) when is_binary(biotope_id) do
+    locked_seed_for(player_profile, biotope_id)
   end
 
   defp ensure_archetype_unchanged(spec, %{params: locked_params}) do
@@ -522,13 +618,14 @@ defmodule Arkea.Game.SeedLab do
   end
 
   @doc """
-  True when the player owns a home biotope and the biotope is currently
-  extinct (`total_abundance == 0`). Used by the UI to gate the
-  "Recolonize home" affordance.
+  True when the player owns the home with the given `biotope_id` and the
+  biotope is currently extinct (`total_abundance == 0`). When `biotope_id`
+  is omitted, the most recently provisioned home is checked. Used by the
+  UI to gate the "Recolonize home" affordance.
   """
-  @spec home_extinct?(%{id: binary()} | binary()) :: boolean()
-  def home_extinct?(player_or_id) do
-    case locked_seed(normalize_player_profile(player_or_id)) do
+  @spec home_extinct?(%{id: binary()} | binary(), binary() | nil) :: boolean()
+  def home_extinct?(player_or_id, biotope_id \\ nil) do
+    case lookup_locked_seed(normalize_player_profile(player_or_id), biotope_id) do
       %{biotope_id: id} ->
         case safe_get_state(id) do
           %BiotopeState{} = state -> BiotopeState.total_abundance(state) == 0
@@ -554,8 +651,10 @@ defmodule Arkea.Game.SeedLab do
     end
   end
 
-  defp load_genome_from_blueprint(player_id) do
-    case PlayerAssets.active_home_with_blueprint(player_id) do
+  # Load the persisted genome for a specific home biotope (per-biotope
+  # blueprint, supports multi-home rosters).
+  defp load_genome_for_home(player_id, biotope_id) do
+    case PlayerAssets.home_for_biotope(player_id, biotope_id) do
       %PlayerBiotope{source_blueprint: %ArkeonBlueprint{} = blueprint} ->
         case ArkeonBlueprint.load_genome(blueprint.genome_binary) do
           {:ok, genome} -> {:ok, genome}
@@ -967,6 +1066,26 @@ defmodule Arkea.Game.SeedLab do
     %{glucose: 12.0, acetate: 6.0, oxygen: 8.0, nh3: 3.0, po4: 1.5, co2: 4.0}
   end
 
+  defp starting_pool(:saline_estuary) do
+    %{glucose: 10.0, acetate: 3.0, oxygen: 7.0, nh3: 2.0, no3: 1.5, so4: 4.0, po4: 1.0}
+  end
+
+  defp starting_pool(:marine_sediment) do
+    %{acetate: 4.0, h2: 1.5, oxygen: 1.0, so4: 8.0, h2s: 2.0, iron: 0.5, co2: 4.0}
+  end
+
+  defp starting_pool(:methanogenic_bog) do
+    %{acetate: 5.0, h2: 3.0, co2: 6.0, ch4: 1.0, nh3: 1.5, oxygen: 0.5}
+  end
+
+  defp starting_pool(:hydrothermal_vent) do
+    %{h2: 4.0, h2s: 3.0, co2: 5.0, iron: 1.5, so4: 4.0, oxygen: 0.5}
+  end
+
+  defp starting_pool(:acid_mine_drainage) do
+    %{iron: 4.0, so4: 6.0, oxygen: 4.0, co2: 3.0, h2s: 0.5}
+  end
+
   defp inflow_profile(:eutrophic_pond) do
     %{glucose: 10.0, oxygen: 5.0, nh3: 2.0, po4: 1.0}
   end
@@ -977,6 +1096,26 @@ defmodule Arkea.Game.SeedLab do
 
   defp inflow_profile(:mesophilic_soil) do
     %{glucose: 6.0, acetate: 2.0, oxygen: 4.0, nh3: 1.5, po4: 0.7}
+  end
+
+  defp inflow_profile(:saline_estuary) do
+    %{glucose: 5.0, acetate: 1.5, oxygen: 3.5, nh3: 1.0, no3: 0.8, so4: 2.0, po4: 0.6}
+  end
+
+  defp inflow_profile(:marine_sediment) do
+    %{acetate: 1.5, h2: 0.8, so4: 3.0, oxygen: 0.3, iron: 0.2}
+  end
+
+  defp inflow_profile(:methanogenic_bog) do
+    %{acetate: 1.8, h2: 1.2, co2: 2.5, nh3: 0.7, oxygen: 0.1}
+  end
+
+  defp inflow_profile(:hydrothermal_vent) do
+    %{h2: 2.0, h2s: 1.5, co2: 2.0, iron: 0.7, so4: 1.5}
+  end
+
+  defp inflow_profile(:acid_mine_drainage) do
+    %{iron: 1.8, so4: 2.5, oxygen: 1.5, co2: 1.0}
   end
 
   defp phase_pool_factor(phase_name, :oxygen)

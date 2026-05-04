@@ -148,10 +148,12 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert render(biotope_view) =~ "Mesophilic Soil"
   end
 
-  test "seed lab becomes read-only after the first home is provisioned", %{conn: conn} do
-    {:ok, biotope_id} =
+  test "seed lab still allows new home design while slots remain open", %{conn: conn} do
+    # Provision one home — with a 3-home cap, the lab must remain editable
+    # so the player can claim two more homes in distinct archetypes.
+    {:ok, _biotope_id} =
       SeedLab.provision_home(%{
-        "seed_name" => "Locked Seed",
+        "seed_name" => "First Home",
         "starter_archetype" => "oligotrophic_lake",
         "metabolism_profile" => "thrifty",
         "membrane_profile" => "fortified",
@@ -159,36 +161,36 @@ defmodule ArkeaWeb.SeedLabLiveTest do
         "mobile_module" => "latent_prophage"
       })
 
-    {:ok, view, html} = live(conn, ~p"/seed-lab")
+    {:ok, _view, html} = live(conn, ~p"/seed-lab")
+
+    refute html =~ "Arkeon seed locked"
+    assert html =~ "Homes 1/3"
+    # Form is editable (no disabled fieldset) so a second home can be designed.
+    refute html =~ "<fieldset disabled"
+  end
+
+  test "seed lab locks once all home slots are claimed", %{conn: conn} do
+    archetypes = ["oligotrophic_lake", "mesophilic_soil", "saline_estuary"]
+
+    Enum.each(archetypes, fn archetype ->
+      {:ok, _id} =
+        SeedLab.provision_home(%{
+          "seed_name" => "Home #{archetype}",
+          "starter_archetype" => archetype,
+          "metabolism_profile" => "balanced",
+          "membrane_profile" => "porous",
+          "regulation_profile" => "responsive",
+          "mobile_module" => "none"
+        })
+    end)
+
+    {:ok, _view, html} = live(conn, ~p"/seed-lab")
 
     assert html =~ "Arkeon seed locked"
-    assert html =~ "Locked Seed"
-
-    # Lock banner copy (preserved from pre-U5 wording)
-    assert html =~ "This phenotype/genome configuration is already bound"
-
-    assert html =~ "Arkeon phenotype portrait"
-    assert html =~ ~s(href="/biotopes/#{biotope_id}")
+    assert html =~ "Homes 3/3"
     assert html =~ "<fieldset disabled"
-
-    changed_html =
-      view
-      |> form("form.arkea-seed-form", %{
-        "seed" => %{
-          "starter_archetype" => "mesophilic_soil",
-          "metabolism_profile" => "bloom",
-          "membrane_profile" => "porous",
-          "regulation_profile" => "mutator",
-          "mobile_module" => "none",
-          "seed_name" => "Mutation Attempt"
-        }
-      })
-      |> render_change()
-
-    assert changed_html =~ "Locked Seed"
-    refute changed_html =~ "Mutation Attempt"
-    assert Repo.aggregate(ArkeonBlueprint, :count) == 1
-    assert Repo.aggregate(PlayerBiotope, :count) == 1
+    assert Repo.aggregate(ArkeonBlueprint, :count) == 3
+    assert Repo.aggregate(PlayerBiotope, :count) == 3
   end
 
   test "seed lab custom gene editor composes domains and intergenic blocks", %{conn: conn} do
@@ -302,7 +304,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert draft_li_content =~ "Substrate Binding"
   end
 
-  test "extinct home unlocks the seed lab in recolonize mode (archetype stays fixed)", %{
+  test "?recolonize=<id> unlocks the seed lab in recolonize mode (archetype stays fixed)", %{
     conn: conn
   } do
     {:ok, biotope_id} =
@@ -315,11 +317,11 @@ defmodule ArkeaWeb.SeedLabLiveTest do
         "mobile_module" => "none"
       })
 
-    # Force extinction so SeedLab.home_extinct?/1 returns true.
+    # Force extinction so the per-biotope home_extinct?/2 returns true.
     [{pid, _}] = Registry.lookup(Arkea.Sim.Registry, {:biotope, biotope_id})
     :sys.replace_state(pid, fn state -> %{state | lineages: []} end)
 
-    {:ok, view, html} = live(conn, ~p"/seed-lab")
+    {:ok, view, html} = live(conn, ~p"/seed-lab?recolonize=#{biotope_id}")
 
     # Recolonize banner shown (not the lock banner).
     assert html =~ "Edit seed to recolonize"

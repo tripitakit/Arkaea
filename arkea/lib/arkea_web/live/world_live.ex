@@ -418,7 +418,8 @@ defmodule ArkeaWeb.WorldLive do
     [
       %{label: "Dashboard", href: "/dashboard", active: false},
       %{label: "World", href: "/world", active: true},
-      %{label: "Seed Lab", href: "/seed-lab", active: false}
+      %{label: "Seed Lab", href: "/seed-lab", active: false},
+      %{label: "Community", href: "/community", active: false}
     ]
   end
 end

@@ -48,6 +48,5 @@ defmodule Arkea.Persistence.PlayerBiotope do
     |> foreign_key_constraint(:biotope_id)
     |> foreign_key_constraint(:source_blueprint_id)
     |> unique_constraint(:biotope_id)
-    |> unique_constraint(:player_id, name: :player_biotopes_one_active_home_idx)
   end
 end

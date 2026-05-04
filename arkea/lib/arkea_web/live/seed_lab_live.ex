@@ -35,8 +35,23 @@ defmodule ArkeaWeb.SeedLabLive do
        selected_gene_index: 1,
        inspector_expanded: false,
        recolonize_mode?: false,
+       recolonize_target_id: nil,
+       max_homes: SeedLab.max_homes(),
        page_title: "Arkea Seed Lab"
-     )
+     )}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_params(params, _uri, socket) do
+    target_id =
+      case Map.get(params, "recolonize") do
+        id when is_binary(id) and id != "" -> id
+        _ -> nil
+      end
+
+    {:noreply,
+     socket
+     |> assign(recolonize_target_id: target_id)
      |> apply_form(SeedLab.form_defaults())}
   end
 
@@ -246,8 +261,9 @@ defmodule ArkeaWeb.SeedLabLive do
           |> Map.get("starter_archetype")
 
         params = Map.put(params, "starter_archetype", locked_archetype)
+        target_id = socket.assigns[:home_biotope_id]
 
-        case SeedLab.recolonize_home_with_spec(socket.assigns.player, params) do
+        case SeedLab.recolonize_home_with_spec(socket.assigns.player, params, target_id) do
           {:ok, %{biotope_id: biotope_id}} ->
             {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
 
@@ -319,7 +335,8 @@ defmodule ArkeaWeb.SeedLabLive do
           <p class="arkea-seed-lab__copy">
             Compose phenotype + genome from functional domain palettes. The
             chromosome renders as a circular replicon with a domain crown;
-            click a gene to inspect it.
+            click a gene to inspect it. You can claim up to {@max_homes} home biotopes — pick distinct archetypes to spread bets across
+            niches.
           </p>
         </header>
 
@@ -341,7 +358,12 @@ defmodule ArkeaWeb.SeedLabLive do
                 <h2 class="arkea-card__title">Phenotype + genome engineering</h2>
               </div>
               <div class="arkea-card__meta">
-                {builder_status(@seed_locked?, @seed_ready?, @home_slot_open?)}
+                <span class="arkea-seed-home-badge" title="Home biotopes claimed">
+                  Homes {@home_count}/{@max_homes}
+                </span>
+                <span class="arkea-seed-home-badge__status">
+                  {builder_status(@seed_locked?, @seed_ready?, @home_slot_open?, @recolonize_mode?)}
+                </span>
               </div>
             </div>
 
@@ -1109,89 +1131,135 @@ defmodule ArkeaWeb.SeedLabLive do
   end
 
   defp apply_form(socket, params) do
-    case SeedLab.locked_seed(socket.assigns.player) do
-      %{params: locked_params, preview: locked_preview, biotope_id: biotope_id} = locked ->
-        if SeedLab.home_extinct?(socket.assigns.player) do
-          # Extinct home: form is editable for recolonization. The
-          # starter_archetype is fixed (the existing biotope already lives
-          # at that archetype), but every other field is up for change so
-          # the player can iterate the seed strategy.
-          base =
+    player = socket.assigns.player
+    target_id = socket.assigns[:recolonize_target_id]
+    home_count = SeedLab.home_count(player)
+    max_homes = socket.assigns[:max_homes] || SeedLab.max_homes()
+    home_slot_open? = home_count < max_homes
+
+    cond do
+      # Explicit recolonize mode for a specific biotope (?recolonize=<id>).
+      is_binary(target_id) ->
+        case SeedLab.locked_seed_for(player, target_id) do
+          %{params: locked_params, biotope_id: biotope_id} ->
+            base = Map.get(socket.assigns, :seed_params, locked_params)
+
+            merged =
+              base
+              |> Map.merge(Map.new(params))
+              |> Map.put(
+                "starter_archetype",
+                Map.get(locked_params, "starter_archetype")
+              )
+
+            preview = SeedLab.preview(merged, player)
+
             socket
-            |> Map.get(:assigns)
-            |> Map.get(:seed_params, locked_params)
-
-          merged =
-            base
-            |> Map.merge(Map.new(params))
-            # Force the archetype back to the locked one in case the
-            # client tried to override it.
-            |> Map.put(
-              "starter_archetype",
-              Map.get(locked_params, "starter_archetype")
+            |> assign(
+              form: to_form(merged, as: :seed),
+              preview: preview,
+              home_count: home_count,
+              can_provision_home?: false,
+              home_slot_open?: false,
+              seed_ready?: seed_ready_for_provision?(preview),
+              seed_locked?: false,
+              recolonize_mode?: true,
+              home_biotope_id: biotope_id,
+              seed_params: merged,
+              custom_gene_specs: preview.spec.custom_genes
             )
+            |> assign_editor_focus(preview)
 
-          preview = SeedLab.preview(merged, socket.assigns.player)
-
-          socket
-          |> assign(
-            form: to_form(merged, as: :seed),
-            preview: preview,
-            can_provision_home?: false,
-            home_slot_open?: false,
-            seed_ready?: seed_ready_for_provision?(preview),
-            seed_locked?: false,
-            recolonize_mode?: true,
-            home_biotope_id: biotope_id,
-            seed_params: merged,
-            custom_gene_specs: preview.spec.custom_genes
-          )
-          |> assign_editor_focus(preview)
-        else
-          # Alive locked home: read-only form, the original behaviour.
-          _ = locked
-
-          socket
-          |> assign(
-            form: to_form(locked_params, as: :seed),
-            preview: locked_preview,
-            can_provision_home?: false,
-            home_slot_open?: false,
-            seed_ready?: false,
-            seed_locked?: true,
-            recolonize_mode?: false,
-            home_biotope_id: biotope_id,
-            seed_params: locked_params,
-            custom_gene_specs: locked_preview.spec.custom_genes
-          )
-          |> assign_editor_focus(locked_preview)
+          nil ->
+            # Target biotope is not registered as a home of this player.
+            # Fall back to the design form so the player isn't trapped.
+            apply_design_form(socket, params, home_count, home_slot_open?)
         end
 
-      nil ->
-        merged =
-          socket
-          |> Map.get(:assigns)
-          |> Map.get(:seed_params, SeedLab.form_defaults())
-          |> Map.merge(Map.new(params))
+      # All slots full: legacy "locked view of the most-recent home", with
+      # recolonize auto-mode if that home happens to be extinct.
+      not home_slot_open? ->
+        case SeedLab.locked_seed(player) do
+          %{params: locked_params, preview: locked_preview, biotope_id: biotope_id} ->
+            if SeedLab.home_extinct?(player) do
+              apply_recolonize_form(socket, params, locked_params, biotope_id, home_count)
+            else
+              socket
+              |> assign(
+                form: to_form(locked_params, as: :seed),
+                preview: locked_preview,
+                home_count: home_count,
+                can_provision_home?: false,
+                home_slot_open?: false,
+                seed_ready?: false,
+                seed_locked?: true,
+                recolonize_mode?: false,
+                home_biotope_id: biotope_id,
+                seed_params: locked_params,
+                custom_gene_specs: locked_preview.spec.custom_genes
+              )
+              |> assign_editor_focus(locked_preview)
+            end
 
-        preview = SeedLab.preview(merged, socket.assigns.player)
-        home_slot_open? = SeedLab.can_provision_home?(socket.assigns.player)
+          nil ->
+            apply_design_form(socket, params, home_count, home_slot_open?)
+        end
 
-        socket
-        |> assign(
-          form: to_form(merged, as: :seed),
-          preview: preview,
-          can_provision_home?: home_slot_open?,
-          home_slot_open?: home_slot_open?,
-          seed_ready?: home_slot_open? and seed_ready_for_provision?(preview),
-          seed_locked?: false,
-          recolonize_mode?: false,
-          home_biotope_id: nil,
-          seed_params: merged,
-          custom_gene_specs: preview.spec.custom_genes
-        )
-        |> assign_editor_focus(preview)
+      true ->
+        apply_design_form(socket, params, home_count, home_slot_open?)
     end
+  end
+
+  defp apply_design_form(socket, params, home_count, home_slot_open?) do
+    merged =
+      socket.assigns
+      |> Map.get(:seed_params, SeedLab.form_defaults())
+      |> Map.merge(Map.new(params))
+
+    preview = SeedLab.preview(merged, socket.assigns.player)
+
+    socket
+    |> assign(
+      form: to_form(merged, as: :seed),
+      preview: preview,
+      home_count: home_count,
+      can_provision_home?: home_slot_open?,
+      home_slot_open?: home_slot_open?,
+      seed_ready?: home_slot_open? and seed_ready_for_provision?(preview),
+      seed_locked?: false,
+      recolonize_mode?: false,
+      home_biotope_id: nil,
+      seed_params: merged,
+      custom_gene_specs: preview.spec.custom_genes
+    )
+    |> assign_editor_focus(preview)
+  end
+
+  defp apply_recolonize_form(socket, params, locked_params, biotope_id, home_count) do
+    base = Map.get(socket.assigns, :seed_params, locked_params)
+
+    merged =
+      base
+      |> Map.merge(Map.new(params))
+      |> Map.put("starter_archetype", Map.get(locked_params, "starter_archetype"))
+
+    preview = SeedLab.preview(merged, socket.assigns.player)
+
+    socket
+    |> assign(
+      form: to_form(merged, as: :seed),
+      preview: preview,
+      home_count: home_count,
+      can_provision_home?: false,
+      home_slot_open?: false,
+      seed_ready?: seed_ready_for_provision?(preview),
+      seed_locked?: false,
+      recolonize_mode?: true,
+      home_biotope_id: biotope_id,
+      seed_params: merged,
+      custom_gene_specs: preview.spec.custom_genes
+    )
+    |> assign_editor_focus(preview)
   end
 
   defp assign_editor_focus(socket, preview) do
@@ -1256,10 +1324,14 @@ defmodule ArkeaWeb.SeedLabLive do
     end
   end
 
-  defp builder_status(true, _seed_ready?, _home_slot_open?), do: "seed locked after colonization"
-  defp builder_status(false, true, _home_slot_open?), do: "home slot open"
-  defp builder_status(false, false, true), do: "design seed + choose biotope"
-  defp builder_status(false, false, false), do: "home slot unavailable"
+  defp builder_status(_locked?, _ready?, _slot_open?, true), do: "recolonize extinct home"
+
+  defp builder_status(true, _seed_ready?, _home_slot_open?, _),
+    do: "seed locked after colonization"
+
+  defp builder_status(false, true, _home_slot_open?, _), do: "ready to colonize"
+  defp builder_status(false, false, true, _), do: "design seed + choose biotope"
+  defp builder_status(false, false, false, _), do: "all home slots claimed"
 
   defp focus_chromosome_tail(socket) do
     assign(socket,
@@ -1388,7 +1460,8 @@ defmodule ArkeaWeb.SeedLabLive do
     [
       %{label: "Dashboard", href: "/dashboard", active: false},
       %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: true}
+      %{label: "Seed Lab", href: "/seed-lab", active: true},
+      %{label: "Community", href: "/community", active: false}
     ]
   end
 

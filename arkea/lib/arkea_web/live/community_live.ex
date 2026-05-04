@@ -180,7 +180,7 @@ defmodule ArkeaWeb.CommunityLive do
     [
       %{label: "Dashboard", href: "/dashboard", active: false},
       %{label: "World", href: "/world", active: false},
-      %{label: "Audit", href: "/audit", active: false},
+      %{label: "Seed Lab", href: "/seed-lab", active: false},
       %{label: "Community", href: "/community", active: true}
     ]
   end

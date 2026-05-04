@@ -147,6 +147,73 @@ defmodule Arkea.Game.SeedLab.RecolonizeTest do
     assert {:error, :no_home} = SeedLab.recolonize_home(other_id)
   end
 
+  test "a player can claim up to 3 homes; the 4th is rejected" do
+    archetypes = ["oligotrophic_lake", "mesophilic_soil", "saline_estuary"]
+
+    for archetype <- archetypes do
+      assert {:ok, _id} =
+               SeedLab.provision_home(%{
+                 "seed_name" => "Home #{archetype}",
+                 "starter_archetype" => archetype,
+                 "metabolism_profile" => "balanced",
+                 "membrane_profile" => "porous",
+                 "regulation_profile" => "responsive",
+                 "mobile_module" => "none"
+               })
+    end
+
+    assert SeedLab.home_count(PrototypePlayer.id()) == 3
+    refute SeedLab.can_provision_home?(PrototypePlayer.id())
+
+    assert {:error, %{starter_archetype: _}} =
+             SeedLab.provision_home(%{
+               "seed_name" => "Fourth Home",
+               "starter_archetype" => "marine_sediment",
+               "metabolism_profile" => "balanced",
+               "membrane_profile" => "porous",
+               "regulation_profile" => "responsive",
+               "mobile_module" => "none"
+             })
+
+    assert SeedLab.home_count(PrototypePlayer.id()) == 3
+  end
+
+  test "recolonize_home/2 with explicit biotope_id targets that home only" do
+    {:ok, first_id} =
+      SeedLab.provision_home(%{
+        "seed_name" => "First",
+        "starter_archetype" => "oligotrophic_lake",
+        "metabolism_profile" => "balanced",
+        "membrane_profile" => "porous",
+        "regulation_profile" => "responsive",
+        "mobile_module" => "none"
+      })
+
+    {:ok, second_id} =
+      SeedLab.provision_home(%{
+        "seed_name" => "Second",
+        "starter_archetype" => "mesophilic_soil",
+        "metabolism_profile" => "balanced",
+        "membrane_profile" => "porous",
+        "regulation_profile" => "responsive",
+        "mobile_module" => "none"
+      })
+
+    # Kill only the first home; the second stays alive.
+    force_extinction(first_id)
+
+    refute SeedLab.home_extinct?(PrototypePlayer.id(), second_id)
+    assert SeedLab.home_extinct?(PrototypePlayer.id(), first_id)
+
+    # Recolonizing the second (alive) home must refuse.
+    assert {:error, :not_extinct} =
+             SeedLab.recolonize_home(PrototypePlayer.id(), second_id)
+
+    # Recolonizing the first (extinct) home must succeed.
+    assert {:ok, %{biotope_id: ^first_id}} =
+             SeedLab.recolonize_home(PrototypePlayer.id(), first_id)
+  end
+
   defp provision_test_home do
     SeedLab.provision_home(%{
       "seed_name" => "Recolonize Test Seed",

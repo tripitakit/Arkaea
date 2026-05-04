@@ -25,11 +25,20 @@ defmodule Arkea.Game.PlayerAssets do
     )
   end
 
+  @doc """
+  Returns the most recently provisioned home for the player, or `nil`.
+
+  When the player owns multiple homes (now allowed up to 3), the row with
+  the largest `inserted_at` is preferred so the legacy "single home"
+  callers keep returning a stable record.
+  """
   @spec active_home(binary()) :: PlayerBiotope.t() | nil
   def active_home(player_id) when is_binary(player_id) do
     Repo.one(
       from(row in PlayerBiotope,
-        where: row.player_id == ^player_id and row.role == "home"
+        where: row.player_id == ^player_id and row.role == "home",
+        order_by: [desc: row.inserted_at],
+        limit: 1
       )
     )
   end
@@ -39,6 +48,49 @@ defmodule Arkea.Game.PlayerAssets do
     Repo.one(
       from(row in PlayerBiotope,
         where: row.player_id == ^player_id and row.role == "home",
+        order_by: [desc: row.inserted_at],
+        limit: 1,
+        preload: [:source_blueprint]
+      )
+    )
+  end
+
+  @doc "All homes owned by the player, ordered oldest → newest."
+  @spec list_homes(binary()) :: [PlayerBiotope.t()]
+  def list_homes(player_id) when is_binary(player_id) do
+    Repo.all(
+      from(row in PlayerBiotope,
+        where: row.player_id == ^player_id and row.role == "home",
+        order_by: [asc: row.inserted_at],
+        preload: [:source_blueprint]
+      )
+    )
+  end
+
+  @doc "Number of homes owned by the player."
+  @spec home_count(binary()) :: non_neg_integer()
+  def home_count(player_id) when is_binary(player_id) do
+    Repo.aggregate(
+      from(row in PlayerBiotope,
+        where: row.player_id == ^player_id and row.role == "home"
+      ),
+      :count,
+      :id
+    )
+  end
+
+  @doc """
+  Look up a specific home by its biotope id. Returns `nil` if the biotope
+  is not registered as a home of the player.
+  """
+  @spec home_for_biotope(binary(), binary()) :: PlayerBiotope.t() | nil
+  def home_for_biotope(player_id, biotope_id)
+      when is_binary(player_id) and is_binary(biotope_id) do
+    Repo.one(
+      from(row in PlayerBiotope,
+        where:
+          row.player_id == ^player_id and row.biotope_id == ^biotope_id and
+            row.role == "home",
         preload: [:source_blueprint]
       )
     )
@@ -127,15 +179,16 @@ defmodule Arkea.Game.PlayerAssets do
   end
 
   @doc """
-  Insert a new blueprint and re-link the player's existing home biotope to
+  Insert a new blueprint and re-link a *specific* player's home biotope to
   it. Used when an extinct home is recolonized with an edited seed: the
   old blueprint stays in the table for audit/history and the
   `player_biotope.source_blueprint_id` foreign key is moved to the new row.
   """
-  @spec register_home_recolonization(map(), map(), term()) ::
+  @spec register_home_recolonization(binary(), map(), map(), term()) ::
           {:ok, %{blueprint: ArkeonBlueprint.t(), player_biotope: PlayerBiotope.t()}}
           | {:error, atom(), term(), map()}
-  def register_home_recolonization(player_profile, spec, genome) do
+  def register_home_recolonization(biotope_id, player_profile, spec, genome)
+      when is_binary(biotope_id) do
     blueprint_attrs = %{
       player_id: player_profile.id,
       name: spec.seed_name,
@@ -147,7 +200,7 @@ defmodule Arkea.Game.PlayerAssets do
     Multi.new()
     |> Multi.insert(:blueprint, ArkeonBlueprint.changeset(%ArkeonBlueprint{}, blueprint_attrs))
     |> Multi.run(:player_biotope, fn repo, %{blueprint: new_blueprint} ->
-      case active_home_with_blueprint(player_profile.id) do
+      case home_for_biotope(player_profile.id, biotope_id) do
         %PlayerBiotope{} = pb ->
           pb
           |> PlayerBiotope.changeset(%{source_blueprint_id: new_blueprint.id})

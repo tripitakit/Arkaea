@@ -100,23 +100,27 @@ defmodule ArkeaWeb.DashboardLive do
   attr :overview, :map, required: true
 
   defp seed_lab_panel(assigns) do
+    max_homes = Arkea.Game.SeedLab.max_homes()
+    owned = assigns.overview.owned_count
+    slots_open? = owned < max_homes
+    assigns = assign(assigns, max_homes: max_homes, slots_open?: slots_open?)
+
     ~H"""
     <.link navigate={~p"/seed-lab"} class="arkea-dashboard__card-link" aria-label="Open seed lab">
       <Panel.panel class="arkea-dashboard__card">
         <:header
           eyebrow="Seed Lab"
           title="Founder design"
-          meta={if @overview.owned_count > 0, do: "locked", else: "open"}
+          meta={"#{@overview.owned_count}/#{@max_homes} homes"}
         />
         <:body>
           <p class="arkea-dashboard__copy">
             Visual genome editor: phenotype targets, gene composition, intergenic
-            biases. Circular chromosome view shipping in phase U5.
+            biases. Each player can claim up to {@max_homes} home biotopes —
+            mix archetypes to diversify niches.
           </p>
           <div class="arkea-dashboard__cta">
-            {if @overview.owned_count > 0,
-              do: "Inspect locked seed",
-              else: "Start designing"}
+            {if @slots_open?, do: "Design new home", else: "Inspect locked seed"}
           </div>
         </:body>
       </Panel.panel>
@@ -253,7 +257,8 @@ defmodule ArkeaWeb.DashboardLive do
     [
       %{label: "Dashboard", href: "/dashboard", active: true},
       %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: false}
+      %{label: "Seed Lab", href: "/seed-lab", active: false},
+      %{label: "Community", href: "/community", active: false}
     ]
   end
 

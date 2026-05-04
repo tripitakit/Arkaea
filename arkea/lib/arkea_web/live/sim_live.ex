@@ -174,7 +174,7 @@ defmodule ArkeaWeb.SimLive do
   end
 
   def handle_event("recolonize_home", _params, socket) do
-    case SeedLab.recolonize_home(socket.assigns.player) do
+    case SeedLab.recolonize_home(socket.assigns.player, socket.assigns.biotope_id) do
       {:ok, %{lineage_id: lineage_id, tick: tick}} ->
         entry = %{kind: "Home recolonized", scope: "biotope", tick: tick, lineage: lineage_id}
 
@@ -285,6 +285,7 @@ defmodule ArkeaWeb.SimLive do
                   BiotopeState.total_abundance(@sim_state) == 0
               }
               operator_error={@operator_error}
+              biotope_id={@biotope_id}
             />
 
             <div class="arkea-biotope__main">
@@ -467,6 +468,7 @@ defmodule ArkeaWeb.SimLive do
   # collapsed to zero abundance.
 
   attr :operator_error, :string, default: nil
+  attr :biotope_id, :string, required: true
 
   defp recolonize_banner(assigns) do
     ~H"""
@@ -504,7 +506,7 @@ defmodule ArkeaWeb.SimLive do
           Re-inoculate as-is
         </button>
         <.link
-          navigate={~p"/seed-lab"}
+          navigate={~p"/seed-lab?recolonize=#{@biotope_id}"}
           class="arkea-button arkea-button--primary arkea-recolonize-banner__cta"
         >
           Edit seed and recolonize →
@@ -1364,7 +1366,8 @@ defmodule ArkeaWeb.SimLive do
     [
       %{label: "Dashboard", href: "/dashboard", active: false},
       %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: false}
+      %{label: "Seed Lab", href: "/seed-lab", active: false},
+      %{label: "Community", href: "/community", active: false}
     ]
   end
 

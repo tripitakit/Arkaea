@@ -103,6 +103,7 @@ Immediately after registration:
 3. Community and audit are empty for you (global events from other players may already be visible).
 4. Click "Seed Lab" → design the seed.
 5. After provisioning, the biotope viewport takes you into your first biotope. Already at **tick 0** you see the founding population (`N=420` distributed across the biotope phases).
+6. You can return to the Seed Lab to claim a second or third home on different archetypes (cap = 3). Your homes appear in the "My Biotopes" panel.
 
 In the **first 10–30 ticks** you will see almost nothing dynamic: the founding population is genomically uniform, mutations are rare. This is normal. From around tick ~50 onward, the first `:lineage_born` events begin to appear.
 
@@ -115,15 +116,15 @@ The Dashboard is the post-login landing page. It is structured as **6 card-link 
 | Panel | Opens | When you need it |
 |---|---|---|
 | **World** | `/world` | Overview: who is where, how many active biotopes, archetype distribution. |
-| **Seed Lab** | `/seed-lab` | Only before the first provisioning, or to inspect the locked seed. |
+| **Seed Lab** | `/seed-lab` | Design a new home (up to 3) or inspect an already locked seed; the panel shows the `N/3 homes` count. CTA reads "Design new home" when slots are open, "Inspect locked seed" when all 3 are claimed. |
 | **My Biotopes** | `/biotopes/:id` | Compact list of biotopes you own — quick jump to the viewport. |
-| **Community** | `/community` | Read-only: biotopes started in community mode (multi-seed). |
+| **Community** | `/community` | Read-only: biotopes started in community mode (multi-seed). Linked from the shell-nav from day 1. |
 | **Audit** | `/audit` | Global stream of persisted typed events — forensic queries. |
 | **Docs** | (placeholder) | DESIGN/CALIBRATION references (Markdown rendering coming soon). |
 
 ### 3.1 Typical session flows
 
-- **Onboarding session (first time)**: Dashboard → Seed Lab → provision → Biotope viewport. Once the seed is locked, the "Seed Lab" panel on the Dashboard becomes inspect-only.
+- **Onboarding session (first time)**: Dashboard → Seed Lab → provision → Biotope viewport. The Seed Lab remains editable as long as home slots are available (up to 3 total); after the third provisioning it locks to inspect-only mode. After provisioning the first home you can return to the Seed Lab to claim a second or third home on different archetypes (cap = 3).
 - **Observation session**: Dashboard → My Biotopes → Biotope viewport (or World → click on node → Open biotope).
 - **Forensic analysis session**: Dashboard → Audit → filter by `mutation_notable` / `hgt_event` / `community_provisioned` to understand what happened in the last few hours.
 
@@ -140,7 +141,7 @@ The Seed Lab is the point of maximum leverage. Your choices here determine:
 - the **mobile elements** the seed carries (plasmids, prophages, custom genes);
 - the **destination biotope** (archetype + zone).
 
-Once the first biotope is colonized, the seed **locks** and is no longer editable. To design an alternative seed, you must register a new player.
+Each player can claim **up to 3 home biotopes** (badge `Homes N/3` at the top right of the Builder). Each is an independent seed committable to a distinct archetype — a strategic choice to spread selective pressure across different niches without managing multiple accounts. Once all 3 slots are occupied, the Seed Lab **locks**: you will see the most recent home's blueprint in read-only mode, until you recolonize (or go extinct in) one of the existing homes to free a slot.
 
 ### 4.1 Main form (left column)
 
@@ -150,13 +151,18 @@ Human-readable identifier of the blueprint in the provisioning system. Visible i
 
 #### Biotope archetype to colonize
 
-Three starter options, each with different phases / metabolites / zones:
+**8 starter options** (all archetypes currently supported by the simulation, no longer just the original three), each with different phases / metabolites / zones:
 
 - **Eutrophic Pond** — high nutrient density, rapid turnover. Phases: surface (high O₂), water column, sediment (anoxic). Good environment for generalists with flexible metabolism.
 - **Oligotrophic Lake** — clean water, low C inflow. Phases similar to pond but with lower metabolic concentrations. Rewards `thrifty` profiles with low Km.
 - **Mesophilic Soil** — patchy environment (aerobic pore, wet clump, soil water). More heterogeneous phases → marked niche partitioning. Rewards fortified membranes and responsive regulation.
+- **Saline Estuary** — tidal salinity gradient (freshwater layer → mixing zone → marine layer). Rewards `salinity_tuned` envelope and ion-handling channels. Good testbed for inter-zonal HGT.
+- **Marine Sediment** — steep redox gradient (oxygenated interface, anoxic bulk). High sulfate, accumulated sulfide; niche for sulfate reducers and H₂S oxidisers. Slow turnover.
+- **Methanogenic Bog** — anoxic, low pH, H₂/acetate/CO₂ dominant. Niche for archaeon-like methanogens; oxygen is near zero.
+- **Hydrothermal Vent** — sharp thermal/redox gradient (vent core ~75 °C, mixing zone ~35 °C), abundant H₂S and Fe²⁺. Thermophiles + chemolithotrophs.
+- **Acid Mine Drainage** — pH ~3, high iron, oxygen available. Niche for acidophiles and iron oxidisers.
 
-Each archetype loads a **starting metabolite pool** (see `devel-docs/DESIGN.md` Block 6 for the complete list).
+Each archetype loads a dedicated **starting metabolite pool** (see `devel-docs/DESIGN.md` Block 6 for the complete list) and a continuous `inflow_profile` simulating the ambient flux of substances.
 
 #### Metabolic cassette (`metabolism_profile`)
 
@@ -492,7 +498,7 @@ Neighbors are used by migration: cells can pass from one biotope to another alon
 When your home biotope's total population drops to zero, a **"Colony extinct" banner** appears above the scene with **two CTAs**, because recolonizing with the identical seed often leads to the same extinction (same phenotype, same environment):
 
 - **"Re-inoculate as-is"** — builds a fresh founder from the **same locked blueprint** (genome identical to the one you originally designed) and inoculates it. Useful when you think the previous extinction was stochastic bad luck and the seed strategy is otherwise sound.
-- **"Edit seed and recolonize →"** — opens the **Seed Lab in recolonize mode**: the form unlocks with the current blueprint pre-loaded; you can edit every field *except* `starter_archetype` (fixed by the existing biotope, which already lives at that archetype). Submitting "Recolonize home with this seed" persists a new blueprint, leaves the old one in the audit log, and re-inoculates the biotope with the updated founder.
+- **"Edit seed and recolonize →"** — opens the **Seed Lab in recolonize mode** for *that specific biotope* (the URL includes `?recolonize=<biotope_id>` to disambiguate when you have multiple homes claimed): the form unlocks with the extinct biotope's blueprint pre-loaded; you can edit every field *except* `starter_archetype` (fixed by the existing biotope, which already lives at that archetype). Submitting "Recolonize home with this seed" persists a new blueprint, leaves the old one in the audit log, and re-inoculates the biotope with the updated founder.
 
 Both paths:
 
@@ -510,7 +516,8 @@ When in recolonize mode, the Seed Lab shows:
 
 Current limits:
 
-- Works only on the player's home biotope. Wild biotopes and other players' biotopes cannot be recolonized.
+- Works only on the player's **home biotopes** (up to 3). Wild biotopes and other players' biotopes cannot be recolonized.
+- The banner refers only to the biotope currently open in the viewport; to recolonize a *different* extinct home, navigate to its viewport first (or open `/seed-lab?recolonize=<id>` directly).
 - Recolonization **does not reset** chemistry, phage pools, free plasmids in the `dna_pool`, or the environment: the founder inherits the biotope's current ambient state. If the biotope had been sterilized by a runaway phage, recolonization re-exposes it to the same stress.
 - No dedicated rate limit: if the recolonized colony goes extinct again on the next tick, you can press the button again immediately (and possibly edit the seed once more).
 
