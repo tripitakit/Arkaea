@@ -23,6 +23,8 @@ defmodule ArkeaWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
+    plug :fetch_current_player
   end
 
   scope "/", ArkeaWeb do
@@ -53,10 +55,13 @@ defmodule ArkeaWeb.Router do
     end
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", ArkeaWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", ArkeaWeb.API do
+    pipe_through [:api, :require_authenticated]
+
+    get "/biotopes/:id/snapshot", BiotopeController, :snapshot
+    get "/biotopes/:id/audit", BiotopeController, :audit
+    get "/blueprints/:id", BlueprintController, :show
+  end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:arkea, :dev_routes) do

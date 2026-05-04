@@ -279,6 +279,16 @@ defmodule ArkeaWeb.SimLive do
         >
           Interventions
         </button>
+        <a
+          :if={@sim_state}
+          href={~p"/api/biotopes/#{@biotope_id}/snapshot"}
+          class="arkea-biotope__header-btn"
+          title="Download snapshot.json (full state + audit + time-series)"
+          aria-label="Download biotope snapshot JSON"
+          download
+        >
+          ⤓
+        </a>
         <button
           :if={@sim_state}
           type="button"
