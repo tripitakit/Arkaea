@@ -133,14 +133,16 @@ Residual JS hook `SvgPanZoom` (≤80 lines): listens for wheel/drag, applies `tr
 └────────────┴──────────────────────────────┴─────────────┘
 ```
 
-**Circular chromosome (SVG)**:
+**Circular chromosome (SVG)** *(U5 design + post-merge revision)*:
 
-- Main circle; genes as colored arcs distributed along the circumference.
-- Each gene is a sub-arc; domains are mini concentric rectangles toward the center (domain crown).
-- Click on a gene → highlight + populates Inspector.
-- Drag a domain: reorder within the same gene; drop on another gene → move; drop outside → removal (with confirmation).
-- Intergenic biases between genes shown as "ticks" on the outer ring.
+- Closed ring; **genes are contiguous segments of the ring itself**, separated by a small fixed gap (~0.012 rad ≈ 0.7°) regardless of gene count.
+- **Domains** are **side-by-side angular sub-arcs** inside the gene's segment, each spanning the full radial thickness (`r_inner..r_outer`). No concentric crown: the gene's detail lives on the ring itself, read as a sequence of coloured sub-segments by domain type.
+- Click on a gene → highlight (solid outline) + populates Inspector.
+- Drag a domain (post-MVP, JS hook): reorder within the same gene; drop on another gene → move; drop outside → removal (with confirmation).
+- Intergenic biases between genes: `data-*` attributes for analytic compositions; in a future iteration they may be exposed as radial "ticks" in the middle of the gap.
 - Plasmids below as smaller circles (same scheme, scale 0.6×).
+
+> **History**: the first iteration (commit U5 `bf6576f`) used a concentric domain crown. The representation was revised post-merge for consistency with the mental model "the chromosome is the sequence of its genes": domains are now *parts* of the gene-segment, not a separate decorative layer.
 
 **Drag-and-drop hook** (`DomainDnD`, ≤120 JS lines): `pointerdown` on domain → registers; `pointermove` → live position; `pointerup` on drop target → `pushEvent("reorder_domain", {...})`. All final state is server-side.
 
@@ -269,7 +271,7 @@ Each phase: tests green (including `mix test`), no manual visual regression, iso
 - `lib/arkea_web/components/panel.ex` — **new**: `<.panel>` with header/body/footer slots + `<.empty_state>`.
 - `lib/arkea_web/components/metric.ex` — **new**: `<.metric_strip>`, `<.metric_chip>`, `<.metric_bar>` (replaces `stat_chip`).
 - `lib/arkea_web/components/biotope_scene.ex` — **new**: SVG biotope scene (replaces Pixi hook).
-- `lib/arkea_web/components/genome_canvas.ex` — **new**: circular chromosome SVG with domain crown.
+- `lib/arkea_web/components/genome_canvas.ex` — **new**: circular chromosome SVG. Genes are contiguous ring segments; domains are side-by-side angular sub-arcs inside each gene segment (full radial thickness, not concentric). See "Seed Lab" section for design rationale.
 - `lib/arkea_web/components/layouts.ex` — slimmed: only `flash_group/1` (scaffold `app/1` + `theme_toggle` removed).
 
 ### Pure view-models (testable without LV)
@@ -339,7 +341,7 @@ Update of `README.md` and `README.en.md` in the "Documents" section to link the 
 
 - ✅ Dashboard as post-login landing with 6 card-link panels (3 live, 3 read-only).
 - ✅ 5 dedicated full-page views (`/world`, `/seed-lab`, `/biotopes/:id`, `/community`, `/audit`) without global scrollbars.
-- ✅ Genome visualized as a circular chromosome SVG with domain crown; reordering via ↑/↓/× (a11y-first; DnD JS hook deferred as an additive enhancement).
+- ✅ Genome visualized as a circular chromosome SVG. Genes are segments of the ring itself; domains are coloured sub-arcs side-by-side inside the gene (post-merge revision of the first iteration that used a concentric crown). Domain reordering via ↑/↓/× (a11y-first; DnD JS hook deferred as an additive enhancement).
 - ✅ PixiJS removed; 100% LiveView/SVG rendering.
 - ✅ JS bundle < 50 KB (target was < 200 KB).
 - ✅ CSS modularized into 11 modules under the `arkea-*` prefix. No legacy classes `sim-*`/`seed-*`/`world-*`/`biotope-*` remaining in the codebase.

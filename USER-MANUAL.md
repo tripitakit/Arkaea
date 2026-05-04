@@ -194,16 +194,17 @@ Il modulo mobile è la chiave per innescare HGT veloce in scenari di pochi 100 t
 
 ### 4.2 Cromosoma circolare (centro del Seed Lab)
 
-Il cromosoma è renderizzato come **anello SVG** con i geni come archi colorati distribuiti sulla circonferenza. Ogni gene ha una **corona di domini concentrica**: mini-archi più stretti verso il centro che corrispondono ai singoli domini funzionali del gene.
+Il cromosoma è renderizzato come **anello SVG chiuso** composto da segmenti contigui: **ogni gene è un segmento del cromosoma**, separato dai vicini da un sottile gap (~0.7°). Non c'è una "corona" radiale — il dettaglio dei domini vive *dentro* lo stesso segmento del gene.
 
 Come leggerlo:
 
-- **Anello esterno** = gene arc, colorato uniformemente per gene (palette derivata dall'hash dell'`id` gene).
-- **Corona interna** = domini, ciascuno con il proprio colore-tipo (vedi tabella domini sotto).
-- **Plasmidi** sotto come cerchi più piccoli (scala 0.6×). Il loro centro è etichettato "Plasmid 1", "Plasmid 2", ecc.
-- **Outline tratteggiato** = gene editabile (custom, aggiunto da te). I geni base (derivati dai profili di cassette/membrana/regolazione) hanno outline solido.
+- **Segmento del cromosoma** = gene. La sua lunghezza angolare è uniforme tra i geni (il sistema non rappresenta lunghezze in codoni in scala visiva, solo l'ordine).
+- **Sotto-porzioni colorate dentro un gene** = domini funzionali, accostati nell'ordine in cui compaiono nel gene. Ogni dominio occupa la **piena spessore radiale** dell'anello (non è concentrico). Il colore deriva dal tipo del dominio (vedi §4.3).
+- **Plasmidi** sotto come cerchi più piccoli (scala 0.6×) con la stessa logica: ognuno è un anello chiuso di gene-segmenti.
+- **Outline tratteggiato attorno al segmento** = gene editabile (custom, aggiunto da te). I geni base (derivati dai profili di cassette/membrana/regolazione) hanno outline trasparente.
+- **Etichetta esterna** = label corto del gene, posizionato fuori dall'anello.
 
-Click su un gene → il gene si highlighta (stroke più spesso) e popola l'**Inspector** sotto, dove vedi: domini, intergenic blocks, codon count, parametri derivati.
+Click su un gene → il gene si highlighta (outline solido visibile) e popola l'**Inspector** sotto, dove vedi: lista dei domini con i loro parametri derivati, intergenic blocks, codon count.
 
 ### 4.3 I 11 domini funzionali
 

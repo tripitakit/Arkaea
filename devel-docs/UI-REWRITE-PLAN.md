@@ -133,14 +133,16 @@ Layout 3 colonne:
 └────────────┴──────────────────────────────┴─────────────┘
 ```
 
-**Cromosoma circolare (SVG)**:
+**Cromosoma circolare (SVG)** *(design U5 + revisione post-merge)*:
 
-- Cerchio principale; geni come archi colorati distribuiti sulla circonferenza.
-- Ogni gene è un sotto-arco; i domini sono mini-rettangoli concentrici verso il centro (corona di domini).
-- Click su un gene → highlight + popola Inspector.
-- Drag di un dominio: riordino entro lo stesso gene; drop su altro gene → spostamento; drop fuori → rimozione (con conferma).
-- Bias intergenici tra geni mostrati come "ticks" sull'anello esterno.
+- Anello chiuso; **i geni sono segmenti contigui dell'anello stesso**, separati da un gap fisso piccolo (~0.012 rad ≈ 0.7°) indipendente dal numero di geni.
+- I **domini** sono **sotto-archi angolari accostati** all'interno del segmento del gene, ciascuno a piena spessore radiale (`r_inner..r_outer`). Nessuna corona concentrica: il dettaglio del gene vive sull'anello stesso, leggendolo come una sequenza di sub-segmenti colorati per tipo di dominio.
+- Click su un gene → highlight (outline solido) + popola Inspector.
+- Drag di un dominio (post-MVP, JS hook): riordino entro lo stesso gene; drop su altro gene → spostamento; drop fuori → rimozione (con conferma).
+- Bias intergenici tra geni: `data-*` attributes per compositions analitiche; in un'iterazione futura possono essere esposti come "ticks" radiali a metà del gap.
 - Plasmidi sotto come cerchi più piccoli (stesso schema, scale 0.6×).
+
+> **Storico**: la prima iterazione (commit U5 `bf6576f`) usava una corona concentrica per i domini. La rappresentazione è stata revisionata in fase post-merge per coerenza con la mental model "il cromosoma è la sequenza dei suoi geni": ora i domini sono *parti* del gene-segmento, non strato decorativo separato.
 
 **Drag-and-drop hook** (`DomainDnD`, ≤120 righe JS): `pointerdown` su dominio → registra; `pointermove` → posizione live; `pointerup` su drop target → `pushEvent("reorder_domain", {...})`. Tutto stato finale lato server.
 
@@ -269,7 +271,7 @@ Ogni fase: test green (incluso `mix test`), no regressione visiva manuale, commi
 - `lib/arkea_web/components/panel.ex` — **nuovo**: `<.panel>` con slot header/body/footer + `<.empty_state>`.
 - `lib/arkea_web/components/metric.ex` — **nuovo**: `<.metric_strip>`, `<.metric_chip>`, `<.metric_bar>` (rimpiazza `stat_chip`).
 - `lib/arkea_web/components/biotope_scene.ex` — **nuovo**: SVG scena biotope (sostituisce hook Pixi).
-- `lib/arkea_web/components/genome_canvas.ex` — **nuovo**: SVG cromosoma circolare con corona di domini.
+- `lib/arkea_web/components/genome_canvas.ex` — **nuovo**: SVG cromosoma circolare. I geni sono segmenti contigui dell'anello; i domini sono sotto-archi angolari accostati al loro interno (a piena spessore radiale, non concentrici). Vedi sezione "Seed Lab" per il design rationale.
 - `lib/arkea_web/components/layouts.ex` — slim: solo `flash_group/1` (rimossa la scaffold `app/1` + `theme_toggle`).
 
 ### View-model puri (testabili senza LV)
@@ -339,7 +341,7 @@ Aggiornamento di `README.md` e `README.en.md` nella sezione "Documenti" per link
 
 - ✅ Dashboard come landing post-login con 6 pannelli card-link (3 live, 3 read-only).
 - ✅ 5 viste a pagina intera dedicate (`/world`, `/seed-lab`, `/biotopes/:id`, `/community`, `/audit`) senza scrollbar globali.
-- ✅ Genoma visualizzato come cromosoma circolare SVG con corona di domini; riordino via ↑/↓/× (a11y-first; DnD JS hook rimandato come enhancement additivo).
+- ✅ Genoma visualizzato come cromosoma circolare SVG. I geni sono segmenti dell'anello stesso; i domini sono sotto-archi colorati accostati all'interno del gene (revisione post-merge della prima iterazione che usava una corona concentrica). Riordino dei domini via ↑/↓/× (a11y-first; DnD JS hook rimandato come enhancement additivo).
 - ✅ PixiJS rimosso; rendering 100% LiveView/SVG.
 - ✅ Bundle JS < 50 KB (target era < 200 KB).
 - ✅ CSS modularizzato in 11 moduli sotto prefisso `arkea-*`. Nessuna classe legacy `sim-*`/`seed-*`/`world-*`/`biotope-*` rimasta nel codice.

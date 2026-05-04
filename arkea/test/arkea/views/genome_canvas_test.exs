@@ -89,6 +89,83 @@ defmodule Arkea.Views.GenomeCanvasTest do
 
       assert paths_a == paths_b
     end
+
+    test "domains tile the gene's angular range without concentric stacking" do
+      genome = %{
+        chromosome: [
+          %{
+            id: "g1",
+            domains: [
+              %{type: :catalytic_site},
+              %{type: :substrate_binding},
+              %{type: :dna_binding}
+            ]
+          }
+        ],
+        plasmids: []
+      }
+
+      layout = GenomeCanvas.build(genome)
+      [gene] = layout.chromosome.genes
+
+      assert length(gene.domains) == 3
+
+      # Sub-sweeps must be contiguous (each end matches the next start)
+      # and together cover the gene's full angular span.
+      [d1, d2, d3] = gene.domains
+      epsilon = 1.0e-6
+
+      assert abs(d1.start_angle - gene.arc.start_angle) < epsilon
+      assert abs(d1.end_angle - d2.start_angle) < epsilon
+      assert abs(d2.end_angle - d3.start_angle) < epsilon
+      assert abs(d3.end_angle - gene.arc.end_angle) < epsilon
+
+      # No concentric stacking: every domain must span the chromosome's
+      # full radial thickness (i.e. the layout no longer carries
+      # `r_outer` / `r_inner` per domain).
+      assert Enum.all?(gene.domains, fn dom ->
+               not Map.has_key?(dom, :r_outer) and not Map.has_key?(dom, :r_inner)
+             end)
+    end
+
+    test "gene with empty domains keeps the fallback gene arc path" do
+      genome = %{
+        chromosome: [%{id: "g1", domains: []}],
+        plasmids: []
+      }
+
+      layout = GenomeCanvas.build(genome)
+      [gene] = layout.chromosome.genes
+
+      assert gene.domains == []
+      assert gene.arc.path_d =~ "M "
+    end
+
+    test "inter-gene gap is small and uniform regardless of gene count" do
+      few = GenomeCanvas.build(%{chromosome: gene_list(3), plasmids: []})
+      many = GenomeCanvas.build(%{chromosome: gene_list(20), plasmids: []})
+
+      gap_few = inter_gene_gap(few.chromosome.genes)
+      gap_many = inter_gene_gap(many.chromosome.genes)
+
+      # Same fixed gap (0.012 rad ≈ 0.7°) regardless of how many genes
+      # the ring carries — i.e. it does not collapse the chromosome into
+      # a fan of widely-separated arcs.
+      epsilon = 1.0e-6
+      assert abs(gap_few - gap_many) < epsilon
+      assert gap_few < 0.05
+    end
+
+    defp gene_list(n) do
+      Enum.map(1..n, fn i -> %{id: "g#{i}", domains: [%{type: :catalytic_site}]} end)
+    end
+
+    defp inter_gene_gap([_]), do: 0.0
+
+    defp inter_gene_gap(genes) do
+      [g1, g2 | _] = genes
+      g2.arc.start_angle - g1.arc.end_angle
+    end
   end
 
   describe "domain_color/1" do

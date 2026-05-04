@@ -76,14 +76,6 @@
   display: block;
 }
 
-.arkea-genome-canvas__replicon-ring {
-  fill: none;
-  stroke: var(--arkea-border);
-  stroke-width: 0.5;
-  stroke-dasharray: 2 2;
-  opacity: 0.5;
-}
-
 .arkea-genome-canvas__replicon-label {
   fill: var(--arkea-fg-faint);
   font-size: 11px;
@@ -92,28 +84,57 @@
   text-transform: uppercase;
 }
 
+/* The gene <g> is the click target. Its visual content is the side-by-side
+   colored sub-arcs (.arkea-genome-canvas__domain). The transparent
+   `__gene-outline` path on top carries the selection halo without redrawing
+   geometry per domain. */
 .arkea-genome-canvas__gene {
   cursor: pointer;
   outline: none;
 }
 
-.arkea-genome-canvas__gene-arc {
-  opacity: 0.78;
+.arkea-genome-canvas__domain {
+  opacity: 0.92;
   transition: opacity 150ms ease, filter 150ms ease;
   stroke: rgba(0, 0, 0, 0.25);
-  stroke-width: 0.4;
+  stroke-width: 0.3;
 }
 
-.arkea-genome-canvas__gene:hover .arkea-genome-canvas__gene-arc,
-.arkea-genome-canvas__gene-arc:focus-visible {
-  opacity: 1;
-  filter: drop-shadow(0 0 4px currentColor);
+.arkea-genome-canvas__gene-fallback {
+  opacity: 0.78;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 0.3;
 }
 
-.arkea-genome-canvas__gene--selected .arkea-genome-canvas__gene-arc {
+.arkea-genome-canvas__gene-outline {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 0.6;
+  pointer-events: none;
+  transition: stroke 150ms ease, stroke-width 150ms ease;
+}
+
+.arkea-genome-canvas__gene:hover .arkea-genome-canvas__domain,
+.arkea-genome-canvas__gene:focus-visible .arkea-genome-canvas__domain,
+.arkea-genome-canvas__gene:hover .arkea-genome-canvas__gene-fallback,
+.arkea-genome-canvas__gene:focus-visible .arkea-genome-canvas__gene-fallback {
   opacity: 1;
+}
+
+.arkea-genome-canvas__gene:hover .arkea-genome-canvas__gene-outline,
+.arkea-genome-canvas__gene:focus-visible .arkea-genome-canvas__gene-outline {
+  stroke: var(--arkea-fg-muted);
+  stroke-width: 1;
+}
+
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__domain,
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__gene-fallback {
+  opacity: 1;
+}
+
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__gene-outline {
   stroke: var(--arkea-fg);
-  stroke-width: 1.2;
+  stroke-width: 1.5;
 }
 
 .arkea-genome-canvas__gene-label {
@@ -129,19 +150,19 @@
   font-weight: 600;
 }
 
-.arkea-genome-canvas__gene--editable .arkea-genome-canvas__gene-arc {
-  /* Subtle dashed accent on user-authored genes. */
-  stroke-dasharray: 2 1.5;
+.arkea-genome-canvas__gene--editable .arkea-genome-canvas__gene-outline {
+  /* Subtle dashed accent on user-authored genes (replaces the dashed gene
+     arc that the previous concentric-crown layout used). */
+  stroke: var(--arkea-fg-faint);
+  stroke-width: 0.6;
+  stroke-dasharray: 1.5 1.5;
 }
 
-.arkea-genome-canvas__domain {
-  pointer-events: none;
-  opacity: 0.92;
-  transition: opacity 200ms ease;
-}
-
-.arkea-genome-canvas__gene--selected .arkea-genome-canvas__domain {
-  opacity: 1;
+.arkea-genome-canvas__gene--editable.arkea-genome-canvas__gene--selected
+  .arkea-genome-canvas__gene-outline {
+  stroke: var(--arkea-fg);
+  stroke-width: 1.5;
+  stroke-dasharray: 0;
 }
 
 /* ─── Draft gene domain editor (↑/↓/× controls) ─────────────────────────── */

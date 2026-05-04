@@ -194,16 +194,17 @@ The mobile module is the key to triggering fast HGT in scenarios of a few hundre
 
 ### 4.2 Circular chromosome (center of the Seed Lab)
 
-The chromosome is rendered as an **SVG ring** with genes as colored arcs distributed around the circumference. Each gene has a **concentric domain crown**: narrower mini-arcs toward the center corresponding to the individual functional domains of the gene.
+The chromosome is rendered as a **closed SVG ring** made of contiguous segments: **each gene is a segment of the chromosome**, separated from its neighbours by a thin gap (~0.7°). There is no radial "crown" — domain detail lives *inside* the gene's own segment.
 
 How to read it:
 
-- **Outer ring** = gene arc, uniformly colored per gene (palette derived from the hash of the gene `id`).
-- **Inner crown** = domains, each with its own type color (see domain table below).
-- **Plasmids** shown below as smaller circles (0.6× scale). Their center is labeled "Plasmid 1", "Plasmid 2", etc.
-- **Dashed outline** = editable gene (custom, added by you). Base genes (derived from cassette/membrane/regulation profiles) have a solid outline.
+- **Chromosome segment** = gene. Its angular length is uniform across genes (the system does not draw codon length to scale, only the order).
+- **Coloured sub-portions inside a gene** = functional domains, laid side-by-side in the order they appear in the gene. Each domain spans the **full radial thickness** of the ring (it is not concentric). Colour is derived from the domain type (see §4.3).
+- **Plasmids** shown below as smaller circles (0.6× scale) with the same logic: each is a closed ring of gene-segments.
+- **Dashed outline around the segment** = editable gene (custom, added by you). Base genes (derived from cassette/membrane/regulation profiles) have a transparent outline.
+- **External label** = the gene's short label, placed outside the ring.
 
-Click on a gene → the gene is highlighted (thicker stroke) and populates the **Inspector** below, where you see: domains, intergenic blocks, codon count, derived parameters.
+Click on a gene → the gene is highlighted (solid outline visible) and populates the **Inspector** below, where you see: list of domains with their derived parameters, intergenic blocks, codon count.
 
 ### 4.3 The 11 functional domains
 

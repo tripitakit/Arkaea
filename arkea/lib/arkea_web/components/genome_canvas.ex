@@ -3,9 +3,12 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
   Circular chromosome SVG component (UI rewrite — phase U5).
 
   Reads an `Arkea.Views.GenomeCanvas.layout()` and renders the chromosome
-  with a domain crown, plus plasmids. Click on a gene arc emits
-  `phx-click="select_gene"` with the gene id. Domain reorder controls live
-  in a sibling editor panel — this component is purely the visual canvas.
+  as a closed ring of gene-segments. Each gene occupies a contiguous arc
+  of the ring; its domains are rendered as differently-colored angular
+  sub-segments inside the gene's arc — radially full-thickness, side-by-
+  side, no concentric crown. Click on a gene emits
+  `phx-click="select_gene"` with the gene id; the inspector panel
+  consumes that selection.
   """
 
   use Phoenix.Component
@@ -51,13 +54,6 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
   defp replicon_group(assigns) do
     ~H"""
     <g class="arkea-genome-canvas__replicon" data-name={@name}>
-      <circle
-        class="arkea-genome-canvas__replicon-ring"
-        cx={@replicon.cx}
-        cy={@replicon.cy}
-        r={(@replicon.r_outer + @replicon.r_inner) / 2}
-      />
-
       <text
         :if={@replicon[:label]}
         class="arkea-genome-canvas__replicon-label"
@@ -78,31 +74,25 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
         ]}
         data-gene-id={gene.id}
         data-gene-index={gene.index}
+        phx-click="select_gene"
+        phx-value-id={gene.id}
+        role="button"
+        tabindex="0"
+        aria-label={"Gene #{gene.label}"}
       >
-        <path
-          class="arkea-genome-canvas__gene-arc"
-          d={gene.arc.path_d}
-          fill={gene.arc.color}
-          phx-click="select_gene"
-          phx-value-id={gene.id}
-          tabindex="0"
-          role="button"
-          aria-label={"Gene #{gene.label}"}
-        >
-          <title>{gene.label}</title>
-        </path>
-
-        <text
-          class="arkea-genome-canvas__gene-label"
-          x={gene.arc.label_x}
-          y={gene.arc.label_y}
-          text-anchor={gene.arc.label_anchor}
-          dominant-baseline="middle"
-        >
-          {gene.label}
-        </text>
-
-        <g class="arkea-genome-canvas__domains">
+        <%= if gene.domains == [] do %>
+          <%!-- Gene with no parsed domains: fall back to a single solid wedge
+                in the gene's own color so the ring stays closed. --%>
+          <path
+            class="arkea-genome-canvas__gene-fallback"
+            d={gene.arc.path_d}
+            fill={gene.arc.color}
+          >
+            <title>{gene.label}</title>
+          </path>
+        <% else %>
+          <%!-- The gene's visual content IS its domain sub-arcs. Each domain
+                fills the ring's full radial thickness over its angular slice. --%>
           <path
             :for={dom <- gene.domains}
             class="arkea-genome-canvas__domain"
@@ -113,7 +103,26 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
           >
             <title>{dom.tooltip}</title>
           </path>
-        </g>
+        <% end %>
+
+        <%!-- Transparent outline drawn on top of the gene segment; CSS
+              uses it to render the selection halo without recomputing
+              geometry per domain. --%>
+        <path
+          class="arkea-genome-canvas__gene-outline"
+          d={gene.arc.path_d}
+          fill="none"
+        />
+
+        <text
+          class="arkea-genome-canvas__gene-label"
+          x={gene.arc.label_x}
+          y={gene.arc.label_y}
+          text-anchor={gene.arc.label_anchor}
+          dominant-baseline="middle"
+        >
+          {gene.label}
+        </text>
       </g>
     </g>
     """

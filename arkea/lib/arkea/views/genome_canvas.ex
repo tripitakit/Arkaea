@@ -78,26 +78,39 @@ defmodule Arkea.Views.GenomeCanvas do
     %{cx: cx, cy: cy, r_outer: r_outer, r_inner: r_inner, genes: []}
   end
 
+  # Inter-gene gap, in radians. Small fixed value: a thin tick mark separates
+  # consecutive genes regardless of gene count, so the chromosome reads as a
+  # closed ring of segments rather than as a fan of isolated arcs.
+  @gene_gap_rad 0.012
+
   defp layout_replicon(genes, cx, cy, r_outer, r_inner) do
     n = length(genes)
-    # Single-gene replicon: a 2π SVG arc is a degenerate path (start ≈ end on
-    # the same point → invisible). Synthesize two near-half arcs joined at the
-    # bottom of the ring so the wedge actually renders.
-    {sweep, gap} =
-      if n == 1 do
-        {2 * :math.pi() - 0.0001, 0.0}
-      else
-        s = 2 * :math.pi() / n
-        {s, s * 0.04}
+    full_circle = 2 * :math.pi()
+
+    # Total angular space available for genes is the circle minus n × gap.
+    # For n=1 we use the whole circle minus a tiny ε so the SVG arc remains
+    # non-degenerate (start ≈ end would render as nothing).
+    {sweep_per_gene, gap} =
+      cond do
+        n == 0 ->
+          {0.0, 0.0}
+
+        n == 1 ->
+          {full_circle - 0.0001, 0.0}
+
+        true ->
+          s = (full_circle - n * @gene_gap_rad) / n
+          {s, @gene_gap_rad}
       end
 
     laid_genes =
       genes
       |> Enum.with_index()
       |> Enum.map(fn {gene, index} ->
-        # Start angle: 12 o'clock (-pi/2) + index * sweep
-        start = -:math.pi() / 2 + index * sweep + gap / 2
-        endd = start + sweep - gap
+        # Start at 12 o'clock (-π/2). Each gene takes `sweep_per_gene` radians,
+        # followed by a `gap` radians notch before the next gene starts.
+        start = -:math.pi() / 2 + index * (sweep_per_gene + gap)
+        endd = start + sweep_per_gene
         layout_gene(gene, index, cx, cy, r_outer, r_inner, start, endd)
       end)
 
@@ -117,23 +130,39 @@ defmodule Arkea.Views.GenomeCanvas do
         true -> "middle"
       end
 
-    arc_path = ring_arc_path(cx, cy, r_outer, r_inner, start_angle, end_angle)
+    # Click target: full gene wedge from r_inner to r_outer over the gene's
+    # angular span. Renders only as transparent overlay when domains are
+    # present (the gene's visual content IS its domain sub-arcs); used as
+    # the visible filled wedge when the gene has no domains (fallback).
+    full_path = ring_arc_path(cx, cy, r_outer, r_inner, start_angle, end_angle)
 
     domains = gene[:domains] || []
 
     laid_domains =
-      domains
-      |> Enum.with_index()
-      |> Enum.map(fn {dom, dindex} ->
-        layout_domain(dom, dindex, length(domains), cx, cy, r_inner, r_outer, start_angle, end_angle)
-      end)
+      if domains == [] do
+        []
+      else
+        # Split the gene's angular range into N equal sub-sweeps, one per
+        # domain. Each sub-arc fills the FULL radial thickness (r_inner →
+        # r_outer) of the chromosome ring. No concentric crown — domains
+        # are now linear segments along the chromosome itself.
+        per_domain = (end_angle - start_angle) / length(domains)
+
+        domains
+        |> Enum.with_index()
+        |> Enum.map(fn {dom, dindex} ->
+          d_start = start_angle + dindex * per_domain
+          d_end = d_start + per_domain
+          layout_domain(dom, dindex, cx, cy, r_inner, r_outer, d_start, d_end)
+        end)
+      end
 
     %{
       id: gene[:id] || "gene-#{index}",
       index: index,
       label: gene[:label] || "g#{index + 1}",
       arc: %{
-        path_d: arc_path,
+        path_d: full_path,
         color: gene[:color] || "#94a3b8",
         start_angle: start_angle,
         end_angle: end_angle,
@@ -146,19 +175,15 @@ defmodule Arkea.Views.GenomeCanvas do
     }
   end
 
-  defp layout_domain(dom, dindex, total_domains, cx, cy, r_inner, r_outer, start_angle, end_angle) do
-    # The domain ring sits inside the gene arc, divided radially.
-    band_thickness = (r_outer - r_inner) * 0.65 / max(total_domains, 1)
-    domain_r_outer = r_inner + (total_domains - dindex) * band_thickness
-    domain_r_inner = domain_r_outer - band_thickness * 0.78
+  defp layout_domain(dom, dindex, cx, cy, r_inner, r_outer, d_start, d_end) do
+    # Each domain is a thin angular wedge spanning the full chromosome
+    # thickness (r_inner..r_outer). Adjacent domains within the same gene
+    # share their cut edges — no internal padding, so the gene reads as a
+    # contiguous striped segment.
+    path_d = ring_arc_path(cx, cy, r_outer, r_inner, d_start, d_end)
 
-    sweep_pad = (end_angle - start_angle) * 0.05
-    d_start = start_angle + sweep_pad
-    d_end = end_angle - sweep_pad
-
-    path_d = ring_arc_path(cx, cy, domain_r_outer, domain_r_inner, d_start, d_end)
     mid_angle = (d_start + d_end) / 2
-    mid_r = (domain_r_outer + domain_r_inner) / 2
+    mid_r = (r_outer + r_inner) / 2
 
     %{
       index: dindex,
@@ -169,8 +194,8 @@ defmodule Arkea.Views.GenomeCanvas do
       tooltip: domain_tooltip(dom),
       center_x: cx + mid_r * :math.cos(mid_angle),
       center_y: cy + mid_r * :math.sin(mid_angle),
-      r_outer: domain_r_outer,
-      r_inner: domain_r_inner
+      start_angle: d_start,
+      end_angle: d_end
     }
   end
 

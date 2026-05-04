@@ -34,7 +34,7 @@ Arkea **non è un game competitivo**: niente scoreboard, niente contest loop. Il
 | `/` | Login | Crea o riprende un account player |
 | `/dashboard` | Dashboard | Pannelli card-link su World, Seed Lab, biotopi posseduti, Community, Audit |
 | `/world` | World | Grafo SVG dei biotopi attivi + side panel selezionato |
-| `/seed-lab` | Seed Lab | Editor visuale di fenotipo + genoma; cromosoma circolare con corona di domini |
+| `/seed-lab` | Seed Lab | Editor visuale di fenotipo + genoma; cromosoma circolare con geni-segmento e domini come sotto-archi colorati |
 | `/biotopes/:id` | Biotope viewport | Scena SVG realtime + sidebar fasi + drawer lineage + bottom tabs (Events / Lineages / Chemistry / Interventions) |
 | `/audit` | Audit | Stream paginato di `audit_log` con filter tabs |
 | `/community` | Community | Lista read-only di multi-seed runs |
