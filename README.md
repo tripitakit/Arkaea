@@ -35,6 +35,7 @@ Poi apri [`localhost:4000`](http://localhost:4000) e crea o riprendi un player d
 - [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) — scelta architetturale (Active Record + audit log strutturato + tick pure-functional), analisi dell'alternativa Event Sourcing scartata, roadmap implementata e note di consolidamento su UI, persistenza e onboarding player
 - [BIOLOGICAL-MODEL-REVIEW.md](BIOLOGICAL-MODEL-REVIEW.md) — revisione scientifica del modello biologico implementato e piano di intervento per chiudere i gap (HGT completo, ciclo fagico, R-M, trasformazione, trasduzione, xenobiotici/RAS, biomassa, SOS, error catastrophe, operoni, bacteriocine)
 - [CALIBRATION.md](CALIBRATION.md) — appendice di calibrazione: scale temporali e di concentrazione dichiarate, costanti chiave del codice mappate al range biologico, changelog Phase 20 e override per benchmark scientifici
+- [UI-REWRITE-PLAN.md](UI-REWRITE-PLAN.md) — piano di riscrittura UI/UX: principi guida, rimozione PixiJS, sistema di layout, vista per vista, componenti, refactor CSS, view-model layer, fasi di migrazione U0–U7
 
 ## Subagent di progetto
 
