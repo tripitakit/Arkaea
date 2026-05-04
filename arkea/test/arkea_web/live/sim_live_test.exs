@@ -83,6 +83,23 @@ defmodule ArkeaWeb.SimLiveTest do
     assert html =~ "No abundance samples yet"
   end
 
+  test "Phylogeny tab renders the lineage tree for the founder colony", %{
+    conn: conn,
+    biotope_id: id
+  } do
+    {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+    view |> element(~s|.arkea-tabs__tab[phx-value-tab="phylogeny"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Phylogeny")
+
+    html = render(view)
+    assert html =~ "Lineage genealogy"
+    # Founder lineage is present so the SVG should render — not the
+    # "no lineages" placeholder.
+    assert html =~ "arkea-phylogeny__svg"
+    refute html =~ "No lineages to plot"
+  end
+
   test "clicking a lineage row opens the right drawer; close dismisses it", %{
     conn: conn,
     biotope_id: id

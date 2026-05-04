@@ -28,6 +28,7 @@ defmodule ArkeaWeb.SimLive do
   alias ArkeaWeb.Components.BiotopeScene
   alias ArkeaWeb.Components.Chart
   alias ArkeaWeb.Components.Panel
+  alias ArkeaWeb.Components.Phylogeny
   alias ArkeaWeb.Components.Shell
 
   @max_event_log 20
@@ -55,6 +56,7 @@ defmodule ArkeaWeb.SimLive do
        interventions_open: false,
        trends_samples: [],
        trends_audit: [],
+       phylogeny_model: nil,
        page_title: "Arkea Biotope"
      )}
   end
@@ -167,6 +169,7 @@ defmodule ArkeaWeb.SimLive do
         "chemistry" -> :chemistry
         "interventions" -> :interventions
         "trends" -> :trends
+        "phylogeny" -> :phylogeny
         _ -> :events
       end
 
@@ -174,6 +177,7 @@ defmodule ArkeaWeb.SimLive do
       socket
       |> assign(bottom_tab: tab_atom)
       |> maybe_load_trends_data(tab_atom)
+      |> maybe_load_phylogeny_data(tab_atom)
 
     {:noreply, socket}
   end
@@ -361,6 +365,8 @@ defmodule ArkeaWeb.SimLive do
                       samples={@trends_samples}
                       audit={@trends_audit}
                     />
+                  <% :phylogeny -> %>
+                    <.phylogeny_panel model={@phylogeny_model} />
                   <% :chemistry -> %>
                     <.chemistry_panel sim_state={@sim_state} />
                   <% :interventions -> %>
@@ -1128,6 +1134,29 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
+  attr :model, :any, required: true
+
+  defp phylogeny_panel(assigns) do
+    ~H"""
+    <div class="arkea-trends">
+      <div class="arkea-trends__intro">
+        <span class="arkea-card__eyebrow">Phylogeny</span>
+        <p class="arkea-muted">
+          Lineage genealogy. Each circle is a lineage, coloured by current
+          abundance (extinct lineages are grey + dashed). Edges carry the
+          most-impactful phenotype delta extracted from the <code>lineage_born</code> audit payload.
+        </p>
+      </div>
+
+      <%= if @model do %>
+        <Phylogeny.phylogeny_default model={@model} />
+      <% else %>
+        <p class="arkea-muted">Loading phylogeny…</p>
+      <% end %>
+    </div>
+    """
+  end
+
   defp event_log_content(assigns) do
     ~H"""
     <div>
@@ -1431,6 +1460,7 @@ defmodule ArkeaWeb.SimLive do
       {:events, "Events"},
       {:lineages, "Lineages"},
       {:trends, "Trends"},
+      {:phylogeny, "Phylogeny"},
       {:chemistry, "Chemistry"},
       {:interventions, "Interventions"}
     ]
@@ -1453,6 +1483,24 @@ defmodule ArkeaWeb.SimLive do
 
   defp maybe_load_trends_data(socket, _other), do: socket
 
+  # Build the phylogeny model from the live BiotopeState plus the
+  # `lineage_born` audit entries (which carry the per-edge mutation
+  # summary). Cached on the socket and rebuilt on tab activation only —
+  # the lineage tree changes infrequently enough that re-deriving on
+  # every tick would be wasteful.
+  defp maybe_load_phylogeny_data(socket, :phylogeny) do
+    biotope_id = socket.assigns.biotope_id
+    sim_state = socket.assigns.sim_state
+
+    audit = lineage_born_audit(biotope_id)
+    lineages = if sim_state, do: sim_state.lineages, else: []
+    model = Arkea.Views.Phylogeny.build(lineages, audit)
+
+    assign(socket, phylogeny_model: model)
+  end
+
+  defp maybe_load_phylogeny_data(socket, _other), do: socket
+
   defp recent_audit(biotope_id) do
     import Ecto.Query
 
@@ -1461,6 +1509,16 @@ defmodule ArkeaWeb.SimLive do
         where: a.target_biotope_id == ^biotope_id,
         order_by: [asc: a.occurred_at_tick],
         limit: 200
+    )
+  end
+
+  defp lineage_born_audit(biotope_id) do
+    import Ecto.Query
+
+    Arkea.Repo.all(
+      from a in Arkea.Persistence.AuditLog,
+        where: a.target_biotope_id == ^biotope_id and a.event_type == "lineage_born",
+        order_by: [asc: a.occurred_at_tick]
     )
   end
 

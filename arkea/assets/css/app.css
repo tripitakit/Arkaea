@@ -118,6 +118,7 @@
 @import "./arkea/audit.css";
 @import "./arkea/help.css";
 @import "./arkea/chart.css";
+@import "./arkea/phylogeny.css";
 
 /* Inner-panel primitives (post-U7 migration of legacy.css):
    shared card/table/token/action-button/event-entry styles, the

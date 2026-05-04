@@ -1,0 +1,52 @@
+/* Phylogeny tree viewer (UI Phase D).
+
+   Lineage tree with mutation-delta edge labels, rendered as pure SVG
+   over the tidy-tree layout produced by `Arkea.Views.Phylogeny`. */
+
+.arkea-phylogeny {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.45rem;
+  padding: 0.6rem;
+}
+
+.arkea-phylogeny__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.arkea-phylogeny__edge {
+  stroke: rgba(148, 163, 184, 0.55);
+  stroke-width: 1.2;
+}
+
+.arkea-phylogeny__edge-label {
+  fill: rgba(226, 232, 240, 0.75);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  pointer-events: none;
+}
+
+.arkea-phylogeny__node-label {
+  fill: rgba(226, 232, 240, 0.85);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  pointer-events: none;
+}
+
+.arkea-phylogeny__node--extinct .arkea-phylogeny__node-label {
+  fill: rgba(148, 163, 184, 0.55);
+  font-style: italic;
+}
+
+.arkea-phylogeny__empty {
+  color: rgba(226, 232, 240, 0.7);
+  font-style: italic;
+  padding: 1.5rem;
+  text-align: center;
+}
