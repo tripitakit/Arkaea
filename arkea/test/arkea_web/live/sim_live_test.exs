@@ -69,6 +69,20 @@ defmodule ArkeaWeb.SimLiveTest do
     assert render(view) =~ "Metabolite pools"
   end
 
+  test "Trends tab renders the population trajectory placeholder when there are no samples yet",
+       %{conn: conn, biotope_id: id} do
+    {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+    view |> element(~s|.arkea-tabs__tab[phx-value-tab="trends"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Trends")
+
+    html = render(view)
+    assert html =~ "Population trajectory"
+    # A freshly provisioned biotope hasn't crossed a sampling boundary
+    # yet, so the chart shows the empty placeholder rather than an SVG.
+    assert html =~ "No abundance samples yet"
+  end
+
   test "clicking a lineage row opens the right drawer; close dismisses it", %{
     conn: conn,
     biotope_id: id

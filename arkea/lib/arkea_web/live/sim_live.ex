@@ -26,6 +26,7 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.Phenotype
   alias Arkea.Views.BiotopeScene, as: SceneLayout
   alias ArkeaWeb.Components.BiotopeScene
+  alias ArkeaWeb.Components.Chart
   alias ArkeaWeb.Components.Panel
   alias ArkeaWeb.Components.Shell
 
@@ -52,6 +53,8 @@ defmodule ArkeaWeb.SimLive do
        bottom_tab: :events,
        selected_lineage_id: nil,
        interventions_open: false,
+       trends_samples: [],
+       trends_audit: [],
        page_title: "Arkea Biotope"
      )}
   end
@@ -73,11 +76,27 @@ defmodule ArkeaWeb.SimLive do
         intervention_status: intervention_status(socket.assigns.player, socket.assigns.biotope_id)
       )
       |> assign_scene_snapshot()
+      |> maybe_refresh_trends(new_state)
 
     {:noreply, socket}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # When the user is currently viewing the Trends tab and the new tick
+  # crosses a sampling boundary, re-load the time-series + audit so the
+  # chart updates in near-real time.
+  defp maybe_refresh_trends(socket, %{tick_count: tick}) do
+    period = Arkea.Persistence.TimeSeries.sampling_period()
+
+    if socket.assigns.bottom_tab == :trends and rem(tick, period) == 0 do
+      maybe_load_trends_data(socket, :trends)
+    else
+      socket
+    end
+  end
+
+  defp maybe_refresh_trends(socket, _state), do: socket
 
   @impl Phoenix.LiveView
   def handle_params(%{"id" => biotope_id}, _uri, socket) do
@@ -147,10 +166,16 @@ defmodule ArkeaWeb.SimLive do
         "lineages" -> :lineages
         "chemistry" -> :chemistry
         "interventions" -> :interventions
+        "trends" -> :trends
         _ -> :events
       end
 
-    {:noreply, assign(socket, bottom_tab: tab_atom)}
+    socket =
+      socket
+      |> assign(bottom_tab: tab_atom)
+      |> maybe_load_trends_data(tab_atom)
+
+    {:noreply, socket}
   end
 
   def handle_event("select_lineage", %{"id" => id}, socket) do
@@ -330,6 +355,11 @@ defmodule ArkeaWeb.SimLive do
                       phenotype_cache={@phenotype_cache}
                       lineage_sort={@lineage_sort}
                       selected_lineage_id={@selected_lineage_id}
+                    />
+                  <% :trends -> %>
+                    <.trends_panel
+                      samples={@trends_samples}
+                      audit={@trends_audit}
                     />
                   <% :chemistry -> %>
                     <.chemistry_panel sim_state={@sim_state} />
@@ -1073,6 +1103,31 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
+  attr :samples, :list, required: true
+  attr :audit, :list, required: true
+
+  defp trends_panel(assigns) do
+    ~H"""
+    <div class="arkea-trends">
+      <div class="arkea-trends__intro">
+        <span class="arkea-card__eyebrow">Population trajectory</span>
+        <p class="arkea-muted">
+          Per-lineage abundance sampled every {Arkea.Persistence.TimeSeries.sampling_period()} ticks.
+          Vertical markers flag <code>mass_lysis</code>, <code>mutation_notable</code>, <code>phage_burst</code>,
+          <code>colonization</code>
+          and player <code>intervention</code>
+          events.
+        </p>
+      </div>
+
+      <Chart.population_trajectory_from_samples
+        samples={@samples}
+        audit={@audit}
+      />
+    </div>
+    """
+  end
+
   defp event_log_content(assigns) do
     ~H"""
     <div>
@@ -1375,9 +1430,38 @@ defmodule ArkeaWeb.SimLive do
     [
       {:events, "Events"},
       {:lineages, "Lineages"},
+      {:trends, "Trends"},
       {:chemistry, "Chemistry"},
       {:interventions, "Interventions"}
     ]
+  end
+
+  # Lazily load the time-series + audit data the first time the user
+  # opens the Trends tab. The result is cached in `socket.assigns.trends`
+  # so subsequent tab switches reuse it; the next tick that hits a
+  # sampling boundary will refresh via the `:biotope_tick` PubSub
+  # broadcast (see handle_info/2).
+  defp maybe_load_trends_data(socket, :trends) do
+    biotope_id = socket.assigns.biotope_id
+
+    samples =
+      Arkea.Persistence.TimeSeries.list(biotope_id, kind: "abundance")
+
+    audit = recent_audit(biotope_id)
+    assign(socket, trends_samples: samples, trends_audit: audit)
+  end
+
+  defp maybe_load_trends_data(socket, _other), do: socket
+
+  defp recent_audit(biotope_id) do
+    import Ecto.Query
+
+    Arkea.Repo.all(
+      from a in Arkea.Persistence.AuditLog,
+        where: a.target_biotope_id == ^biotope_id,
+        order_by: [asc: a.occurred_at_tick],
+        limit: 200
+    )
   end
 
   defp format_surface_tags([]), do: "—"

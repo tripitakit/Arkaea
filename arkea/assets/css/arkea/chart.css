@@ -1,0 +1,101 @@
+/* Time-series chart primitives (UI Phase C).
+
+   Used by the SimLive "Trends" tab and any other view that overlays
+   abundance / metabolite / signal trajectories. SVG-only, no JS chart
+   lib dependency. */
+
+.arkea-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.45rem;
+  padding: 0.6rem 0.7rem;
+}
+
+.arkea-chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.arkea-chart__panel {
+  fill: rgba(2, 6, 23, 0.6);
+  stroke: none;
+}
+
+.arkea-chart__grid-line {
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.arkea-chart__axis-line {
+  stroke: rgba(148, 163, 184, 0.5);
+  stroke-width: 1;
+}
+
+.arkea-chart__tick-label {
+  fill: rgba(226, 232, 240, 0.65);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+}
+
+.arkea-chart__marker {
+  stroke-width: 1;
+  stroke: rgba(252, 211, 77, 0.6);
+}
+
+.arkea-chart__marker--mass_lysis {
+  stroke: rgba(248, 113, 113, 0.85);
+}
+
+.arkea-chart__marker--mutation_notable {
+  stroke: rgba(167, 139, 250, 0.85);
+}
+
+.arkea-chart__marker--phage_burst {
+  stroke: rgba(244, 114, 182, 0.85);
+}
+
+.arkea-chart__marker--colonization {
+  stroke: rgba(110, 231, 183, 0.85);
+}
+
+.arkea-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.85);
+  align-items: center;
+}
+
+.arkea-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+}
+
+.arkea-chart__legend-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.15rem;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.arkea-chart__legend-peak {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.arkea-chart__empty {
+  color: rgba(226, 232, 240, 0.7);
+  font-style: italic;
+  padding: 1.5rem;
+  text-align: center;
+}
