@@ -38,7 +38,7 @@ defmodule ArkeaWeb.PlayerAccessController do
         conn
         |> put_flash(:info, "Welcome back, #{player.display_name}.")
         |> PlayerAuth.log_in_player(player)
-        |> redirect(to: ~p"/world")
+        |> redirect(to: ~p"/dashboard")
     end
   end
 

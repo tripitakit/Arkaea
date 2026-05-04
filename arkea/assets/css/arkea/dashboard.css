@@ -1,0 +1,221 @@
+/*
+ * Arkea dashboard (UI rewrite — phase U1)
+ *
+ * Six-panel landing grid. The dashboard is the single scrolling region;
+ * panels themselves stay fixed-height when their content fits.
+ */
+
+.arkea-dashboard {
+  padding: var(--arkea-space-6) var(--arkea-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-5);
+}
+
+.arkea-dashboard__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+  max-width: 56rem;
+}
+
+.arkea-dashboard__eyebrow {
+  font-size: var(--arkea-text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--arkea-fg-faint);
+}
+
+.arkea-dashboard__title {
+  font-size: var(--arkea-text-lg);
+  font-weight: 600;
+  color: var(--arkea-fg);
+  margin: 0;
+}
+
+.arkea-dashboard__copy {
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.arkea-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(220px, auto);
+  gap: var(--arkea-space-4);
+}
+
+@media (max-width: 1100px) {
+  .arkea-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .arkea-dashboard__grid { grid-template-columns: 1fr; }
+}
+
+.arkea-dashboard__card {
+  height: 100%;
+}
+
+.arkea-dashboard__card--span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 1100px) {
+  .arkea-dashboard__card--span-2 { grid-column: span 2; }
+}
+
+@media (max-width: 700px) {
+  .arkea-dashboard__card--span-2 { grid-column: span 1; }
+}
+
+.arkea-dashboard__card--soon {
+  opacity: 0.78;
+}
+
+.arkea-dashboard__card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  height: 100%;
+  border-radius: var(--arkea-radius-md);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.arkea-dashboard__card-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+
+.arkea-dashboard__card-link:focus-visible {
+  outline: 2px solid var(--arkea-accent-teal);
+  outline-offset: 2px;
+}
+
+.arkea-dashboard__hint {
+  margin-top: var(--arkea-space-3);
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  font-style: italic;
+}
+
+.arkea-dashboard__cta {
+  margin-top: var(--arkea-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-1);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-accent-teal);
+  font-weight: 600;
+}
+
+.arkea-dashboard__cta::after {
+  content: "→";
+  display: inline-block;
+}
+
+/* Biotope list inside the My Biotopes panel */
+.arkea-biotope-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-biotope-list__item { padding: 0; }
+
+.arkea-biotope-list__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  border-radius: var(--arkea-radius-sm);
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.arkea-biotope-list__link:hover {
+  background: var(--arkea-surface-2);
+  border-color: var(--arkea-border);
+}
+
+.arkea-biotope-list__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arkea-biotope-list__name {
+  font-size: var(--arkea-text-sm);
+  font-weight: 600;
+  color: var(--arkea-fg);
+}
+
+.arkea-biotope-list__id {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.arkea-biotope-list__metrics {
+  display: flex;
+  gap: var(--arkea-space-3);
+  align-items: center;
+}
+
+.arkea-biotope-list__metric {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Doc list inside the Docs panel */
+.arkea-doc-list {
+  list-style: none;
+  margin: var(--arkea-space-2) 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-doc-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-1) 0;
+  border-bottom: 1px solid var(--arkea-border);
+}
+
+.arkea-doc-list li:last-child { border-bottom: none; }
+
+.arkea-doc-list__name {
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg);
+  font-weight: 600;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.arkea-doc-list__hint {
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+}
+
+/* Generic anchor used inside dashboard panels */
+.arkea-link {
+  color: var(--arkea-accent-teal);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in oklch, var(--arkea-accent-teal) 60%, transparent);
+}
+
+.arkea-link:hover { color: var(--arkea-accent-sky); }

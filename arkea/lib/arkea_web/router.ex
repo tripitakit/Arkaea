@@ -40,6 +40,7 @@ defmodule ArkeaWeb.Router do
 
     live_session :player_authenticated,
       on_mount: [{ArkeaWeb.PlayerAuth, :ensure_authenticated}] do
+      live "/dashboard", DashboardLive
       live "/world", WorldLive
       live "/seed-lab", SeedLabLive
       live "/biotopes/:id", SimLive

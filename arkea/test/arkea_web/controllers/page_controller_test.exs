@@ -13,9 +13,9 @@ defmodule ArkeaWeb.PageControllerTest do
     assert html =~ "Create a player, design a seed, colonize a controlled biotope."
   end
 
-  test "GET / redirects authenticated players to /world", %{conn: conn} do
+  test "GET / redirects authenticated players to /dashboard", %{conn: conn} do
     conn = conn |> log_in_prototype_player() |> get(~p"/")
-    assert redirected_to(conn) == "/world"
+    assert redirected_to(conn) == "/dashboard"
   end
 
   test "POST /players/register creates a player, starts a session, and enters the seed lab", %{
@@ -41,7 +41,7 @@ defmodule ArkeaWeb.PageControllerTest do
         "session" => %{"email" => "LINA@example.com"}
       })
 
-    assert redirected_to(conn) == "/world"
+    assert redirected_to(conn) == "/dashboard"
     assert get_session(conn, :player_id) == player.id
   end
 

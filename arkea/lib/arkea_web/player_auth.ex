@@ -29,7 +29,7 @@ defmodule ArkeaWeb.PlayerAuth do
         _opts
       ) do
     conn
-    |> redirect(to: "/world")
+    |> redirect(to: "/dashboard")
     |> halt()
   end
 
