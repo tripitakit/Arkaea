@@ -67,7 +67,8 @@ defmodule Arkea.Views.GenomeCanvas do
       width: @canvas_w,
       height: @canvas_h,
       viewbox: "0 0 #{@canvas_w} #{@canvas_h}",
-      chromosome: layout_replicon(chromosome, @chrom_cx, @chrom_cy, @chrom_r_outer, @chrom_r_inner),
+      chromosome:
+        layout_replicon(chromosome, @chrom_cx, @chrom_cy, @chrom_r_outer, @chrom_r_inner),
       plasmids: layout_plasmids(plasmids)
     }
   end

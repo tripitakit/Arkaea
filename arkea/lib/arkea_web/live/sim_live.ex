@@ -471,8 +471,12 @@ defmodule ArkeaWeb.SimLive do
         <ul class="arkea-drawer__kv">
           <li><span>N total</span><span>{@abundance}</span></li>
           <li><span>Born</span><span>tick {@lineage.created_at_tick}</span></li>
-          <li :if={@phenotype}><span>µ (h⁻¹)</span><span>{format_float(@phenotype.base_growth_rate, 3)}</span></li>
-          <li :if={@phenotype}><span>ε (repair)</span><span>{format_float(@phenotype.repair_efficiency, 3)}</span></li>
+          <li :if={@phenotype}>
+            <span>µ (h⁻¹)</span><span>{format_float(@phenotype.base_growth_rate, 3)}</span>
+          </li>
+          <li :if={@phenotype}>
+            <span>ε (repair)</span><span>{format_float(@phenotype.repair_efficiency, 3)}</span>
+          </li>
           <li :if={@phenotype}>
             <span>Surface tags</span>
             <span>{format_surface_tags(@phenotype.surface_tags)}</span>
@@ -792,7 +796,13 @@ defmodule ArkeaWeb.SimLive do
       lineages |> Enum.map(&Lineage.total_abundance/1) |> Enum.max(fn -> 1 end) |> max(1)
 
     selected_id = assigns[:selected_lineage_id]
-    assigns = assign(assigns, sorted_lineages: lineages, max_abundance: max_abundance, selected_id: selected_id)
+
+    assigns =
+      assign(assigns,
+        sorted_lineages: lineages,
+        max_abundance: max_abundance,
+        selected_id: selected_id
+      )
 
     ~H"""
     <section class="arkea-card">
@@ -882,7 +892,8 @@ defmodule ArkeaWeb.SimLive do
       phx-click="select_lineage"
       phx-value-id={@lineage.id}
       class={["arkea-lineage-row", @is_selected && "arkea-lineage-row--selected"]}
-      style="height: 2rem; cursor: pointer;">
+      style="height: 2rem; cursor: pointer;"
+    >
       <td style="padding: 0.45rem 0.5rem;">
         <div class="arkea-lineage-id">
           <span class="arkea-lineage-swatch" style={"background: #{@color}"}></span>
@@ -1003,7 +1014,10 @@ defmodule ArkeaWeb.SimLive do
 
     ~H"""
     <div class="arkea-event-entry" style="padding: 0.5rem 0.75rem;">
-      <span class={["arkea-event-entry__icon w-4 h-4 flex-shrink-0", "arkea-event-entry__icon--#{@tone}"]}>
+      <span class={[
+        "arkea-event-entry__icon w-4 h-4 flex-shrink-0",
+        "arkea-event-entry__icon--#{@tone}"
+      ]}>
         <span class={@icon_class}></span>
       </span>
       <div class="arkea-event-entry__body">
@@ -1286,6 +1300,7 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp format_surface_tags([]), do: "—"
+
   defp format_surface_tags(tags) when is_list(tags) do
     tags |> Enum.take(4) |> Enum.map_join(" · ", &humanize_string(Atom.to_string(&1)))
   end

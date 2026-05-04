@@ -14,7 +14,10 @@ defmodule ArkeaWeb.SimLiveTest do
     {:ok, conn: log_in_prototype_player(conn), biotope_id: biotope_id}
   end
 
-  test "renders the new biotope shell with sidebar, scene, bottom tabs", %{conn: conn, biotope_id: id} do
+  test "renders the new biotope shell with sidebar, scene, bottom tabs", %{
+    conn: conn,
+    biotope_id: id
+  } do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     html = render(view)
@@ -31,7 +34,10 @@ defmodule ArkeaWeb.SimLiveTest do
     assert has_element?(view, ".arkea-shell__nav-link", "Seed Lab")
   end
 
-  test "phase list selects a different phase and updates the inspector", %{conn: conn, biotope_id: id} do
+  test "phase list selects a different phase and updates the inspector", %{
+    conn: conn,
+    biotope_id: id
+  } do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Eutrophic pond seed has surface/water_column/sediment phases.
@@ -63,7 +69,10 @@ defmodule ArkeaWeb.SimLiveTest do
     assert render(view) =~ "Metabolite pools"
   end
 
-  test "clicking a lineage row opens the right drawer; close dismisses it", %{conn: conn, biotope_id: id} do
+  test "clicking a lineage row opens the right drawer; close dismisses it", %{
+    conn: conn,
+    biotope_id: id
+  } do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Switch to lineages tab so rows are visible
@@ -80,7 +89,10 @@ defmodule ArkeaWeb.SimLiveTest do
     refute has_element?(view, ".arkea-drawer--right")
   end
 
-  test "operator console applies an intervention on a player-owned biotope", %{conn: conn, biotope_id: id} do
+  test "operator console applies an intervention on a player-owned biotope", %{
+    conn: conn,
+    biotope_id: id
+  } do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Open the interventions tab to expose the action buttons

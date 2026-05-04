@@ -33,7 +33,13 @@ defmodule ArkeaWeb.Components.BiotopeScene do
         >
           <defs>
             <pattern id="arkea-scene-grid" width="36" height="28" patternUnits="userSpaceOnUse">
-              <path d="M 36 0 L 0 0 0 28" fill="none" stroke="#102034" stroke-width="0.4" opacity="0.32" />
+              <path
+                d="M 36 0 L 0 0 0 28"
+                fill="none"
+                stroke="#102034"
+                stroke-width="0.4"
+                opacity="0.32"
+              />
             </pattern>
           </defs>
 

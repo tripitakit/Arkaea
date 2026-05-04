@@ -145,8 +145,7 @@ defmodule ArkeaWeb.DashboardLive do
       <:body scroll>
         <%= if @owned == [] do %>
           <Panel.empty_state title="No owned biotopes">
-            Provision a starter home from the
-            <.link navigate={~p"/seed-lab"} class="arkea-link">Seed Lab</.link>.
+            Provision a starter home from the <.link navigate={~p"/seed-lab"} class="arkea-link">Seed Lab</.link>.
           </Panel.empty_state>
         <% else %>
           <ul class="arkea-biotope-list">
@@ -172,7 +171,11 @@ defmodule ArkeaWeb.DashboardLive do
 
   defp community_panel(assigns) do
     ~H"""
-    <.link navigate={~p"/community"} class="arkea-dashboard__card-link" aria-label="Open community view">
+    <.link
+      navigate={~p"/community"}
+      class="arkea-dashboard__card-link"
+      aria-label="Open community view"
+    >
       <Panel.panel class="arkea-dashboard__card">
         <:header eyebrow="Community" title="Multi-seed runs" meta="read-only" />
         <:body>
@@ -214,10 +217,18 @@ defmodule ArkeaWeb.DashboardLive do
           In-app rendering of the canonical references coming online in U6:
         </p>
         <ul class="arkea-doc-list">
-          <li><span class="arkea-doc-list__name">DESIGN.md</span><span class="arkea-doc-list__hint">15 architectural blocks</span></li>
-          <li><span class="arkea-doc-list__name">CALIBRATION.md</span><span class="arkea-doc-list__hint">parameter ↔ literature mapping</span></li>
-          <li><span class="arkea-doc-list__name">BIOLOGICAL-MODEL-REVIEW.md</span><span class="arkea-doc-list__hint">phases 12–20 plan</span></li>
-          <li><span class="arkea-doc-list__name">UI-REWRITE-PLAN.md</span><span class="arkea-doc-list__hint">this rewrite</span></li>
+          <li>
+            <span class="arkea-doc-list__name">DESIGN.md</span><span class="arkea-doc-list__hint">15 architectural blocks</span>
+          </li>
+          <li>
+            <span class="arkea-doc-list__name">CALIBRATION.md</span><span class="arkea-doc-list__hint">parameter ↔ literature mapping</span>
+          </li>
+          <li>
+            <span class="arkea-doc-list__name">BIOLOGICAL-MODEL-REVIEW.md</span><span class="arkea-doc-list__hint">phases 12–20 plan</span>
+          </li>
+          <li>
+            <span class="arkea-doc-list__name">UI-REWRITE-PLAN.md</span><span class="arkea-doc-list__hint">this rewrite</span>
+          </li>
         </ul>
       </:body>
     </Panel.panel>

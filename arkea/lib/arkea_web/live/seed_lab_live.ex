@@ -9,6 +9,8 @@ defmodule ArkeaWeb.SeedLabLive do
   alias Arkea.Genome.Gene
   alias Arkea.Game.SeedLab
   alias Arkea.Views.GenomeCanvas, as: CanvasLayout
+  alias Arkea.Views.ArkeonSchematic, as: SchematicLayout
+  alias ArkeaWeb.Components.ArkeonSchematic
   alias ArkeaWeb.Components.GenomeCanvas
   alias ArkeaWeb.Components.Metric
   alias ArkeaWeb.Components.Shell
@@ -615,7 +617,9 @@ defmodule ArkeaWeb.SeedLabLive do
             plasmid = Enum.at(preview.genome.plasmids, max(idx - 1, 0))
 
             cond do
-              is_nil(plasmid) -> nil
+              is_nil(plasmid) ->
+                nil
+
               true ->
                 genes = if is_map(plasmid), do: plasmid.genes, else: plasmid
 
@@ -659,57 +663,25 @@ defmodule ArkeaWeb.SeedLabLive do
   attr(:seed_locked?, :boolean, required: true)
 
   defp arkeon_portrait(assigns) do
-    antenna_count = max(assigns.preview.phenotype.n_transmembrane, 1)
-
-    assigns =
-      assign(assigns,
-        antenna_slots: Enum.to_list(1..antenna_count),
-        shell_class: shell_class(assigns.preview.spec.membrane_profile),
-        core_class: core_class(assigns.preview.spec.metabolism_profile),
-        pulse_class: pulse_class(assigns.preview.spec.regulation_profile),
-        accessory_class: accessory_class(assigns.preview.spec.mobile_module),
-        membrane_copy: membrane_copy(assigns.preview.spec.membrane_profile),
-        metabolism_copy: metabolism_copy(assigns.preview.spec.metabolism_profile),
-        regulation_copy: regulation_copy(assigns.preview.spec.regulation_profile),
-        accessory_copy: accessory_copy(assigns.preview.spec.mobile_module)
-      )
+    layout = SchematicLayout.build(assigns.preview)
+    assigns = assign(assigns, layout: layout)
 
     ~H"""
     <div class="arkea-seed-portrait">
-      <div class={["arkea-seed-portrait__glyph", @shell_class, @core_class, @pulse_class, @accessory_class]}>
-        <span
-          :for={slot <- @antenna_slots}
-          class="arkea-seed-portrait__antenna"
-          style={"--slot: #{slot}; --slots: #{length(@antenna_slots)};"}
-        >
-        </span>
-        <span class="arkea-seed-portrait__ring arkea-seed-portrait__ring--outer"></span>
-        <span class="arkea-seed-portrait__ring arkea-seed-portrait__ring--mid"></span>
-        <span class="arkea-seed-portrait__core"></span>
-        <span class="arkea-seed-portrait__accessory"></span>
-      </div>
+      <ArkeonSchematic.arkeon_schematic layout={@layout} />
 
       <div class="arkea-seed-portrait__legend">
-        <div class="arkea-seed-portrait__legend-item">
-          <span class="arkea-seed-portrait__legend-label">Envelope</span>
-          <span class="arkea-seed-portrait__legend-copy">{@membrane_copy}</span>
-        </div>
-        <div class="arkea-seed-portrait__legend-item">
-          <span class="arkea-seed-portrait__legend-label">Metabolism</span>
-          <span class="arkea-seed-portrait__legend-copy">{@metabolism_copy}</span>
-        </div>
-        <div class="arkea-seed-portrait__legend-item">
-          <span class="arkea-seed-portrait__legend-label">Regulation</span>
-          <span class="arkea-seed-portrait__legend-copy">{@regulation_copy}</span>
-        </div>
-        <div class="arkea-seed-portrait__legend-item">
-          <span class="arkea-seed-portrait__legend-label">Accessory</span>
-          <span class="arkea-seed-portrait__legend-copy">{@accessory_copy}</span>
+        <div :for={entry <- @layout.legend} class="arkea-seed-portrait__legend-item">
+          <span class="arkea-seed-portrait__legend-label">{entry.label}</span>
+          <span class="arkea-seed-portrait__legend-copy">{entry.value}</span>
         </div>
       </div>
 
       <p class="arkea-muted">
-        This portrait is a gameplay-facing abstraction derived from the current phenotype choices. It is not a cell renderer, but it makes envelope, metabolism, regulation, and accessory modules visually legible.
+        Schematic representation of the cell derived from the current phenotype
+        and genome choices. Envelope shape, transmembrane spans, plasmids,
+        prophage integration, surface appendages, and stress halo all map to
+        a phenotype feature; the layout stays diagrammatic, not photoreal.
       </p>
     </div>
     """
@@ -797,7 +769,9 @@ defmodule ArkeaWeb.SeedLabLive do
                   disabled={@seed_locked? or idx == 0}
                   aria-label="Move domain up"
                   title="Move up"
-                >↑</button>
+                >
+                  ↑
+                </button>
                 <button
                   type="button"
                   phx-click="move_draft_domain"
@@ -807,7 +781,9 @@ defmodule ArkeaWeb.SeedLabLive do
                   disabled={@seed_locked? or idx == length(@draft_domains) - 1}
                   aria-label="Move domain down"
                   title="Move down"
-                >↓</button>
+                >
+                  ↓
+                </button>
                 <button
                   type="button"
                   phx-click="remove_draft_domain"
@@ -816,7 +792,9 @@ defmodule ArkeaWeb.SeedLabLive do
                   disabled={@seed_locked?}
                   aria-label="Remove domain"
                   title="Remove"
-                >×</button>
+                >
+                  ×
+                </button>
               </span>
             </li>
             <li :if={@draft_domains == []} class="arkea-draft-domain arkea-draft-domain--empty">
@@ -825,7 +803,10 @@ defmodule ArkeaWeb.SeedLabLive do
           </ul>
 
           <div class="arkea-seed-intergenic-summary">
-            <span :for={entry <- intergenic_badges(@draft_intergenic)} class="arkea-seed-intergenic-chip">
+            <span
+              :for={entry <- intergenic_badges(@draft_intergenic)}
+              class="arkea-seed-intergenic-chip"
+            >
               {entry}
             </span>
             <span :if={intergenic_badges(@draft_intergenic) == []} class="arkea-muted">
@@ -915,7 +896,10 @@ defmodule ArkeaWeb.SeedLabLive do
             No custom chromosome genes committed yet. The atlas currently shows only the phenotype-derived base genome.
           </p>
         <% else %>
-          <div :for={{gene, index} <- Enum.with_index(@custom_gene_specs, 1)} class="arkea-seed-custom-gene">
+          <div
+            :for={{gene, index} <- Enum.with_index(@custom_gene_specs, 1)}
+            class="arkea-seed-custom-gene"
+          >
             <div class="arkea-seed-custom-gene__header">
               <span class="arkea-seed-custom-gene__title">Custom gene {index}</span>
               <button
@@ -931,7 +915,10 @@ defmodule ArkeaWeb.SeedLabLive do
             <div class="arkea-seed-gene__bar">
               <span
                 :for={domain_id <- gene.domains}
-                class={["arkea-seed-domain", "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
+                class={[
+                  "arkea-seed-domain",
+                  "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"
+                ]}
                 style="flex: 23;"
                 title={domain_label(domain_type_from_id(domain_id))}
               >
@@ -941,7 +928,10 @@ defmodule ArkeaWeb.SeedLabLive do
               {Enum.map_join(gene.domains, " · ", &domain_label(domain_type_from_id(&1)))}
             </div>
             <div class="arkea-seed-intergenic-summary">
-              <span :for={entry <- intergenic_badges(gene.intergenic)} class="arkea-seed-intergenic-chip">
+              <span
+                :for={entry <- intergenic_badges(gene.intergenic)}
+                class="arkea-seed-intergenic-chip"
+              >
                 {entry}
               </span>
             </div>
@@ -986,8 +976,14 @@ defmodule ArkeaWeb.SeedLabLive do
         {@gene.behavior_copy}
       </p>
 
-      <div :if={intergenic_badges(@gene.intergenic_blocks) != []} class="arkea-seed-gene-inspector__blocks">
-        <span :for={entry <- intergenic_badges(@gene.intergenic_blocks)} class="arkea-seed-intergenic-chip">
+      <div
+        :if={intergenic_badges(@gene.intergenic_blocks) != []}
+        class="arkea-seed-gene-inspector__blocks"
+      >
+        <span
+          :for={entry <- intergenic_badges(@gene.intergenic_blocks)}
+          class="arkea-seed-intergenic-chip"
+        >
           {entry}
         </span>
       </div>
@@ -1003,7 +999,9 @@ defmodule ArkeaWeb.SeedLabLive do
               "arkea-seed-domain-legend__swatch--#{domain_tone(domain.type)}"
             ]}>
             </span>
-            <span class="arkea-seed-domain-card__title">Domain {index} · {domain_label(domain.type)}</span>
+            <span class="arkea-seed-domain-card__title">
+              Domain {index} · {domain_label(domain.type)}
+            </span>
           </div>
           <div class="arkea-seed-domain-card__copy">{domain_summary(domain)}</div>
         </div>
@@ -1473,37 +1471,9 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp format_float(value, _decimals) when is_integer(value), do: to_string(value)
 
-  defp shell_class("porous"), do: "arkea-seed-portrait__glyph--porous"
-  defp shell_class("fortified"), do: "arkea-seed-portrait__glyph--fortified"
-  defp shell_class("salinity_tuned"), do: "arkea-seed-portrait__glyph--salinity"
-
-  defp core_class("thrifty"), do: "arkea-seed-portrait__glyph--thrifty"
-  defp core_class("balanced"), do: "arkea-seed-portrait__glyph--balanced"
-  defp core_class("bloom"), do: "arkea-seed-portrait__glyph--bloom"
-
-  defp pulse_class("steady"), do: "arkea-seed-portrait__glyph--steady"
-  defp pulse_class("responsive"), do: "arkea-seed-portrait__glyph--responsive"
-  defp pulse_class("mutator"), do: "arkea-seed-portrait__glyph--mutator"
-
-  defp accessory_class("none"), do: "arkea-seed-portrait__glyph--no-accessory"
-  defp accessory_class("conjugative_plasmid"), do: "arkea-seed-portrait__glyph--plasmid"
-  defp accessory_class("latent_prophage"), do: "arkea-seed-portrait__glyph--prophage"
-
-  defp membrane_copy("porous"), do: "Light shell, lower structural cost."
-  defp membrane_copy("fortified"), do: "Thicker wall, higher upkeep, sturdier shell."
-  defp membrane_copy("salinity_tuned"), do: "Membrane bias toward osmotic tolerance."
-
-  defp metabolism_copy("thrifty"), do: "Slow, efficient uptake in lean environments."
-  defp metabolism_copy("balanced"), do: "Mixed-phase generalist throughput."
-  defp metabolism_copy("bloom"), do: "Aggressive core tuned for nutrient surges."
-
-  defp regulation_copy("steady"), do: "Low-noise expression and repair discipline."
-  defp regulation_copy("responsive"), do: "Signal-coupled switching and sensing."
-  defp regulation_copy("mutator"), do: "Looser repair for exploratory variation."
-
-  defp accessory_copy("none"), do: "No mobile cassette attached."
-  defp accessory_copy("conjugative_plasmid"), do: "Mobile plasmid carried as a detachable ring."
-  defp accessory_copy("latent_prophage"), do: "Dormant prophage cassette embedded in the seed."
+  # Old `shell_class/1`, `core_class/1`, `pulse_class/1`, `accessory_class/1`
+  # and the `*_copy/1` helpers were absorbed by `Arkea.Views.ArkeonSchematic`
+  # when the cell glyph was replaced by an SVG schematic.
 
   defp domain_views(%Gene{} = gene) do
     Enum.map(gene.domains, fn domain ->

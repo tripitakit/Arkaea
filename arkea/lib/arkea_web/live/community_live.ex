@@ -73,8 +73,9 @@ defmodule ArkeaWeb.CommunityLive do
                       {entry.archetype_label}
                     </div>
                     <div class="arkea-community-list__meta">
-                      seeds {entry.founder_count} · phase {entry.phase}
-                      · provisioned {format_time(entry.occurred_at)}
+                      seeds {entry.founder_count} · phase {entry.phase} · provisioned {format_time(
+                        entry.occurred_at
+                      )}
                     </div>
                   </div>
                   <div class="arkea-community-list__metrics">

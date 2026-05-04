@@ -81,9 +81,7 @@ defmodule ArkeaWeb.Components.ShellTest do
     assigns = %{}
 
     html =
-      rendered_to_string(
-        ~H|<Shell.shell_user name="patrick" logout_href="/players/log-out" />|
-      )
+      rendered_to_string(~H|<Shell.shell_user name="patrick" logout_href="/players/log-out" />|)
 
     assert html =~ "patrick"
     assert html =~ "Log out"

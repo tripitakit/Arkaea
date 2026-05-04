@@ -51,8 +51,7 @@ defmodule ArkeaWeb.AuditLive do
   end
 
   def handle_event("page", %{"to" => "prev"}, socket) do
-    {:noreply,
-     socket |> assign(page: max(socket.assigns.page - 1, 0)) |> reload_entries()}
+    {:noreply, socket |> assign(page: max(socket.assigns.page - 1, 0)) |> reload_entries()}
   end
 
   def handle_event("refresh", _params, socket), do: {:noreply, reload_entries(socket)}
@@ -254,6 +253,7 @@ defmodule ArkeaWeb.AuditLive do
   defp short_id(_), do: "—"
 
   defp format_time(nil), do: "—"
+
   defp format_time(%DateTime{} = dt) do
     dt
     |> DateTime.truncate(:second)

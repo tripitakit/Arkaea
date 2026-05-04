@@ -192,6 +192,22 @@ Aggiunge un elemento mobile al genoma di partenza:
 
 Il modulo mobile è la chiave per innescare HGT veloce in scenari di pochi 100 tick.
 
+#### Schema Arkeon (sidebar destra)
+
+Mentre compili il form, sulla sidebar destra trovi uno **schema diagrammatico della cellula** aggiornato in tempo reale. Non è una rappresentazione fotorealistica — è una sintesi astratta in stile microbiologico, dove ogni feature visibile mappa una scelta di fenotipo:
+
+- **Forma dell'envelope** = `membrane_profile` (porous: contorno liscio sottile · fortified: doppia membrana · salinity_tuned: contorno scalloppato).
+- **Trattini radiali sull'envelope** = numero di proteine transmembrana (`phenotype.n_transmembrane`).
+- **Densità del citoplasma + numero di granuli interni** = `metabolism_profile` (bloom: molti granuli, citoplasma denso · thrifty: pochi).
+- **Loop interno (nucleoide)** = il cromosoma, raffigurato come anello mosso.
+- **Cerchi piccoli vicino al nucleoide** = plasmidi (uno per ogni plasmide nel genome; se hai scelto `conjugative_plasmid` ma il genome non è ancora provisioned, vedi un plasmide tratteggiato come hint).
+- **Triangolo arancione integrato nel nucleoide** = profago latente (`latent_prophage` o profagi nel genome).
+- **Appendici di superficie**: pili (linee), adesine (cerchietti verdi), recettore fagico (T arancione) derivano dai `surface_tags` del fenotipo.
+- **Flagello (curva lunga sul lato destro)** = se il cluster fenotipico calcola "motile" (n_transmembrane ≥ 2 e nessun surface tag biofilm).
+- **Alone tratteggiato pulsante** = il `regulation_profile` è `mutator` (cellula sotto stress di hypermutazione).
+
+Sotto lo schema, una legenda di 4 righe (Envelope / Metabolism / Regulation / Accessory) descrive in linguaggio naturale la scelta corrente.
+
 ### 4.2 Cromosoma circolare (centro del Seed Lab)
 
 Il cromosoma è renderizzato come **anello SVG chiuso** composto da segmenti contigui: **ogni gene è un segmento del cromosoma**, separato dai vicini da un sottile gap (~0.7°). Non c'è una "corona" radiale — il dettaglio dei domini vive *dentro* lo stesso segmento del gene.

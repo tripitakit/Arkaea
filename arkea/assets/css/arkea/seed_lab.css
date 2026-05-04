@@ -54,6 +54,129 @@
 
 .arkea-seed-lab__chips { margin-top: 0; }
 
+/* ─── Arkeon schematic (cell diagram, replaces the old portrait glyph) ─── */
+
+.arkea-arkeon-schematic {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--arkea-space-3);
+  background:
+    radial-gradient(ellipse at center, oklch(20% 0.03 235 / 35%), transparent 70%),
+    var(--arkea-bg-deep);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-md);
+  min-height: 260px;
+}
+
+.arkea-arkeon-schematic__svg {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  display: block;
+}
+
+/* Stress halo (mutator) */
+.arkea-arkeon-schematic__stress-halo {
+  stroke: var(--arkea-accent-stress);
+  stroke-width: 0.8;
+  animation: arkea-arkeon-stress-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes arkea-arkeon-stress-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arkea-arkeon-schematic__stress-halo { animation: none; }
+}
+
+/* Flagellum */
+.arkea-arkeon-schematic__flagellum {
+  stroke: var(--arkea-accent-teal);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+/* Envelope + cytoplasm */
+.arkea-arkeon-schematic__cytoplasm {
+  fill: var(--arkea-accent-metabolite);
+}
+
+.arkea-arkeon-schematic__envelope {
+  stroke: var(--arkea-fg-muted);
+}
+
+.arkea-arkeon-schematic__envelope-inner {
+  stroke: var(--arkea-fg-faint);
+  stroke-width: 0.7;
+  stroke-dasharray: 1.5 1.5;
+  opacity: 0.65;
+}
+
+/* Transmembrane spans */
+.arkea-arkeon-schematic__tm-span {
+  stroke: var(--arkea-fg);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+/* Granules */
+.arkea-arkeon-schematic__granule {
+  fill: var(--arkea-accent-gold);
+  opacity: 0.78;
+}
+
+/* Plasmids */
+.arkea-arkeon-schematic__plasmid {
+  stroke: var(--arkea-accent-signal);
+  stroke-width: 0.9;
+}
+
+.arkea-arkeon-schematic__plasmid--hinted {
+  stroke-dasharray: 2 1.5;
+  opacity: 0.75;
+}
+
+/* Nucleoid */
+.arkea-arkeon-schematic__nucleoid {
+  stroke: var(--arkea-fg);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  opacity: 0.78;
+}
+
+/* Prophage mark */
+.arkea-arkeon-schematic__prophage {
+  fill: var(--arkea-accent-rust);
+  stroke: var(--arkea-bg-deep);
+  stroke-width: 0.5;
+  opacity: 0.9;
+}
+
+/* Surface appendages */
+.arkea-arkeon-schematic__pilus {
+  stroke: var(--arkea-accent-teal);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+
+.arkea-arkeon-schematic__adhesin {
+  fill: var(--arkea-accent-growth);
+  opacity: 0.85;
+}
+
+.arkea-arkeon-schematic__receptor-stem,
+.arkea-arkeon-schematic__receptor-bar {
+  stroke: var(--arkea-accent-rust);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+
 /* ─── Genome canvas ─────────────────────────────────────────────────────── */
 
 .arkea-genome-canvas {

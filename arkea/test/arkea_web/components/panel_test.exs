@@ -36,8 +36,7 @@ defmodule ArkeaWeb.Components.PanelTest do
     html =
       rendered_to_string(~H"""
       <Panel.panel>
-        <:header eyebrow="World" title="Biotope network" meta="6 active" />
-        body
+        <:header eyebrow="World" title="Biotope network" meta="6 active" /> body
       </Panel.panel>
       """)
 

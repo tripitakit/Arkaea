@@ -272,12 +272,14 @@ Each phase: tests green (including `mix test`), no manual visual regression, iso
 - `lib/arkea_web/components/metric.ex` — **new**: `<.metric_strip>`, `<.metric_chip>`, `<.metric_bar>` (replaces `stat_chip`).
 - `lib/arkea_web/components/biotope_scene.ex` — **new**: SVG biotope scene (replaces Pixi hook).
 - `lib/arkea_web/components/genome_canvas.ex` — **new**: circular chromosome SVG. Genes are contiguous ring segments; domains are side-by-side angular sub-arcs inside each gene segment (full radial thickness, not concentric). See "Seed Lab" section for design rationale.
+- `lib/arkea_web/components/arkeon_schematic.ex` — **new (post-merge revision)**: diagrammatic SVG of a proto-bacterial cell (envelope + transmembrane spans + nucleoid + plasmids + prophage mark + storage granules + surface appendages + optional flagellum + stress halo). Replaces the CSS-only "portrait" glyph of the first U5 iteration; every visible feature maps to an explicit phenotype choice. Stays "schematic abstract" — not a cell renderer.
 - `lib/arkea_web/components/layouts.ex` — slimmed: only `flash_group/1` (scaffold `app/1` + `theme_toggle` removed).
 
 ### Pure view-models (testable without LV)
 
 - `lib/arkea/views/biotope_scene.ex` — **new**: SVG biotope layout (`build/1` from snapshot).
 - `lib/arkea/views/genome_canvas.ex` — **new**: SVG genome layout (`build/1` from preview, `from_preview/1`).
+- `lib/arkea/views/arkeon_schematic.ex` — **new (post-merge revision)**: pure layout for the cell schematic; maps `spec` + `phenotype` + `genome` to geometric primitives (envelope kind, transmembrane spans, nucleoid path, plasmids, prophage mark, granules, appendages, flagellum, stress halo, cluster, legend).
 
 ### Routing
 

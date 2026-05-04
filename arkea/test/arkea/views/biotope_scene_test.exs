@@ -113,8 +113,8 @@ defmodule Arkea.Views.BiotopeSceneTest do
       layout_a = BiotopeScene.build(%{phases: ctx.phases, lineages: ctx.lineages})
       layout_b = BiotopeScene.build(%{phases: ctx.phases, lineages: ctx.lineages})
 
-      assert Enum.map(layout_a.particles, & {&1.key, &1.cx, &1.cy, &1.r}) ==
-               Enum.map(layout_b.particles, & {&1.key, &1.cx, &1.cy, &1.r})
+      assert Enum.map(layout_a.particles, &{&1.key, &1.cx, &1.cy, &1.r}) ==
+               Enum.map(layout_b.particles, &{&1.key, &1.cx, &1.cy, &1.r})
     end
 
     test "particles carry the lineage color and cluster", ctx do

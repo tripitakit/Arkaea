@@ -192,6 +192,22 @@ Adds a mobile element to the starting genome:
 
 The mobile module is the key to triggering fast HGT in scenarios of a few hundred ticks.
 
+#### Arkeon schematic (right sidebar)
+
+As you fill the form, the right sidebar shows a **diagrammatic schematic of the cell**, updated in real time. It is not a photorealistic rendering — it is an abstract microbiology-style sketch where each visible feature maps to a phenotype choice:
+
+- **Envelope shape** = `membrane_profile` (porous: thin smooth contour · fortified: double membrane · salinity_tuned: scalloped contour).
+- **Radial ticks across the envelope** = number of transmembrane spans (`phenotype.n_transmembrane`).
+- **Cytoplasm tint + internal granules count** = `metabolism_profile` (bloom: many granules, dense cytoplasm · thrifty: few).
+- **Inner loop (nucleoid)** = the chromosome, drawn as a wavy ring.
+- **Small circles next to the nucleoid** = plasmids (one per plasmid in the genome; if you picked `conjugative_plasmid` but the genome is not provisioned yet, you see a dashed hinted plasmid).
+- **Orange triangle integrated into the nucleoid** = latent prophage (`latent_prophage` or any prophages in the genome).
+- **Surface appendages**: pili (lines), adhesins (small green circles), phage receptor (orange T) derived from the `surface_tags` of the phenotype.
+- **Flagellum (long curve on the right side)** = the phenotype clusters as "motile" (n_transmembrane ≥ 2 and no biofilm surface tag).
+- **Pulsing dashed halo** = the `regulation_profile` is `mutator` (cell under hypermutation stress).
+
+Under the schematic, a 4-line legend (Envelope / Metabolism / Regulation / Accessory) describes the current choice in natural language.
+
 ### 4.2 Circular chromosome (center of the Seed Lab)
 
 The chromosome is rendered as a **closed SVG ring** made of contiguous segments: **each gene is a segment of the chromosome**, separated from its neighbours by a thin gap (~0.7°). There is no radial "crown" — domain detail lives *inside* the gene's own segment.

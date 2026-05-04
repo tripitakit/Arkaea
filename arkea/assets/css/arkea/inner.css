@@ -887,85 +887,14 @@ body {
   cursor: not-allowed;
 }
 
+/* Wrapper for the cell schematic + its 4-line legend (envelope, metabolism,
+   regulation, accessory). The schematic itself is rendered as SVG by
+   `ArkeaWeb.Components.ArkeonSchematic` and styled in arkea/seed_lab.css
+   (see `.arkea-arkeon-schematic`). The CSS-only glyph the previous
+   iteration shipped (rings + antennae) was replaced by the schematic. */
 .arkea-seed-portrait {
   display: grid;
   gap: 1rem;
-}
-
-.arkea-seed-portrait__glyph {
-  --shell-stroke: rgba(148, 163, 184, 0.8);
-  --shell-fill: rgba(15, 23, 42, 0.96);
-  --core-fill: rgba(56, 189, 248, 0.7);
-  --pulse-glow: rgba(56, 189, 248, 0.32);
-  --accessory-fill: rgba(148, 163, 184, 0.55);
-  position: relative;
-  width: min(100%, 16rem);
-  aspect-ratio: 1 / 1;
-  margin: 0 auto;
-  border-radius: 50%;
-  border: 2px solid var(--shell-stroke);
-  background:
-    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.12), transparent 26%),
-    radial-gradient(circle at 50% 50%, var(--pulse-glow), transparent 62%),
-    var(--shell-fill);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 24px 48px rgba(2, 6, 23, 0.34);
-  overflow: hidden;
-}
-
-.arkea-seed-portrait__antenna {
-  position: absolute;
-  top: 14%;
-  left: calc((100% * var(--slot)) / (var(--slots) + 1));
-  width: 0.34rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--shell-stroke), white 24%);
-  transform-origin: bottom center;
-  transform: translateX(-50%) rotate(calc((var(--slot) - ((var(--slots) + 1) / 2)) * 7deg));
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.arkea-seed-portrait__ring {
-  position: absolute;
-  inset: 12%;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.arkea-seed-portrait__ring--outer {
-  inset: 10%;
-  border-color: color-mix(in oklab, var(--shell-stroke), transparent 18%);
-}
-
-.arkea-seed-portrait__ring--mid {
-  inset: 24%;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.arkea-seed-portrait__core {
-  position: absolute;
-  inset: 33%;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 32%, rgba(255, 255, 255, 0.22), transparent 24%),
-    var(--core-fill);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 0 36px color-mix(in oklab, var(--core-fill), transparent 46%);
-}
-
-.arkea-seed-portrait__accessory {
-  position: absolute;
-  right: 14%;
-  bottom: 22%;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 999px;
-  border: 2px solid var(--accessory-fill);
-  background: rgba(8, 15, 24, 0.74);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--accessory-fill), transparent 55%);
 }
 
 .arkea-seed-portrait__legend {
@@ -992,57 +921,6 @@ body {
 .arkea-seed-portrait__legend-copy {
   color: #e2e8f0;
   line-height: 1.45;
-}
-
-.arkea-seed-portrait__glyph--porous {
-  --shell-stroke: rgba(56, 189, 248, 0.84);
-  --shell-fill: linear-gradient(180deg, rgba(8, 47, 73, 0.92), rgba(8, 15, 24, 0.92));
-}
-
-.arkea-seed-portrait__glyph--fortified {
-  --shell-stroke: rgba(245, 158, 11, 0.88);
-  --shell-fill: linear-gradient(180deg, rgba(68, 29, 5, 0.94), rgba(15, 23, 42, 0.94));
-}
-
-.arkea-seed-portrait__glyph--salinity {
-  --shell-stroke: rgba(34, 211, 238, 0.84);
-  --shell-fill: linear-gradient(180deg, rgba(8, 51, 68, 0.94), rgba(15, 23, 42, 0.94));
-}
-
-.arkea-seed-portrait__glyph--thrifty {
-  --core-fill: rgba(132, 204, 22, 0.78);
-}
-
-.arkea-seed-portrait__glyph--balanced {
-  --core-fill: rgba(56, 189, 248, 0.74);
-}
-
-.arkea-seed-portrait__glyph--bloom {
-  --core-fill: rgba(249, 115, 22, 0.8);
-}
-
-.arkea-seed-portrait__glyph--steady {
-  --pulse-glow: rgba(148, 163, 184, 0.24);
-}
-
-.arkea-seed-portrait__glyph--responsive {
-  --pulse-glow: rgba(34, 211, 238, 0.28);
-}
-
-.arkea-seed-portrait__glyph--mutator {
-  --pulse-glow: rgba(244, 114, 182, 0.3);
-}
-
-.arkea-seed-portrait__glyph--no-accessory {
-  --accessory-fill: rgba(100, 116, 139, 0.48);
-}
-
-.arkea-seed-portrait__glyph--plasmid {
-  --accessory-fill: rgba(34, 211, 238, 0.75);
-}
-
-.arkea-seed-portrait__glyph--prophage {
-  --accessory-fill: rgba(244, 114, 182, 0.75);
 }
 
 
@@ -1475,8 +1353,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .arkea-seed-portrait__glyph {
-    width: min(100%, 13rem);
+  .arkea-arkeon-schematic__svg {
+    max-width: min(100%, 13rem);
   }
 
   .world-node {

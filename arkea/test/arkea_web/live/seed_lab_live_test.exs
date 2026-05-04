@@ -279,6 +279,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     # The first rendered label after the move must be "DNA Binding"
     # (it was at idx 1 before the swap; now it sits at idx 0).
     new_html = render(view)
+
     [_, first_label_block | _] =
       String.split(new_html, "arkea-draft-domain__label", parts: 3)
 
