@@ -1,0 +1,424 @@
+/* In-app docs renderer (Fase A.2). Markdown rendered server-side via
+   Earmark; this stylesheet only handles the page chrome and the prose
+   readability inside `.arkea-help__markdown`.
+
+   Dark theme matches the rest of the app; the article body opts into
+   higher line-height and constrained measure for long-form reading. */
+
+.arkea-help {
+  width: 100%;
+  height: 100%;
+  padding: 1.25rem clamp(1rem, 4vw, 2.5rem) 3rem;
+  color: var(--sim-fg, #e2e8f0);
+  background: transparent;
+}
+
+.arkea-help__heading {
+  max-width: 56rem;
+  margin: 0 auto 1.5rem;
+}
+
+.arkea-help__eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: #67e8f9;
+  margin-bottom: 0.4rem;
+}
+
+.arkea-help__title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 0.6rem;
+  color: #f8fafc;
+}
+
+.arkea-help__copy {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.arkea-help__copy code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+.arkea-help__layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+@media (max-width: 920px) {
+  .arkea-help__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arkea-help__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.arkea-help__nav-list,
+.arkea-help__toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.arkea-help__nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.45rem;
+  color: rgba(226, 232, 240, 0.85);
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.arkea-help__nav-link:hover {
+  background: rgba(103, 232, 249, 0.08);
+  color: #f8fafc;
+}
+
+.arkea-help__nav-link--active {
+  background: rgba(103, 232, 249, 0.18);
+  color: #f8fafc;
+  border-color: rgba(103, 232, 249, 0.4);
+}
+
+.arkea-help__nav-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.arkea-help__nav-summary {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.65);
+  line-height: 1.35;
+}
+
+.arkea-help__toc-item {
+  font-size: 0.82rem;
+}
+
+.arkea-help__toc-item--h1 {
+  font-weight: 600;
+  margin-top: 0.4rem;
+}
+
+.arkea-help__toc-item--h2 {
+  padding-left: 0.6rem;
+}
+
+.arkea-help__toc-item--h3 {
+  padding-left: 1.4rem;
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.arkea-help__toc-item--h4,
+.arkea-help__toc-item--h5,
+.arkea-help__toc-item--h6 {
+  padding-left: 2.2rem;
+  font-size: 0.74rem;
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.arkea-help__toc-link {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+  padding: 0.15rem 0.25rem;
+  border-radius: 0.3rem;
+}
+
+.arkea-help__toc-link:hover {
+  color: #67e8f9;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.arkea-help__article {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.6rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  min-width: 0;
+}
+
+.arkea-help__error,
+.arkea-help__empty {
+  color: rgba(226, 232, 240, 0.7);
+  text-align: center;
+  padding: 2rem 1rem;
+  font-style: italic;
+}
+
+.arkea-help__error {
+  color: #fda4af;
+}
+
+/* Long-form prose readability tuned for ~70ch measure. Selectors below
+   target the rendered Earmark output inside .arkea-help__markdown. */
+
+.arkea-help__markdown {
+  color: #e2e8f0;
+  line-height: 1.65;
+  font-size: 0.95rem;
+}
+
+.arkea-help__markdown h1,
+.arkea-help__markdown h2,
+.arkea-help__markdown h3,
+.arkea-help__markdown h4 {
+  color: #f8fafc;
+  font-weight: 600;
+  scroll-margin-top: 1rem;
+}
+
+.arkea-help__markdown h1 {
+  font-size: 1.7rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  padding-bottom: 0.4rem;
+  margin-top: 0;
+}
+
+.arkea-help__markdown h2 {
+  font-size: 1.35rem;
+  margin-top: 2rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  padding-bottom: 0.3rem;
+}
+
+.arkea-help__markdown h3 {
+  font-size: 1.1rem;
+  margin-top: 1.5rem;
+}
+
+.arkea-help__markdown h4 {
+  font-size: 0.98rem;
+  margin-top: 1.1rem;
+  color: #cbd5f5;
+}
+
+.arkea-help__markdown p {
+  margin: 0.7rem 0;
+}
+
+.arkea-help__markdown a {
+  color: #67e8f9;
+  text-decoration: underline;
+  text-decoration-color: rgba(103, 232, 249, 0.4);
+}
+
+.arkea-help__markdown a:hover {
+  color: #a5f3fc;
+}
+
+.arkea-help__markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+.arkea-help__markdown pre {
+  background: rgba(2, 6, 23, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0.75rem 1rem;
+  border-radius: 0.45rem;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+
+.arkea-help__markdown pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.arkea-help__markdown blockquote {
+  border-left: 3px solid #67e8f9;
+  padding: 0.4rem 0.8rem;
+  margin: 0.8rem 0;
+  background: rgba(103, 232, 249, 0.06);
+  color: rgba(226, 232, 240, 0.9);
+  border-radius: 0 0.3rem 0.3rem 0;
+}
+
+.arkea-help__markdown ul,
+.arkea-help__markdown ol {
+  padding-left: 1.4rem;
+  margin: 0.6rem 0;
+}
+
+.arkea-help__markdown li {
+  margin: 0.25rem 0;
+}
+
+.arkea-help__markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+
+.arkea-help__markdown th,
+.arkea-help__markdown td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.arkea-help__markdown th {
+  background: rgba(15, 23, 42, 0.85);
+  color: #cbd5f5;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(103, 232, 249, 0.35);
+}
+
+.arkea-help__markdown hr {
+  border: none;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  margin: 1.5rem 0;
+}
+
+/* Glossary term affordance, used inline in any view: dotted-underline +
+   hint cursor on hover. The native title attribute carries the
+   one-line definition; the link target is `/help/<doc>?section=...`. */
+.arkea-glossary-term {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(103, 232, 249, 0.7);
+  cursor: help;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.arkea-glossary-term:hover,
+.arkea-glossary-term:focus-visible {
+  color: #67e8f9;
+  border-bottom-color: #67e8f9;
+}
+
+/* Keyboard shortcuts cheatsheet (Fase A.4). Modal dialog rendered by
+   the global keyboard handler in app.js when `?` is pressed. */
+.arkea-shortcuts-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  backdrop-filter: blur(2px);
+}
+
+.arkea-shortcuts-dialog__panel {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.6rem;
+  padding: 0;
+  min-width: min(36rem, 92vw);
+  max-width: 36rem;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+}
+
+.arkea-shortcuts-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  font-weight: 600;
+  color: #f8fafc;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.arkea-shortcuts-dialog__header button {
+  background: none;
+  border: none;
+  color: rgba(226, 232, 240, 0.7);
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0 0.4rem;
+}
+
+.arkea-shortcuts-dialog__header button:hover {
+  color: #f8fafc;
+}
+
+.arkea-shortcuts-dialog__body {
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.arkea-shortcuts-dialog__body h3 {
+  margin: 0 0 0.4rem;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.arkea-shortcuts-dialog__body dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  row-gap: 0.35rem;
+  column-gap: 1rem;
+  align-items: center;
+}
+
+.arkea-shortcuts-dialog__body dt {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.arkea-shortcuts-dialog__body dd {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.85);
+  font-size: 0.88rem;
+}
+
+.arkea-shortcuts-dialog__body kbd {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: #f1f5f9;
+}

@@ -103,4 +103,28 @@ defmodule ArkeaWeb.Components.Shell do
       {label, href} -> %{label: label, href: href, active: false}
     end)
   end
+
+  @nav_entries [
+    {:dashboard, "Dashboard", "/dashboard"},
+    {:world, "World", "/world"},
+    {:seed_lab, "Seed Lab", "/seed-lab"},
+    {:community, "Community", "/community"},
+    {:audit, "Audit", "/audit"},
+    {:help, "Help", "/help"}
+  ]
+
+  @doc """
+  Single source of truth for the top-level shell navigation. Every LiveView
+  passes its own `active_view` atom (`:dashboard`, `:world`, `:seed_lab`,
+  `:community`, `:audit`, `:help`, or `:none`) to receive a coherent list of
+  links. `:none` is for routes that don't carry one of the canonical roles
+  (e.g. an in-flight detail page) — they still get the full nav, with no
+  link highlighted.
+  """
+  @spec nav_items(atom()) :: [%{label: String.t(), href: String.t(), active: boolean()}]
+  def nav_items(active_view) when is_atom(active_view) do
+    Enum.map(@nav_entries, fn {key, label, href} ->
+      %{label: label, href: href, active: key == active_view}
+    end)
+  end
 end

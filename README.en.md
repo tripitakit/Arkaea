@@ -81,6 +81,7 @@ Arkea/
 - [DESIGN_STRESS-TEST.en.md](devel-docs/DESIGN_STRESS-TEST.en.md) — walk-through "Chronicles of a Contested Estuary" that validates design coherence across all 15 blocks.
 - [IMPLEMENTATION-PLAN.en.md](devel-docs/IMPLEMENTATION-PLAN.en.md) — architectural choice (Active Record + structured audit log + pure-functional tick) and implemented roadmap.
 - [BIOLOGICAL-MODEL-REVIEW.en.md](devel-docs/BIOLOGICAL-MODEL-REVIEW.en.md) — scientific review of the biological model and intervention plan to close the gaps (complete HGT, phage cycle, R-M, transformation, transduction, xenobiotics/RAS, biomass, SOS, error catastrophe, operons, bacteriocins).
+- [UI-OPTIMIZATION-PLAN.en.md](UI-OPTIMIZATION-PLAN.en.md) — phased plan (A–G) to turn the interface into a scientific investigation bench: event pipeline backfill, time-series visualization, phylogeny, HGT ledger Sankey, seed/biotope comparison, JSON/CSV/FASTA/Newick export, onboarding and scenario presets.
 - [CALIBRATION.en.md](devel-docs/CALIBRATION.en.md) — calibration appendix: declared time and concentration scales, key code constants mapped to biological ranges, overrides for scientific benchmarks.
 - [UI-REWRITE-PLAN.en.md](devel-docs/UI-REWRITE-PLAN.en.md) — UI/UX rewrite plan (8 phases U0..U7+, all delivered): PixiJS removal, layout system, view-by-view breakdown, components, CSS refactor, view-model layer.
 

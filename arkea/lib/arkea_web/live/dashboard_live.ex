@@ -214,28 +214,31 @@ defmodule ArkeaWeb.DashboardLive do
 
   defp docs_panel(assigns) do
     ~H"""
-    <Panel.panel class="arkea-dashboard__card arkea-dashboard__card--soon">
-      <:header eyebrow="Docs" title="Design & calibration" meta="phase U6" />
-      <:body>
-        <p class="arkea-dashboard__copy">
-          In-app rendering of the canonical references coming online in U6:
-        </p>
-        <ul class="arkea-doc-list">
-          <li>
-            <span class="arkea-doc-list__name">DESIGN.md</span><span class="arkea-doc-list__hint">15 architectural blocks</span>
-          </li>
-          <li>
-            <span class="arkea-doc-list__name">CALIBRATION.md</span><span class="arkea-doc-list__hint">parameter ↔ literature mapping</span>
-          </li>
-          <li>
-            <span class="arkea-doc-list__name">BIOLOGICAL-MODEL-REVIEW.md</span><span class="arkea-doc-list__hint">phases 12–20 plan</span>
-          </li>
-          <li>
-            <span class="arkea-doc-list__name">UI-REWRITE-PLAN.md</span><span class="arkea-doc-list__hint">this rewrite</span>
-          </li>
-        </ul>
-      </:body>
-    </Panel.panel>
+    <.link navigate={~p"/help"} class="arkea-dashboard__card-link" aria-label="Open help">
+      <Panel.panel class="arkea-dashboard__card">
+        <:header eyebrow="Help" title="Design & calibration" meta="in-app" />
+        <:body>
+          <p class="arkea-dashboard__copy">
+            In-app rendering of the canonical Markdown references — search,
+            section anchors and permalinks supported.
+          </p>
+          <ul class="arkea-doc-list">
+            <li>
+              <span class="arkea-doc-list__name">User manual</span><span class="arkea-doc-list__hint">player walk-through</span>
+            </li>
+            <li>
+              <span class="arkea-doc-list__name">DESIGN</span><span class="arkea-doc-list__hint">15 architectural blocks</span>
+            </li>
+            <li>
+              <span class="arkea-doc-list__name">CALIBRATION</span><span class="arkea-doc-list__hint">parameter ↔ literature</span>
+            </li>
+            <li>
+              <span class="arkea-doc-list__name">UI-OPTIMIZATION-PLAN</span><span class="arkea-doc-list__hint">phases A–G</span>
+            </li>
+          </ul>
+        </:body>
+      </Panel.panel>
+    </.link>
     """
   end
 
@@ -253,14 +256,7 @@ defmodule ArkeaWeb.DashboardLive do
     )
   end
 
-  defp nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: true},
-      %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: false},
-      %{label: "Community", href: "/community", active: false}
-    ]
-  end
+  defp nav_items, do: Shell.nav_items(:dashboard)
 
   defp meta_for(%{active_count: 0}), do: "no nodes yet"
   defp meta_for(%{active_count: n}), do: "#{n} active"

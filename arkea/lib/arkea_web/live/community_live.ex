@@ -176,12 +176,5 @@ defmodule ArkeaWeb.CommunityLive do
     |> String.replace_suffix("Z", "")
   end
 
-  defp nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: false},
-      %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: false},
-      %{label: "Community", href: "/community", active: true}
-    ]
-  end
+  defp nav_items, do: Shell.nav_items(:community)
 end

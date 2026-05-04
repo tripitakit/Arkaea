@@ -163,8 +163,20 @@ defmodule ArkeaWeb.AuditLive do
                       </span>
                     </td>
                     <td class="arkea-audit__tick">{entry.occurred_at_tick}</td>
-                    <td class="arkea-audit__id">{short_id(entry.target_biotope_id)}</td>
-                    <td class="arkea-audit__id">{short_id(entry.target_lineage_id)}</td>
+                    <td class="arkea-audit__id">
+                      <.link
+                        :if={entry.target_biotope_id}
+                        navigate={~p"/biotopes/#{entry.target_biotope_id}"}
+                        class="arkea-audit__id-link"
+                        title={entry.target_biotope_id}
+                      >
+                        {short_id(entry.target_biotope_id)}
+                      </.link>
+                      <span :if={is_nil(entry.target_biotope_id)}>—</span>
+                    </td>
+                    <td class="arkea-audit__id" title={entry.target_lineage_id || ""}>
+                      {short_id(entry.target_lineage_id)}
+                    </td>
                     <td class="arkea-audit__payload">{format_payload(entry.payload)}</td>
                   </tr>
                 </tbody>
@@ -212,14 +224,7 @@ defmodule ArkeaWeb.AuditLive do
   # ---------------------------------------------------------------------------
   # Helpers
 
-  defp nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: false},
-      %{label: "World", href: "/world", active: false},
-      %{label: "Audit", href: "/audit", active: true},
-      %{label: "Community", href: "/community", active: false}
-    ]
-  end
+  defp nav_items, do: Shell.nav_items(:audit)
 
   defp filter_options, do: @event_types
 

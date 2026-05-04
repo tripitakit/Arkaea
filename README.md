@@ -81,6 +81,7 @@ Arkea/
 - [DESIGN_STRESS-TEST.md](devel-docs/DESIGN_STRESS-TEST.md) — walk-through "Cronache di un estuario contestato" che valida la coerenza del design attraverso tutti i 15 blocchi.
 - [IMPLEMENTATION-PLAN.md](devel-docs/IMPLEMENTATION-PLAN.md) — scelta architetturale (Active Record + audit log strutturato + tick pure-functional) e roadmap implementata.
 - [BIOLOGICAL-MODEL-REVIEW.md](devel-docs/BIOLOGICAL-MODEL-REVIEW.md) — revisione scientifica del modello biologico e piano di intervento per chiudere i gap (HGT completo, ciclo fagico, R-M, trasformazione, trasduzione, xenobiotici/RAS, biomassa, SOS, error catastrophe, operoni, bacteriocine).
+- [UI-OPTIMIZATION-PLAN.md](UI-OPTIMIZATION-PLAN.md) — piano fasato (A–G) per rendere l'interfaccia un banco di indagine scientifica: event pipeline backfill, time-series visualization, phylogeny, HGT ledger Sankey, comparazione seed/biotopi, export JSON/CSV/FASTA/Newick, onboarding e scenario preset.
 - [CALIBRATION.md](devel-docs/CALIBRATION.md) — appendice di calibrazione: scale temporali e di concentrazione dichiarate, costanti chiave del codice mappate al range biologico, override per benchmark scientifici.
 - [UI-REWRITE-PLAN.md](devel-docs/UI-REWRITE-PLAN.md) — piano di riscrittura UI/UX (8 fasi U0..U7+ tutte consegnate): rimozione PixiJS, sistema di layout, vista per vista, componenti, refactor CSS, view-model layer.
 

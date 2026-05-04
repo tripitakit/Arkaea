@@ -46,6 +46,9 @@ defmodule ArkeaWeb.Router do
       live "/biotopes/:id", SimLive
       live "/audit", AuditLive
       live "/community", CommunityLive
+      live "/help", HelpLive
+      live "/help/:doc", HelpLive
+      live "/search", SearchLive
     end
   end
 

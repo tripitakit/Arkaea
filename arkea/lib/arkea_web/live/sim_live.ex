@@ -581,6 +581,13 @@ defmodule ArkeaWeb.SimLive do
         >
           Close
         </button>
+        <.link
+          navigate={~p"/audit"}
+          class="arkea-button arkea-button--secondary"
+          title="Open the audit log to inspect lineage events"
+        >
+          Audit log →
+        </.link>
       </:footer>
     </Panel.panel>
     """
@@ -1362,14 +1369,7 @@ defmodule ArkeaWeb.SimLive do
   defp short_id(""), do: ""
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
 
-  defp nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: false},
-      %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: false},
-      %{label: "Community", href: "/community", active: false}
-    ]
-  end
+  defp nav_items, do: Shell.nav_items(:none)
 
   defp bottom_tabs do
     [

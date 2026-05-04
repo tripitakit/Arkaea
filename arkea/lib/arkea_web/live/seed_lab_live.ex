@@ -1456,14 +1456,7 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp swap_at(list, _i, _j), do: list
 
-  defp seed_lab_nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: false},
-      %{label: "World", href: "/world", active: false},
-      %{label: "Seed Lab", href: "/seed-lab", active: true},
-      %{label: "Community", href: "/community", active: false}
-    ]
-  end
+  defp seed_lab_nav_items, do: Shell.nav_items(:seed_lab)
 
   defp replicon_views(preview, custom_gene_specs) do
     base_chromosome_count = preview.chromosome_gene_count - length(custom_gene_specs)

@@ -414,12 +414,5 @@ defmodule ArkeaWeb.WorldLive do
   defp pluralize(1, noun), do: "1 #{noun}"
   defp pluralize(n, noun), do: "#{n} #{noun}s"
 
-  defp nav_items do
-    [
-      %{label: "Dashboard", href: "/dashboard", active: false},
-      %{label: "World", href: "/world", active: true},
-      %{label: "Seed Lab", href: "/seed-lab", active: false},
-      %{label: "Community", href: "/community", active: false}
-    ]
-  end
+  defp nav_items, do: Shell.nav_items(:world)
 end
