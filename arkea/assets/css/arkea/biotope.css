@@ -8,7 +8,12 @@
 
 .arkea-biotope {
   display: grid;
-  grid-template-rows: 1fr 220px;
+  /* Scene gets `minmax(0, 1.4fr)` and the bottom panel `minmax(280px, 1fr)`.
+     The bottom row now holds enough vertical space for the Phylogeny / Trends
+     SVGs (was a fixed 220px which left those tabs cramped). The minmax floor
+     keeps the scene readable on tall viewports while letting the bottom row
+     expand when there's room. */
+  grid-template-rows: minmax(0, 1.4fr) minmax(280px, 1fr);
   height: 100%;
   min-height: 0;
   position: relative;
@@ -81,8 +86,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--arkea-space-4);
-  padding: var(--arkea-space-3);
+  padding: var(--arkea-space-4) var(--arkea-space-3);
   min-height: 0;
+  overflow-y: auto;
 }
 
 .arkea-biotope__sidebar-section {

@@ -17,6 +17,11 @@
 .arkea-phylogeny__svg {
   width: 100%;
   height: auto;
+  /* The viewBox is 720×360. preserveAspectRatio="xMidYMid meet" already
+     scales it to fill width while preserving aspect; this min-height
+     ensures the rendered tree never collapses to a sliver inside a tall
+     bottom panel. */
+  min-height: 280px;
   display: block;
 }
 
