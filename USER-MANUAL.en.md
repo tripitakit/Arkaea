@@ -22,10 +22,13 @@ The manual assumes a solid background in **microbiology / molecular biology**. D
 8. [World — macroscale overview](#8-world--macroscale-overview)
 9. [Audit — the event log](#9-audit--the-event-log)
 10. [Community — multi-seed runs](#10-community--multi-seed-runs)
-11. [Playbook: recurring scenarios](#11-playbook-recurring-scenarios)
-12. [Extended glossary](#12-extended-glossary)
-13. [FAQ](#13-faq)
-14. [Troubleshooting](#14-troubleshooting)
+11. [HGT ledger — provenance of mobile elements](#11-hgt-ledger--provenance-of-mobile-elements)
+12. [In-app Help, glossary and shortcuts](#12-in-app-help-glossary-and-shortcuts)
+13. [Export & API — scientific reproducibility](#13-export--api--scientific-reproducibility)
+14. [Playbook: recurring scenarios](#14-playbook-recurring-scenarios)
+15. [Extended glossary](#15-extended-glossary)
+16. [FAQ](#16-faq)
+17. [Troubleshooting](#17-troubleshooting)
 
 ---
 
@@ -116,19 +119,31 @@ The Dashboard is the post-login landing page. It is structured as **6 card-link 
 | Panel | Opens | When you need it |
 |---|---|---|
 | **World** | `/world` | Overview: who is where, how many active biotopes, archetype distribution. |
-| **Seed Lab** | `/seed-lab` | Design a new home (up to 3) or inspect an already locked seed; the panel shows the `N/3 homes` count. CTA reads "Design new home" when slots are open, "Inspect locked seed" when all 3 are claimed. |
+| **Seed Lab** | `/seed-lab` | Design a new home (up to 3) or inspect an already locked seed; the panel shows the `N/3 homes` count. |
 | **My Biotopes** | `/biotopes/:id` | Compact list of biotopes you own — quick jump to the viewport. |
 | **Community** | `/community` | Read-only: biotopes started in community mode (multi-seed). Linked from the shell-nav from day 1. |
 | **Audit** | `/audit` | Global stream of persisted typed events — forensic queries. |
-| **Docs** | (placeholder) | DESIGN/CALIBRATION references (Markdown rendering coming soon). |
+| **Help** | `/help` | Canonical documentation rendered inline (USER-MANUAL, DESIGN, CALIBRATION, plans). Replaces the old "Docs" placeholder. |
+
+The shell-nav at the top exposes the same six links — Dashboard, World, Seed Lab, Community, Audit, Help — on **every** page, with `aria-current="page"` on the active tab. The Help entry is reachable from any screen without returning to the Dashboard.
 
 ### 3.1 Typical session flows
 
-- **Onboarding session (first time)**: Dashboard → Seed Lab → provision → Biotope viewport. The Seed Lab remains editable as long as home slots are available (up to 3 total); after the third provisioning it locks to inspect-only mode. After provisioning the first home you can return to the Seed Lab to claim a second or third home on different archetypes (cap = 3).
+- **Onboarding session (first time)**: Dashboard → Seed Lab → provision → Biotope viewport. The Seed Lab remains editable as long as home slots are available (up to 3 total); after the third provisioning it locks to inspect-only mode.
 - **Observation session**: Dashboard → My Biotopes → Biotope viewport (or World → click on node → Open biotope).
-- **Forensic analysis session**: Dashboard → Audit → filter by `mutation_notable` / `hgt_event` / `community_provisioned` to understand what happened in the last few hours.
+- **Forensic analysis session**: Dashboard → Audit → filter by `mutation_notable` / `hgt_event` / `community_provisioned` to understand what happened in the last few hours. Log rows are now **clickable**: each `biotope_id` opens the corresponding viewport directly.
 
 No Dashboard view has a global scrollbar: when content overflows, sub-panels scroll internally.
+
+### 3.2 Global search
+
+On any screen press `/` (or navigate to `/search?q=…`) to open the global search. The current scope covers:
+
+- **Biotopes** by id (prefix match): useful for jumping to a biotope known only by its short code.
+- **Help documents** by title or summary.
+- **Glossary entries** by term or description.
+
+The scope will be extended to lineages, blueprints and audit-log full-text in subsequent phases of the UI plan.
 
 ---
 
@@ -144,6 +159,17 @@ The Seed Lab is the point of maximum leverage. Your choices here determine:
 Each player can claim **up to 3 home biotopes** (badge `Homes N/3` at the top right of the Builder). Each is an independent seed committable to a distinct archetype — a strategic choice to spread selective pressure across different niches without managing multiple accounts. Once all 3 slots are occupied, the Seed Lab **locks**: you will see the most recent home's blueprint in read-only mode, until you recolonize (or go extinct in) one of the existing homes to free a slot.
 
 ### 4.1 Main form (left column)
+
+#### Quick-start: scenario presets
+
+Above the form fields, a row of **chips** offers four pre-packaged scenarios. Click → all fields (archetype, metabolism, membrane, regulation, mobile module, name) are populated with a combination that illustrates a specific evolutionary phenomenon:
+
+- **Mutator vs steady (Oligotrophic lake)** — `regulation_profile = mutator` + `latent_prophage` in an oligotrophic lake. The fastest starting point to observe `dna_damage` accumulation and SOS-triggered prophage induction.
+- **Cross-feeding bloom (Eutrophic pond)** — `metabolism = bloom` + `responsive` + `conjugative_plasmid`. Abundant glucose + accumulating by-products (acetate/lactate): the metabolite heatmap reveals C-cycle closure within a few hundred ticks.
+- **Halotolerant estuary** — `saline_estuary` + `salinity_tuned`. Survival comparison across freshwater layer / mixing zone / marine layer.
+- **Acidophile iron oxidiser** — `acid_mine_drainage` + `fortified` + `steady`. pH ≈ 3, niche for chemolithotrophs.
+
+After clicking you can still edit any field: the preset is a starting point, not a commit.
 
 #### Seed name
 
@@ -353,6 +379,7 @@ When you click a lineage row, a **drawer** slides in on the right side (375 px) 
 
 - **Archetype chip** (e.g. "Eutrophic Pond") with a colored dot per archetype.
 - **Interventions** — opens the left drawer with the interventions panel.
+- **⤓ Snapshot export** — downloads `biotope-<id>.json` with full state + last 1000 audit events + all persisted time-series. See §13 for the format.
 - **⚙ Topology** — modal with network metadata (biotope id, zone, coordinates, owner, neighbor_ids).
 - **User menu** — your name and logout.
 
@@ -416,7 +443,7 @@ The scene renders the biotope as **horizontal bands** (one per phase) with **par
 
 ### 5.5 Bottom tabs (~220 px)
 
-Four tabs. Only the body of the active tab is rendered; scrolling is internal.
+Six tabs. Only the body of the active tab is rendered; scrolling is internal.
 
 #### Events
 
@@ -444,6 +471,30 @@ Sortable **population board** table. Columns:
 **Click on a column header** → sort by that column. Default: sort by N descending.
 
 **Click on a row** → opens the **right drawer** with lineage detail.
+
+#### Trends
+
+Population trajectory chart: one line per lineage, X axis = tick, Y axis = total abundance. The underlying "table" is not a table — it is a **live time-series** that updates as the simulation crosses its sampling boundaries (default: every 5 ticks).
+
+Above the lines, **vertical markers** flag events of interest: `intervention` (dashed amber line), `mass_lysis` (dense red), `mutation_notable` (long purple), `phage_burst` (dotted pink), `colonization` (dashed green). Hover on a marker → type + tick.
+
+The color of each line is deterministic (hash of the id), so the same lineage keeps the same color across renders. The legend at the bottom shows short_id + peak abundance.
+
+What to look for:
+
+- **Sweep**: a line that grows rapidly and takes over the window after a `mutation_notable`.
+- **Mass lysis**: sharp drop of all lines immediately after a red marker → phages targeting a shared surface_tag.
+- **Cross-feeding chain**: one lineage declines while another rises — often coupled to a `colonization` marker for a new phase.
+
+If no samples have been collected yet (biotope just started) the panel shows a placeholder; the first chart appears at tick 5.
+
+#### Phylogeny
+
+Tidy-tree of lineages. Each circle is a lineage; color encodes the current abundance tier (extinct = grey + dashed outline). Parent → child arcs carry a short label with the most important phenotypic delta (`Δµ +0.12`, `Δrepair −0.08`, …) derived from the `mutation_summary` payload of `lineage_born` (Phase B).
+
+Hover on a node → tooltip with N, depth, gene_count. Hover on an arc → tooltip with all deltas of the child vs the parent.
+
+When the biotope has only the founder, the tree is a single root; it grows in breadth with speciation and in depth as mutations accumulate. Extinct lineages remain visible as ghost nodes as long as they appear in `lineage_born` audit records.
 
 #### Chemistry
 
@@ -479,7 +530,11 @@ Opens by clicking a row in the Lineages tab. Shows:
 - **KPIs**: total N, birth tick, µ (h⁻¹), ε (repair efficiency), main surface tags (max 4).
 - **Per-phase abundance** — in which phase is the lineage most abundant? If it is split 50-50, it is likely in a niche partitioning scenario.
 
-**Close** button at the bottom, or click the lineage row again, or press Esc.
+Drawer footer:
+
+- **Close** — closes the drawer (or click the lineage row again, or press Esc).
+- **Audit log →** — navigates to the global log `/audit` for forensic queries.
+- **HGT ledger →** — opens the HGT ledger for the current biotope (see §11).
 
 ### 5.7 Topology modal
 
@@ -710,9 +765,174 @@ In 500 ticks, you will see who wins per phase. The winner is *not scripted* — 
 
 ---
 
-## 11. Playbook: recurring scenarios
+## 11. HGT ledger — provenance of mobile elements
 
-### 11.1 "I want to see fast speciation"
+`/biotopes/:id/hgt-ledger` is the dedicated view for **horizontal gene transfer** in a single biotope. Reachable from the lineage drawer footer (CTA "HGT ledger →") or by direct URL.
+
+### 11.1 Contents
+
+The page is divided into two side-by-side panels:
+
+- **Aggregated flows** — rollup `donor → recipient`. One row for each lineage pair that has exchanged mobile elements at least once in the current audit window. Columns: donor short_id, recipient short_id, event count, last transfer tick, list of channel `kind` chips involved.
+- **Raw events** — flat log of the biotope's HGT events, sorted by descending tick. Columns: tick, kind, donor, recipient, payload.
+
+### 11.2 Channel filters
+
+A row of chips at the top filters by event type. Currently exposed filters:
+
+- `hgt_event` — the historical transfer (original Phase 6).
+- `hgt_conjugation_attempt`, `hgt_transformation_event`, `hgt_transduction_event` — the three canonical HGT channels (Block 7 DESIGN).
+- `rm_digestion` — restriction enzyme cleaved an incoming payload.
+- `plasmid_displaced` — plasmid displaced due to inc-group incompatibility.
+- `phage_burst`, `phage_infection` — phage emission and infection.
+
+> **Note**: some channels (R-M, transformation, transduction) require the sim to explicitly emit the event. The pipeline is wired (`Arkea.Persistence.AuditLog`), but actual emission is gradual: channels not yet active will show a count of 0. See `BIOLOGICAL-MODEL-REVIEW.md` Phases 12–16 for the emission roadmap.
+
+The selected filter is **deep-linkable**: the URL includes `?kind=<type>` and can therefore be bookmarked or shared.
+
+### 11.3 Typical use cases
+
+- **"Where does the resistance plasmid in lineage X come from?"** — open the ledger filtered by `hgt_event`, find recipient X in the raw table, trace the donor back.
+- **"How many HGT events have occurred in this biotope?"** — the "All" chip at the top right shows the total count.
+- **"Is R-M blocking the plasmids I inoculate?"** — filter `rm_digestion`: if rows appear, the recipients' restriction enzyme is cleaving the payload.
+
+### 11.4 Current limits
+
+- The query loads the last 500 events for the biotope. For longer windows, export CSV via `/api/biotopes/:id/audit` (see §13).
+- There is no visual Sankey diagram yet: the representation remains tabular. The Sankey is on the roadmap (`UI-OPTIMIZATION-PLAN.md` Phase E).
+
+---
+
+## 12. In-app Help, glossary and shortcuts
+
+### 12.1 Help live view
+
+`/help` renders the canonical Markdown documents of the repository inline (USER-MANUAL, DESIGN, CALIBRATION, plans). Sections have **permalink-friendly anchors**: share a URL such as `/help/user-manual?section=11-hgt-ledger--provenance-of-mobile-elements` to point to a specific section.
+
+The page is structured in two columns:
+
+- **Left sidebar**: index of available documents + ToC for the current page (auto-generated from H1–H6 headings).
+- **Central article**: the Markdown rendering. Tables, code blocks, links, blockquotes, nested lists are all supported.
+
+The prose style is optimized for long-form reading (line-height 1.65, max-width ~70ch).
+
+### 12.2 Glossary tooltips
+
+Throughout the UI (lineage drawer, audit, seed lab, biotope viewport) dense biological terms are rendered as `<.glossary_term term="kcat" />`: they appear with a dashed underline + "help" cursor. Hover → shows a one-line definition via native tooltip. Click → navigates to the section of Help where the concept is explained in detail.
+
+Currently registered terms (the list grows with each release):
+
+`kcat`, `Km`, `HGT`, `QS`, `SOS`, `R-M`, `plasmid`, `prophage`, `lineage`, `phenotype`, `biofilm`, `mutator`, `tick`, `seed`, `oriT`.
+
+Adding a term to the glossary is a one-line change in `lib/arkea_web/components/help.ex`.
+
+### 12.3 Keyboard shortcuts
+
+Press `?` (or `Shift+/`) on **any** page to open the cheatsheet. Compact list:
+
+| Category | Shortcut | Action |
+|---|---|---|
+| Navigation | `g d` | Go to Dashboard |
+| | `g w` | Go to World |
+| | `g s` | Go to Seed Lab |
+| | `g c` | Go to Community |
+| | `g a` | Go to Audit |
+| | `g h` | Go to Help |
+| Biotope viewport | `j` / `k` | Next / previous lineage |
+| | `1`–`4` | Switch bottom panel tab |
+| | `e` | Open Events tab |
+| | `i` | Open Interventions |
+| Global | `?` | Toggle this cheatsheet |
+| | `Esc` | Close drawer / dialog |
+
+Shortcuts are disabled when focus is inside an input, textarea or select (so `g` does not escape to the next tab while you are typing a seed name).
+
+---
+
+## 13. Export & API — scientific reproducibility
+
+Three read-only endpoints under `/api`, authenticated via session cookie. Designed for exporting session data and analysing it offline in a Python/R notebook, or for sharing it as a reproducible reference.
+
+### 13.1 Biotope snapshot
+
+```
+GET /api/biotopes/:id/snapshot
+```
+
+Returns a JSON with:
+
+- `format_version` (integer): allows consumers to evolve the schema in a backwards-compatible manner.
+- `biotope`: biotope metadata (id, archetype, zone, x, y, tick_count, owner, neighbors, total population).
+- `phases`: list of phases with metabolite_pool, signal_pool, xenobiotic_pool, toxin_pool stringified.
+- `lineages`: for each current lineage, abundance_by_phase, biomass, dna_damage, gene_count, and a `phenotype` block with scalar fields (base_growth_rate, repair_efficiency, energy_cost, n_transmembrane, qs_produces, qs_receives, surface_tags, biofilm_capable?, etc.).
+- `audit_log`: last 1000 typed events for the biotope.
+- `time_series`: all persisted samples (abundance, metabolite_pool, signal_pool, biomass, dna_damage) — see §13.4 for the sampling cadence.
+
+The browser downloads `biotope-<id>.json` directly (the ⤓ button in the biotope viewport header points here).
+
+### 13.2 Audit CSV
+
+```
+GET /api/biotopes/:id/audit?from_tick=<n>&to_tick=<m>&kind=<event_type>
+```
+
+Returns CSV with header `occurred_at,occurred_at_tick,event_type,target_lineage_id,actor_player_id,payload_json`. All query parameters are optional; without filters it exports the entire log for the biotope sorted by ascending tick. The payload is encoded as JSON in the sixth column (CSV-correct escaping, commas and double quotes doubled).
+
+Examples:
+
+```
+# All events for the biotope
+GET /api/biotopes/abc-123/audit
+
+# HGT only in a 200-tick window
+GET /api/biotopes/abc-123/audit?kind=hgt_event&from_tick=400&to_tick=600
+
+# All mass_lysis for the biotope
+GET /api/biotopes/abc-123/audit?kind=mass_lysis
+```
+
+### 13.3 Blueprint export
+
+```
+GET /api/blueprints/:id
+```
+
+Returns blueprint metadata + decoded genome (chromosome, plasmid and prophage cassettes with all domains and their parameters). Only blueprints linked to a home of the current player are accessible: cross-player blueprints are returned as 404 (not 403, to avoid leaking the existence of other players' blueprints).
+
+Typical use cases: saving a version of the seed before recolonizing, sharing a genomic design with a collaborator, reloading the blueprint into a notebook for statistical domain analysis.
+
+### 13.4 Time-series persistence (what is inside the snapshot)
+
+Each persistent biotope samples automatically:
+
+| Kind | Cadence | Scope | Payload |
+|---|---|---|---|
+| `abundance` | every 5 ticks | per lineage | `{by_phase: %{phase=>n}, total: integer}` |
+| `metabolite_pool` | every 5 ticks | per phase | `%{metabolite_id => concentration}` |
+| `signal_pool` | every 5 ticks | per phase | `%{signal_key => concentration}` |
+| `biomass` | every 10 ticks | per lineage (non-nil genome) | `%{wall, membrane, dna}` |
+| `dna_damage` | every 10 ticks | per lineage with damage > 0 | `%{value: float}` |
+
+Cap per biotope: 100,000 samples. When exceeded, the oldest samples are pruned in batches of 10%. The sampling rate is `Application.compile_env(:arkea, :time_series_sampling_period, 5)` — configurable via config.
+
+### 13.5 "Extended" audit events (Phase B)
+
+In addition to the classic `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, the sim now also emits:
+
+- `mass_lysis` — when a phase loses >30% of its population in a single tick.
+- `colonization` — when a lineage crosses the 0 → ≥50 cells threshold in a new phase.
+- `phage_burst` — when the `phage_pool` of a phase gains >25 virions in a tick.
+- `mutation_notable` — when the child phenotype differs by ≥20% from the parent on `base_growth_rate`, `repair_efficiency` or `energy_cost`. The payload includes the diff as `mutation_summary` (`d_growth_rate`, `d_repair`, `d_energy_cost`, `child_gene_count`, `parent_gene_count`).
+
+The `lineage_born` event now also carries a `mutation_summary` when the parent is still identifiable, so the Phylogeny viewer (§5.5) can label parent → child arcs with the phenotypic delta.
+
+All these events go into `audit_log`; they are accessible via the audit API (§13.2), via the Audit live view (§9), via the HGT ledger (§11), and influence the vertical markers in the Trends tab (§5.5).
+
+---
+
+## 14. Playbook: recurring scenarios
+
+### 14.1 "I want to see fast speciation"
 
 Setup:
 
@@ -728,7 +948,7 @@ What to expect:
 - Ticks 200–400: error catastrophe hits some extreme mutators. `:lineage_extinct` events.
 - Ticks 400+: semi-stable state with the "good" mutators (those that found a repair fix).
 
-### 11.2 "I want to see a host-phage arms race"
+### 14.2 "I want to see a host-phage arms race"
 
 Setup:
 
@@ -746,7 +966,7 @@ What to expect:
 - Ticks 300+: loss-of-receptor mutations become advantageous. You will see the `cryptic` cluster expand (lineages without phage_receptor).
 - Ticks 500+: arms race in steady state — some have rebuilt the receptor (counteradvantage: lower fitness along other dimensions).
 
-### 11.3 "I want to see metabolic cycle closure"
+### 14.3 "I want to see metabolic cycle closure"
 
 Setup:
 
@@ -766,7 +986,7 @@ What to expect:
 - Ticks 200–500: cross-feeding between the three phases. The Chemistry heatmap shows high glucose in surface, high lactate in water_column, high acetate/CO₂ in sediment.
 - Ticks 500+: stable cycles. Total population remains nearly constant.
 
-### 11.4 "I want to test my hypothesis"
+### 14.4 "I want to test my hypothesis"
 
 Basic setup + intervention sequence:
 
@@ -779,7 +999,7 @@ Basic setup + intervention sequence:
 
 ---
 
-## 12. Extended glossary
+## 15. Extended glossary
 
 ### Biological
 
@@ -831,12 +1051,19 @@ Basic setup + intervention sequence:
 | **Budget slot** | Anti-griefing rate limit for interventions. |
 | **Audit log** | Append-only table of persisted typed events. |
 | **Tick** | Simulator time unit. 1 tick = 5 minutes wall-clock. |
+| **Time-series sample** | Periodic snapshot (every 5/10 ticks) of abundance, metabolite_pool, signal_pool, biomass, dna_damage. Persisted in `time_series_samples`. |
+| **Trends tab** | SVG chart of population trajectories per lineage with event markers (mass_lysis, mutation_notable, etc.). |
+| **Phylogeny tab** | Tidy-tree of lineages with phenotypic delta on parent → child arcs. |
+| **HGT ledger** | Per-biotope view of horizontal transfers with donor → recipient rollup. |
+| **Snapshot export** | Full JSON of state + audit + time-series downloadable via `/api/biotopes/:id/snapshot`. |
+| **Glossary term** | UI component with tooltip + link to `/help` for dense biological terms. |
+| **Scenario chip** | Clickable preset in the Seed Lab that pre-populates the form with an "interesting" combination. |
 
 For the complete glossary of the biological model, see [`devel-docs/DESIGN.md`](devel-docs/DESIGN.md) (15 blocks) and [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md) (numerical ranges).
 
 ---
 
-## 13. FAQ
+## 16. FAQ
 
 #### Can I pause the simulator?
 
@@ -898,7 +1125,7 @@ There is no lookup system. Compare your seed with those in `/community` if any e
 
 ---
 
-## 14. Troubleshooting
+## 17. Troubleshooting
 
 ### Symptom: "Biotope viewport shows No phases / zero population"
 
@@ -933,6 +1160,18 @@ There is no lookup system. Compare your seed with those in `/community` if any e
 - Population density too low. Conjugation requires a contact rate proportional to `density²`. Wait until ticks ~50–100 for the population to grow.
 - The plasmid does not have an `oriT_site` in its `regulatory_block`. In Audit, look for `mobile_element_release` for your biotope to verify whether the plasmid was released into the phase pool.
 - Potential recipients have R-M defense that digests the plasmid. Look for `rm_digestion` events in audit.
+
+**Quick diagnostic**: open the **HGT ledger** for the biotope (`/biotopes/:id/hgt-ledger`, or use the "HGT ledger →" CTA in the lineage drawer footer). The "All" chip at the top right shows the total HGT event count — if it is 0, no transfer has ever taken place.
+
+### Symptom: "The Trends tab is always empty"
+
+**Probable cause**: the biotope has not yet crossed a sampling boundary. The abundance sample is written every 5 ticks (default).
+
+**Verify**:
+
+1. The sidebar KPI shows `Tick`. If it is `< 5`, wait.
+2. The chart updates automatically at the next boundary while the tab is open.
+3. For a higher cadence in dev, set `config :arkea, :time_series_sampling_period, 1` in `config/dev.exs`.
 
 ### Symptom: "My mutator strain goes extinct immediately"
 

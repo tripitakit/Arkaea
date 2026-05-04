@@ -22,10 +22,13 @@ Il manuale presuppone solide basi di **microbiologia / biologia molecolare**. No
 8. [World — overview macroscala](#8-world--overview-macroscala)
 9. [Audit — il log degli eventi](#9-audit--il-log-degli-eventi)
 10. [Community — multi-seed runs](#10-community--multi-seed-runs)
-11. [Playbook: scenari ricorrenti](#11-playbook-scenari-ricorrenti)
-12. [Glossario esteso](#12-glossario-esteso)
-13. [FAQ](#13-faq)
-14. [Troubleshooting](#14-troubleshooting)
+11. [HGT ledger — provenienza degli elementi mobili](#11-hgt-ledger--provenienza-degli-elementi-mobili)
+12. [Help in-app, glossario e shortcut](#12-help-in-app-glossario-e-shortcut)
+13. [Export & API — riproducibilità scientifica](#13-export--api--riproducibilità-scientifica)
+14. [Playbook: scenari ricorrenti](#14-playbook-scenari-ricorrenti)
+15. [Glossario esteso](#15-glossario-esteso)
+16. [FAQ](#16-faq)
+17. [Troubleshooting](#17-troubleshooting)
 
 ---
 
@@ -120,15 +123,27 @@ La Dashboard è la landing post-login. È strutturata in **6 pannelli card-link*
 | **My Biotopes** | `/biotopes/:id` | Lista compatta dei biotopi che possiedi — quick jump alla viewport. |
 | **Community** | `/community` | Read-only: biotopi avviati con community-mode (multi-seed). Linkato dalla shell-nav fin dal primo accesso. |
 | **Audit** | `/audit` | Stream globale di eventi tipizzati persistiti — query forensiche. |
-| **Docs** | (placeholder) | Riferimenti DESIGN/CALIBRATION (rendering Markdown in arrivo). |
+| **Help** | `/help` | Documentazione canonica renderizzata inline (USER-MANUAL, DESIGN, CALIBRATION, piani). Sostituisce il vecchio placeholder "Docs". |
+
+La shell-nav in alto espone gli stessi sei link — Dashboard, World, Seed Lab, Community, Audit, Help — su **ogni** pagina, con `aria-current="page"` sul tab attivo. La voce Help è raggiungibile da qualsiasi schermata anche senza tornare alla Dashboard.
 
 ### 3.1 Flusso tipico
 
 - **Sessione di onboarding (prima volta)**: Dashboard → Seed Lab → provision → Biotope viewport. Il Seed Lab resta editabile finché ci sono slot home liberi (fino a 3 totali); dopo il terzo provisioning si lock-a in modalità ispezione.
 - **Sessione di osservazione**: Dashboard → My Biotopes → Biotope viewport (o World → click su nodo → Open biotope).
-- **Sessione di analisi forense**: Dashboard → Audit → filter su `mutation_notable` / `hgt_event` / `community_provisioned` per capire cosa è successo nelle ultime ore.
+- **Sessione di analisi forense**: Dashboard → Audit → filter su `mutation_notable` / `hgt_event` / `community_provisioned` per capire cosa è successo nelle ultime ore. Le righe del log sono ora **cliccabili**: ogni biotope_id apre direttamente la viewport corrispondente.
 
 Nessuna view della Dashboard ha scrollbar globale: quando i contenuti eccedono, scrollano i sotto-pannelli.
+
+### 3.2 Search globale
+
+Su ogni schermata premi `/` (oppure naviga a `/search?q=…`) per aprire la ricerca globale. Lo scope attuale copre:
+
+- **Biotopi** per id (prefix match): utile per saltare a un biotopo conosciuto solo per sigla.
+- **Documenti del Help** per titolo o sommario.
+- **Voci di glossario** per termine o descrizione.
+
+Lo scope verrà esteso a lineage, blueprint e audit-log full-text nelle fasi successive del piano UI.
 
 ---
 
@@ -144,6 +159,17 @@ Il Seed Lab è il punto di leva massima. Le scelte qui determinano:
 Ogni player può claimare **fino a 3 home biotopi** (badge `Homes N/3` in alto a destra del Builder). Ognuno è un seed indipendente e committibile su un archetipo distinto: una scelta strategica per spalmare la pressione selettiva su nicchie diverse senza dover gestire più account. Quando tutte e 3 le slot sono occupate il Seed Lab si **lock-a**: vedrai il blueprint dell'home più recente in modalità read-only, finché non ricolonizzi (o estingui) uno degli home esistenti per liberare uno slot.
 
 ### 4.1 Form principale (colonna sinistra)
+
+#### Quick-start: scenario presets
+
+Sopra i campi del form, una riga di **chip** offre quattro scenari pre-confezionati. Click → tutti i campi (archetype, metabolismo, membrana, regolazione, mobile module, nome) si popolano in una combinazione che illustra un fenomeno evolutivo specifico:
+
+- **Mutator vs steady (Oligotrophic lake)** — `regulation_profile = mutator` + `latent_prophage` in un lago oligotrofo. Il punto di partenza più rapido per osservare l'accumulo di `dna_damage` e l'induction profago da SOS.
+- **Cross-feeding bloom (Eutrophic pond)** — `metabolism = bloom` + `responsive` + `conjugative_plasmid`. Glucosio abbondante + by-product (acetato/lattato) che accumulano: la heatmap dei metaboliti rivela la chiusura del ciclo C in poche centinaia di tick.
+- **Halotolerant estuary** — `saline_estuary` + `salinity_tuned`. Confronto di sopravvivenza tra freshwater layer / mixing zone / marine layer.
+- **Acidophile iron oxidiser** — `acid_mine_drainage` + `fortified` + `steady`. pH ≈ 3, nicchia per chemiolitotrofi.
+
+Dopo il click puoi comunque modificare ogni campo: il preset è un punto di partenza, non un commit.
 
 #### Nome del seed
 
@@ -353,6 +379,7 @@ Quando clicchi una riga lineage, si apre un **drawer** sul lato destro (375 px) 
 
 - **Archetype chip** (es. "Eutrophic Pond") con dot colorato per archetipo.
 - **Interventions** — apre il drawer sinistro col pannello interventi.
+- **⤓ Snapshot export** — scarica `biotope-<id>.json` con stato completo + ultimi 1000 eventi audit + tutte le time-series persistite. Vedi §13 per il formato.
 - **⚙ Topology** — modal con metadati di rete (id biotope, zone, coordinate, owner, neighbor_ids).
 - **User menu** — il tuo nome e logout.
 
@@ -416,7 +443,7 @@ La scena rende il biotope come **bande orizzontali** (una per fase) con **partic
 
 ### 5.5 Bottom tabs (~220 px)
 
-Quattro tab. Solo il body della tab attiva è renderizzato; lo scroll è interno.
+Sei tab. Solo il body della tab attiva è renderizzato; lo scroll è interno.
 
 #### Events
 
@@ -444,6 +471,30 @@ Tabella ordinabile della **population board**. Colonne:
 **Click sull'header colonna** → ordina per quella colonna. Default: ordina per N decrescente.
 
 **Click sulla riga** → apre il **drawer destro** con il dettaglio del lineage.
+
+#### Trends
+
+Grafico di traiettoria popolazionale: una linea per lineage, asse X = tick, asse Y = abbondanza totale. La sottostante "table" non è una tabella — è una **time-series live** che si aggiorna man mano che il sim attraversa i suoi sampling-boundary (default: ogni 5 tick).
+
+Sopra le linee, **marker verticali** segnalano gli eventi di interesse: `intervention` (linea ambra tratteggiata), `mass_lysis` (rossa fitta), `mutation_notable` (viola lunga), `phage_burst` (rosa puntinata), `colonization` (verde a punteggio). Hover su un marker → tipo + tick.
+
+Il colore di ogni linea è deterministico (hash dell'id), quindi lo stesso lineage mantiene lo stesso colore tra render. La legenda in basso mostra short_id + abbondanza di picco.
+
+Cosa cercare:
+
+- **Sweep**: una linea che cresce rapida e copre la finestra dopo un `mutation_notable`.
+- **Mass lysis**: caduta brusca di tutte le linee subito dopo un marker rosso → fagi che bersagliano un surface_tag condiviso.
+- **Cross-feeding catena**: un lineage cala mentre un altro sale — spesso accoppiato a marker `colonization` di una nuova fase.
+
+Se non sono ancora stati raccolti sample (biotope appena partito) il pannello mostra un placeholder; il primo grafico compare al tick 5.
+
+#### Phylogeny
+
+Tidy-tree dei lineage. Ogni cerchio è un lineage; il colore codifica la fascia di abbondanza corrente (estinti = grigio + outline tratteggiato). Gli archi parent → child portano un'etichetta breve con il delta fenotipico più importante (`Δµ +0.12`, `Δrepair −0.08`, …) ricavato dal payload `mutation_summary` di `lineage_born` (Phase B).
+
+Hover su un nodo → tooltip con N, depth, gene_count. Hover su un arco → tooltip con tutti i delta del bambino vs il parent.
+
+Quando il biotope ha solo il founder l'albero è una singola root; cresce in larghezza con la speciazione e in profondità man mano che le mutazioni si accumulano. Le linee estinte restano visibili come ghost node finché compaiono nei `lineage_born` audit.
 
 #### Chemistry
 
@@ -479,7 +530,11 @@ Si apre cliccando una riga della tab Lineages. Mostra:
 - **KPI**: N totale, tick di nascita, µ (h⁻¹), ε (repair efficiency), surface tags principali (max 4).
 - **Per-phase abundance** — il lineage in quale fase è più abbondante? Se è splittato 50-50, è probabile che sia in uno scenario di niche partitioning.
 
-Pulsante **Close** in fondo, oppure click di nuovo sulla riga lineage o premi Esc.
+Footer del drawer:
+
+- **Close** — chiude il drawer (oppure click di nuovo sulla riga lineage, o premi Esc).
+- **Audit log →** — naviga al log globale `/audit` per le query forensiche.
+- **HGT ledger →** — apre il ledger HGT del biotope corrente (vedi §11).
 
 ### 5.7 Topology modal
 
@@ -710,9 +765,174 @@ In 500 tick, vedrai chi vince per fase. Il vincitore *non è scriptato* — emer
 
 ---
 
-## 11. Playbook: scenari ricorrenti
+## 11. HGT ledger — provenienza degli elementi mobili
 
-### 11.1 "Voglio vedere speciazione veloce"
+`/biotopes/:id/hgt-ledger` è la vista dedicata al **trasferimento orizzontale di geni** in un singolo biotope. Raggiungibile dal footer del lineage drawer (CTA "HGT ledger →") o per URL diretto.
+
+### 11.1 Cosa contiene
+
+La pagina è divisa in due pannelli affiancati:
+
+- **Aggregated flows** — rollup `donor → recipient`. Una riga per ogni coppia di lineage che ha scambiato elementi mobili almeno una volta nella finestra audit corrente. Colonne: short_id donor, short_id recipient, conteggio eventi, ultimo tick di transfer, lista dei `kind` di canale coinvolti (chip).
+- **Raw events** — log piatto degli eventi HGT del biotope, ordinati per tick decrescente. Colonne: tick, kind, donor, recipient, payload.
+
+### 11.2 Filtri per canale
+
+Una riga di chip in alto filtra per tipo di evento. Filtri attualmente esposti:
+
+- `hgt_event` — il transfer storico (Phase 6 originale).
+- `hgt_conjugation_attempt`, `hgt_transformation_event`, `hgt_transduction_event` — i tre canali HGT canonici (Block 7 DESIGN).
+- `rm_digestion` — restrizione enzima ha clivato un payload in entrata.
+- `plasmid_displaced` — plasmide spiazzato per incompatibilità inc-group.
+- `phage_burst`, `phage_infection` — emissione e infezione fagiche.
+
+> **Nota**: alcuni canali (R-M, transformation, transduction) richiedono che il sim emetta esplicitamente l'evento. La pipeline è cablata (`Arkea.Persistence.AuditLog`), ma l'emissione vera è graduale: i canali ancora silenziosi mostreranno conteggio 0. Vedi `BIOLOGICAL-MODEL-REVIEW.md` Phase 12-16 per il roadmap di emissione.
+
+Il filtro selezionato è **deep-linkable**: l'URL include `?kind=<tipo>` quindi può essere bookmarkato o condiviso.
+
+### 11.3 Use case tipici
+
+- **"Da dove arriva il plasmide di resistenza nel lineage X?"** — apri il ledger filtrato per `hgt_event`, cerca il recipient X nella tabella raw, segui il donor a ritroso.
+- **"Quanti HGT events sono stati prodotti in questo biotope?"** — il chip "All" in alto a destra mostra il count totale.
+- **"R-M sta bloccando i plasmidi che inoculo?"** — filtra `rm_digestion`: se vedi righe, il restriction-enzyme dei recipient sta clivando.
+
+### 11.4 Limiti correnti
+
+- La query carica gli ultimi 500 eventi del biotope. Per finestre più lunghe, esporta CSV via `/api/biotopes/:id/audit` (vedi §13).
+- Non c'è ancora un Sankey diagram visuale: la rappresentazione resta tabulare. Il Sankey è in roadmap (`UI-OPTIMIZATION-PLAN.md` Phase E).
+
+---
+
+## 12. Help in-app, glossario e shortcut
+
+### 12.1 Help live view
+
+`/help` è il rendering inline dei documenti Markdown canonici del repository (USER-MANUAL, DESIGN, CALIBRATION, piani). Le sezioni hanno **ancore permalink-friendly**: condividi un URL come `/help/user-manual?section=11-hgt-ledger--provenienza-degli-elementi-mobili` per puntare a una sezione specifica.
+
+La pagina è strutturata in due colonne:
+
+- **Sidebar** sinistra: indice dei documenti disponibili + ToC della pagina corrente (auto-generato dalle heading H1-H6).
+- **Article** centrale: il rendering del Markdown. Tabelle, code blocks, link, blockquote, liste annidate sono tutti supportati.
+
+Lo stile della prosa è ottimizzato per la lettura lunga (line-height 1.65, max-width ~70ch).
+
+### 12.2 Glossary tooltips
+
+In tutta la UI (lineage drawer, audit, seed lab, biotope viewport) i termini biologici densi sono renderizzati come `<.glossary_term term="kcat" />`: appaiono con underline tratteggiato + cursore "help". Hover → mostra una definizione di una riga via tooltip nativo. Click → naviga alla sezione del Help dove il concetto è spiegato in dettaglio.
+
+Termini attualmente registrati (la lista cresce a ogni release):
+
+`kcat`, `Km`, `HGT`, `QS`, `SOS`, `R-M`, `plasmid`, `prophage`, `lineage`, `phenotype`, `biofilm`, `mutator`, `tick`, `seed`, `oriT`.
+
+Aggiungere un termine al glossario è una modifica a una riga in `lib/arkea_web/components/help.ex`.
+
+### 12.3 Keyboard shortcuts
+
+Premi `?` (o `Shift+/`) in **qualunque** pagina per aprire la cheatsheet. Lista compatta:
+
+| Categoria | Shortcut | Azione |
+|---|---|---|
+| Navigation | `g d` | Vai a Dashboard |
+| | `g w` | Vai a World |
+| | `g s` | Vai a Seed Lab |
+| | `g c` | Vai a Community |
+| | `g a` | Vai a Audit |
+| | `g h` | Vai a Help |
+| Biotope viewport | `j` / `k` | Lineage successivo / precedente |
+| | `1`–`4` | Switch tab del bottom panel |
+| | `e` | Apri tab Events |
+| | `i` | Apri Interventions |
+| Globale | `?` | Toggle questa cheatsheet |
+| | `Esc` | Chiudi drawer / dialog |
+
+Le shortcut sono disabilitate quando il focus è dentro un input, textarea o select (così la `g` non scappa al prossimo tab mentre stai scrivendo un seed_name).
+
+---
+
+## 13. Export & API — riproducibilità scientifica
+
+Tre endpoint read-only sotto `/api`, autenticati via session cookie. Pensati per esportare i dati di una sessione e analizzarli off-line con un notebook Python/R, oppure per condividerli come riferimento riproducibile.
+
+### 13.1 Snapshot biotope
+
+```
+GET /api/biotopes/:id/snapshot
+```
+
+Restituisce un JSON con:
+
+- `format_version` (intero): permette ai consumer di evolvere lo schema in modo retrocompatibile.
+- `biotope`: meta del biotope (id, archetype, zone, x, y, tick_count, owner, neighbors, totale popolazione).
+- `phases`: lista di fasi con metabolite_pool, signal_pool, xenobiotic_pool, toxin_pool stringificati.
+- `lineages`: per ogni lineage corrente, abundance_by_phase, biomass, dna_damage, gene_count, e un blocco `phenotype` con i campi scalari (base_growth_rate, repair_efficiency, energy_cost, n_transmembrane, qs_produces, qs_receives, surface_tags, biofilm_capable?, ecc.).
+- `audit_log`: ultimi 1000 eventi tipizzati del biotope.
+- `time_series`: tutti i sample persistiti (abundance, metabolite_pool, signal_pool, biomass, dna_damage) — vedi §13.4 per la cadenza.
+
+Il browser scarica direttamente `biotope-<id>.json` (il pulsante ⤓ nell'header del biotope viewport punta qui).
+
+### 13.2 Audit CSV
+
+```
+GET /api/biotopes/:id/audit?from_tick=<n>&to_tick=<m>&kind=<event_type>
+```
+
+Restituisce CSV con header `occurred_at,occurred_at_tick,event_type,target_lineage_id,actor_player_id,payload_json`. Tutti i parametri di query sono opzionali; senza filtri esporta l'intero log del biotope ordinato per tick crescente. Il payload è codificato come JSON nella sesta colonna (escape CSV-corretto, virgole e virgolette doppiate).
+
+Esempi:
+
+```
+# Tutti gli eventi del biotope
+GET /api/biotopes/abc-123/audit
+
+# Solo HGT in finestra di 200 tick
+GET /api/biotopes/abc-123/audit?kind=hgt_event&from_tick=400&to_tick=600
+
+# Tutti i mass_lysis del biotope
+GET /api/biotopes/abc-123/audit?kind=mass_lysis
+```
+
+### 13.3 Blueprint export
+
+```
+GET /api/blueprints/:id
+```
+
+Restituisce blueprint metadata + genoma decodificato (chromosome, plasmid e prophage cassettes con tutti i domini e i loro parametri). Solo i blueprint legati a un home del player corrente sono accessibili: cross-player blueprint vengono restituiti come 404 (non 403, per evitare di leakare l'esistenza di blueprint altrui).
+
+Use case tipici: salvare una versione del seed prima di ricolonizzare, condividere un design genomico con un collaboratore, ricaricare il blueprint in un notebook per analisi statistica dei domini.
+
+### 13.4 Time-series persistence (cosa c'è dentro lo snapshot)
+
+Ogni biotope persistente campiona automaticamente:
+
+| Kind | Cadenza | Scope | Payload |
+|---|---|---|---|
+| `abundance` | ogni 5 tick | per lineage | `{by_phase: %{phase=>n}, total: integer}` |
+| `metabolite_pool` | ogni 5 tick | per phase | `%{metabolite_id => concentration}` |
+| `signal_pool` | ogni 5 tick | per phase | `%{signal_key => concentration}` |
+| `biomass` | ogni 10 tick | per lineage (non-nil genome) | `%{wall, membrane, dna}` |
+| `dna_damage` | ogni 10 tick | per lineage con damage > 0 | `%{value: float}` |
+
+Cap per biotope: 100 000 sample. Quando viene superato, i sample più vecchi vengono eliminati a batch del 10%. Il rate di sampling è `Application.compile_env(:arkea, :time_series_sampling_period, 5)` — modificabile via config.
+
+### 13.5 Eventi audit "estesi" (Phase B)
+
+Oltre ai classici `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, il sim emette ora anche:
+
+- `mass_lysis` — quando una fase perde >30% della popolazione in un singolo tick.
+- `colonization` — quando un lineage attraversa la soglia 0 → ≥50 cellule in una nuova fase.
+- `phage_burst` — quando il `phage_pool` di una fase guadagna >25 virioni in un tick.
+- `mutation_notable` — quando il fenotipo del bambino differisce di ≥20% dal parent su `base_growth_rate`, `repair_efficiency` o `energy_cost`. Il payload include il diff come `mutation_summary` (`d_growth_rate`, `d_repair`, `d_energy_cost`, `child_gene_count`, `parent_gene_count`).
+
+Il `lineage_born` event ora porta anche un `mutation_summary` quando il parent è ancora identificabile, così il phylogeny viewer (§5.5) può etichettare gli archi parent → child con il delta fenotipico.
+
+Tutti questi eventi finiscono in `audit_log`; sono accessibili via API audit (§13.2), via Audit live view (§9), via HGT ledger (§11), e influenzano i marker verticali del Trends tab (§5.5).
+
+---
+
+## 14. Playbook: scenari ricorrenti
+
+### 14.1 "Voglio vedere speciazione veloce"
 
 Setup:
 
@@ -728,7 +948,7 @@ Aspettati:
 - Tick 200–400: error catastrophe colpisce alcuni mutator extreme. `:lineage_extinct` events.
 - Tick 400+: stato semi-stabile con i mutator "buoni" (quelli che hanno trovato repair fix).
 
-### 11.2 "Voglio vedere arms race ospite-fago"
+### 14.2 "Voglio vedere arms race ospite-fago"
 
 Setup:
 
@@ -746,7 +966,7 @@ Aspettati:
 - Tick 300+: mutazioni loss-of-receptor diventano vantaggiose. Vedrai cluster `cryptic` espandersi (lineage senza phage_receptor).
 - Tick 500+: arms race in steady state — alcuni hanno ricostruito il receptor (controvantaggio: meno fitness in altre dimensioni).
 
-### 11.3 "Voglio vedere cycle closure metabolica"
+### 14.3 "Voglio vedere cycle closure metabolica"
 
 Setup:
 
@@ -766,7 +986,7 @@ Aspettati:
 - Tick 200–500: cross-feeding tra le tre fasi. La heatmap Chemistry mostra glucose alto in surface, lactate alto in water_column, acetate/CO₂ alto in sediment.
 - Tick 500+: cicli stabili. La popolazione totale si mantiene quasi costante.
 
-### 11.4 "Voglio testare la mia hypothesis"
+### 14.4 "Voglio testare la mia hypothesis"
 
 Setup di base + intervention sequence:
 
@@ -779,7 +999,7 @@ Setup di base + intervention sequence:
 
 ---
 
-## 12. Glossario esteso
+## 15. Glossario esteso
 
 ### Biologico
 
@@ -831,12 +1051,19 @@ Setup di base + intervention sequence:
 | **Slot del budget** | Anti-griefing rate-limit per gli intervention. |
 | **Audit log** | Tabella append-only degli eventi tipizzati persistiti. |
 | **Tick** | Unità di tempo del simulatore. 1 tick = 5 minuti wall-clock. |
+| **Time-series sample** | Snapshot periodico (ogni 5/10 tick) di abundance, metabolite_pool, signal_pool, biomass, dna_damage. Persistito in `time_series_samples`. |
+| **Trends tab** | Grafico SVG di traiettoria popolazionale per lineage con marker degli eventi (mass_lysis, mutation_notable, ecc.). |
+| **Phylogeny tab** | Tidy-tree dei lineage con delta fenotipico sugli archi parent → child. |
+| **HGT ledger** | Vista per-biotope dei trasferimenti orizzontali con rollup donor → recipient. |
+| **Snapshot export** | JSON completo di stato + audit + time-series scaricabile via `/api/biotopes/:id/snapshot`. |
+| **Glossary term** | Componente UI con tooltip + link a `/help` per i termini biologici densi. |
+| **Scenario chip** | Preset cliccabile in Seed Lab che pre-popola il form con una combinazione "interessante". |
 
 Per il glossario completo del modello biologico, vedi [`devel-docs/DESIGN.md`](devel-docs/DESIGN.md) (15 blocks) e [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md) (range numerici).
 
 ---
 
-## 13. FAQ
+## 16. FAQ
 
 #### Posso mettere in pausa il simulatore?
 
@@ -898,7 +1125,7 @@ Non c'è un sistema di lookup. Confronta il tuo seed con quelli in `/community` 
 
 ---
 
-## 14. Troubleshooting
+## 17. Troubleshooting
 
 ### Sintomo: "Biotope viewport mostra No phases / popolazione zero"
 
@@ -933,6 +1160,18 @@ Non c'è un sistema di lookup. Confronta il tuo seed con quelli in `/community` 
 - Densità di popolazione troppo bassa. La conjugazione richiede contact rate proporzionale a `density²`. Aspetta tick ~50–100 perché la popolazione cresca.
 - Il plasmide non ha `oriT_site` nel suo `regulatory_block`. In Audit cerca `mobile_element_release` per il tuo biotope per verificare se il plasmide è stato rilasciato nel pool della fase.
 - I recipient potenziali hanno R-M difensivo che digerisce il plasmide. Cerca `rm_digestion` events in audit.
+
+**Diagnosi rapida**: apri il **HGT ledger** del biotope (`/biotopes/:id/hgt-ledger`, oppure CTA "HGT ledger →" nel footer del lineage drawer). Il chip "All" in alto a destra mostra il count totale di eventi HGT — se è 0, nessun transfer ha mai avuto luogo.
+
+### Sintomo: "Il Trends tab è sempre vuoto"
+
+**Causa probabile**: il biotope non ha ancora attraversato un sampling-boundary. Il sample di abundance viene scritto ogni 5 tick (default).
+
+**Verifica**:
+
+1. Il sidebar KPI mostra `Tick`. Se è `< 5`, aspetta.
+2. Il chart si aggiorna automaticamente al successivo boundary mentre il tab è aperto.
+3. Per cadenza più alta in dev, modifica `config :arkea, :time_series_sampling_period, 1` in `config/dev.exs`.
 
 ### Sintomo: "Il mio mutator strain si estingue subito"
 
