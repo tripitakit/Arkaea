@@ -19,8 +19,8 @@ defmodule ArkeaWeb.SeedLabLiveTest do
   test "seed lab updates the ecotype preview", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/seed-lab")
 
-    assert render(view) =~ "Seed lab"
-    assert render(view) =~ "Choose a starter biotope"
+    assert render(view) =~ "Seed Lab"
+    assert render(view) =~ "Visual genome editor"
     assert render(view) =~ "Unnamed seed"
     assert render(view) =~ "Choose a starter biotope archetype to preview insertion coordinates"
 
@@ -143,7 +143,8 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert player_biotope.source_blueprint_id == blueprint.id
 
     {:ok, biotope_view, _html} = live(conn, path)
-    assert render(biotope_view) =~ "Procedural biotope viewport"
+    # Biotope view shell post-U4: SVG scene + arkea-biotope layout, archetype chip
+    assert render(biotope_view) =~ "arkea-biotope__scene"
     assert render(biotope_view) =~ "Mesophilic Soil"
   end
 
@@ -163,8 +164,8 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert html =~ "Arkeon seed locked"
     assert html =~ "Locked Seed"
 
-    assert html =~
-             "This committed atlas is now read-only, but gene composition and intergenic blocks remain inspectable."
+    # Lock banner copy (preserved from pre-U5 wording)
+    assert html =~ "This phenotype/genome configuration is already bound"
 
     assert html =~ "Arkeon phenotype portrait"
     assert html =~ ~s(href="/biotopes/#{biotope_id}")
@@ -234,15 +235,70 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     |> element("button[phx-click=commit_custom_gene]")
     |> render_click()
 
+    # Expand the gene inspector so the cassette manifest is rendered.
+    view
+    |> element("button[phx-click=toggle_inspector]")
+    |> render_click()
+
     html_after_commit = render(view)
-    assert html_after_commit =~ "Custom gene 1"
-    assert html_after_commit =~ "Custom G2"
+    # Custom gene committed: cassette manifest in the inspector
     assert html_after_commit =~ "Custom chromosome cassette"
     assert html_after_commit =~ "Substrate Binding"
     assert html_after_commit =~ "DNA Binding"
     assert html_after_commit =~ "expr:sigma"
     assert html_after_commit =~ "xfer:oriT"
     assert html_after_commit =~ "dup:repeat"
+    # Circular chromosome canvas is rendered (U5)
+    assert html_after_commit =~ "arkea-genome-canvas"
+  end
+
+  test "draft gene domain reorder buttons swap order; remove drops a domain", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/seed-lab")
+
+    # Compose: substrate_binding then dna_binding
+    view
+    |> element("button[phx-click=append_domain][phx-value-type=substrate_binding]")
+    |> render_click()
+
+    view
+    |> element("button[phx-click=append_domain][phx-value-type=dna_binding]")
+    |> render_click()
+
+    html = render(view)
+    # Each draft domain row appears with ↑/↓/× controls
+    assert html =~ ~s|phx-click="move_draft_domain"|
+    assert html =~ ~s|phx-click="remove_draft_domain"|
+
+    # Move the first domain (idx 0) down → order becomes dna_binding, substrate_binding
+    view
+    |> element(
+      ~s|button[phx-click="move_draft_domain"][phx-value-index="0"][phx-value-to="down"]|
+    )
+    |> render_click()
+
+    # The first rendered label after the move must be "DNA Binding"
+    # (it was at idx 1 before the swap; now it sits at idx 0).
+    new_html = render(view)
+    [_, first_label_block | _] =
+      String.split(new_html, "arkea-draft-domain__label", parts: 3)
+
+    assert first_label_block =~ "DNA Binding"
+
+    # Remove index 0 (currently dna_binding) → only substrate_binding remains
+    view
+    |> element(~s|button[phx-click="remove_draft_domain"][phx-value-index="0"]|)
+    |> render_click()
+
+    final_html = render(view)
+    # Exactly one draft row remains; it carries Substrate Binding at index 0.
+    assert final_html =~ ~s|data-draft-index="0"|
+    refute final_html =~ ~s|data-draft-index="1"|
+
+    [_, draft_li | _] =
+      String.split(final_html, ~s|data-draft-index="0"|, parts: 2) ++ [""]
+
+    [draft_li_content | _] = String.split(draft_li, "</li>", parts: 2)
+    assert draft_li_content =~ "Substrate Binding"
   end
 
   defp cleanup_owned_biotopes do

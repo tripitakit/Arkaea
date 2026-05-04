@@ -8,7 +8,10 @@ defmodule ArkeaWeb.SeedLabLive do
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
   alias Arkea.Game.SeedLab
-  alias ArkeaWeb.GameChrome
+  alias Arkea.Views.GenomeCanvas, as: CanvasLayout
+  alias ArkeaWeb.Components.GenomeCanvas
+  alias ArkeaWeb.Components.Metric
+  alias ArkeaWeb.Components.Shell
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
@@ -162,6 +165,60 @@ defmodule ArkeaWeb.SeedLabLive do
      )}
   end
 
+  def handle_event("select_gene", %{"id" => gene_id}, socket) do
+    case locate_gene_by_id(socket.assigns.preview, gene_id) do
+      {replicon_id, index} ->
+        {:noreply,
+         assign(socket,
+           selected_replicon_id: replicon_id,
+           selected_gene_index: index,
+           inspector_expanded: true
+         )}
+
+      :not_found ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("move_draft_domain", %{"index" => raw_index, "to" => to}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(raw_index)
+      draft = socket.assigns.gene_draft
+      domains = Map.get(draft, :domains, [])
+
+      shifted =
+        case to do
+          "up" -> swap_at(domains, idx, idx - 1)
+          "down" -> swap_at(domains, idx, idx + 1)
+          _ -> domains
+        end
+
+      {:noreply,
+       assign(socket,
+         gene_draft: Map.put(draft, :domains, shifted),
+         gene_editor_error: nil
+       )}
+    end
+  end
+
+  def handle_event("remove_draft_domain", %{"index" => raw_index}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(raw_index)
+      draft = socket.assigns.gene_draft
+      domains = Map.get(draft, :domains, [])
+
+      {:noreply,
+       assign(socket,
+         gene_draft: Map.put(draft, :domains, List.delete_at(domains, idx)),
+         gene_editor_error: nil
+       )}
+    end
+  end
+
   def handle_event("toggle_inspector", _params, socket) do
     {:noreply, assign(socket, inspector_expanded: not socket.assigns.inspector_expanded)}
   end
@@ -187,29 +244,43 @@ defmodule ArkeaWeb.SeedLabLive do
 
   @impl Phoenix.LiveView
   def render(assigns) do
+    canvas_layout = CanvasLayout.build(CanvasLayout.from_preview(assigns.preview))
+
+    selected_gene_id =
+      selected_gene_id(
+        assigns.preview,
+        assigns.selected_replicon_id,
+        assigns.selected_gene_index
+      )
+
+    assigns = assign(assigns, canvas_layout: canvas_layout, selected_gene_id: selected_gene_id)
+
     ~H"""
-    <div class="sim-shell" data-view="seed-lab">
-      <div class="sim-shell__grid"></div>
-      <div class="sim-shell__content">
-        <GameChrome.top_nav active={:seed_lab} player_name={@player.display_name} />
+    <Shell.shell sidebar?={false}>
+      <:header>
+        <Shell.shell_brand>Arkea</Shell.shell_brand>
+        <Shell.shell_nav items={seed_lab_nav_items()} />
+        <div class="arkea-shell__spacer"></div>
+        <Shell.shell_user name={@player.display_name} logout_href={~p"/players/log-out"} />
+      </:header>
 
-        <section class="sim-hero seed-hero mt-6">
-          <div>
-            <div class="sim-hero__eyebrow">Arkea prototype · onboarding shell</div>
-            <h1 class="sim-hero__title">Seed lab</h1>
-            <p class="sim-hero__copy">
-              Build an initial Arkeon seed from phenotype-level choices and inspect the derived genome scaffold before provisioning a home biotope.
-            </p>
-          </div>
+      <div class="arkea-seed-lab arkea-scrollable">
+        <header class="arkea-seed-lab__heading">
+          <span class="arkea-seed-lab__eyebrow">Seed Lab</span>
+          <h1 class="arkea-seed-lab__title">Visual genome editor</h1>
+          <p class="arkea-seed-lab__copy">
+            Compose phenotype + genome from functional domain palettes. The
+            chromosome renders as a circular replicon with a domain crown;
+            click a gene to inspect it.
+          </p>
+        </header>
 
-          <div class="sim-stat-strip">
-            <.stat_chip label="starter tier" value="3 ecotypes" tone="gold" />
-            <.stat_chip label="genes" value={@preview.gene_count} tone="teal" />
-            <.stat_chip label="plasmids" value={@preview.plasmid_count} tone="sky" />
-            <.stat_chip label="prophages" value={@preview.prophage_count} tone="amber" />
-            <.stat_chip label="playstyle" value={@preview.playstyle} tone="slate" />
-          </div>
-        </section>
+        <Metric.metric_strip class="arkea-seed-lab__chips">
+          <Metric.metric_chip label="genes" value={@preview.gene_count} tone="teal" />
+          <Metric.metric_chip label="plasmids" value={@preview.plasmid_count} tone="sky" />
+          <Metric.metric_chip label="prophages" value={@preview.prophage_count} tone="rust" />
+          <Metric.metric_chip label="playstyle" value={@preview.playstyle} tone="muted" />
+        </Metric.metric_strip>
 
         <div
           class="sim-main-grid mt-6"
@@ -431,12 +502,10 @@ defmodule ArkeaWeb.SeedLabLive do
                 preview={@preview}
               />
 
-              <.genome_atlas
-                preview={@preview}
-                custom_gene_specs={@custom_gene_specs}
-                selected_replicon_id={@selected_replicon_id}
-                selected_gene_index={@selected_gene_index}
-                seed_locked?={@seed_locked?}
+              <GenomeCanvas.genome_canvas
+                layout={@canvas_layout}
+                selected_gene_id={@selected_gene_id}
+                class="arkea-seed-lab__canvas"
               />
 
               <div>
@@ -527,8 +596,41 @@ defmodule ArkeaWeb.SeedLabLive do
           </div>
         </div>
       </div>
-    </div>
+    </Shell.shell>
     """
+  end
+
+  defp selected_gene_id(preview, replicon_id, gene_index) do
+    case replicon_id do
+      "chromosome" ->
+        case Enum.at(preview.genome.chromosome, max(gene_index - 1, 0)) do
+          %{id: id} -> id
+          _ -> nil
+        end
+
+      "plasmid_" <> rest ->
+        case Integer.parse(rest) do
+          {idx, _} ->
+            plasmid = Enum.at(preview.genome.plasmids, max(idx - 1, 0))
+
+            cond do
+              is_nil(plasmid) -> nil
+              true ->
+                genes = if is_map(plasmid), do: plasmid.genes, else: plasmid
+
+                case Enum.at(genes, max(gene_index - 1, 0)) do
+                  %{id: id} -> id
+                  _ -> nil
+                end
+            end
+
+          :error ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
   end
 
   attr(:field, :string, required: true)
@@ -667,18 +769,59 @@ defmodule ArkeaWeb.SeedLabLive do
 
         <div class="seed-editor__draft">
           <div class="seed-editor__draft-title">Draft gene</div>
-          <div class="seed-gene__bar seed-gene__bar--draft">
-            <span
-              :for={domain_id <- @draft_domains}
-              class={["seed-domain", "seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
-              style="flex: 23;"
-              title={domain_label(domain_type_from_id(domain_id))}
+          <ul class="arkea-draft-domains" role="list">
+            <li
+              :for={{domain_id, idx} <- Enum.with_index(@draft_domains)}
+              class={[
+                "arkea-draft-domain",
+                "arkea-draft-domain--#{domain_tone(domain_type_from_id(domain_id))}"
+              ]}
+              data-draft-index={idx}
             >
-            </span>
-            <span :if={@draft_domains == []} class="seed-editor__draft-empty">
-              add functional domains
-            </span>
-          </div>
+              <span
+                class="arkea-draft-domain__swatch"
+                style={"background: #{CanvasLayout.domain_color(domain_type_from_id(domain_id))}"}
+                aria-hidden="true"
+              />
+              <span class="arkea-draft-domain__label">
+                {domain_label(domain_type_from_id(domain_id))}
+              </span>
+              <span class="arkea-draft-domain__controls">
+                <button
+                  type="button"
+                  phx-click="move_draft_domain"
+                  phx-value-index={idx}
+                  phx-value-to="up"
+                  class="arkea-draft-domain__btn"
+                  disabled={@seed_locked? or idx == 0}
+                  aria-label="Move domain up"
+                  title="Move up"
+                >↑</button>
+                <button
+                  type="button"
+                  phx-click="move_draft_domain"
+                  phx-value-index={idx}
+                  phx-value-to="down"
+                  class="arkea-draft-domain__btn"
+                  disabled={@seed_locked? or idx == length(@draft_domains) - 1}
+                  aria-label="Move domain down"
+                  title="Move down"
+                >↓</button>
+                <button
+                  type="button"
+                  phx-click="remove_draft_domain"
+                  phx-value-index={idx}
+                  class="arkea-draft-domain__btn arkea-draft-domain__btn--danger"
+                  disabled={@seed_locked?}
+                  aria-label="Remove domain"
+                  title="Remove"
+                >×</button>
+              </span>
+            </li>
+            <li :if={@draft_domains == []} class="arkea-draft-domain arkea-draft-domain--empty">
+              Add functional domains from the palette below.
+            </li>
+          </ul>
 
           <div class="seed-intergenic-summary">
             <span :for={entry <- intergenic_badges(@draft_intergenic)} class="seed-intergenic-chip">
@@ -812,102 +955,6 @@ defmodule ArkeaWeb.SeedLabLive do
   attr(:custom_gene_specs, :list, required: true)
   attr(:selected_replicon_id, :string, required: true)
   attr(:selected_gene_index, :integer, required: true)
-  attr(:seed_locked?, :boolean, required: true)
-
-  defp genome_atlas(assigns) do
-    assigns =
-      assign(assigns, replicons: replicon_views(assigns.preview, assigns.custom_gene_specs))
-
-    ~H"""
-    <div class="seed-atlas">
-      <div class="seed-atlas__copy">
-        Click a gene track to inspect its functional domains and intergenic blocks.
-      </div>
-
-      <.replicon_track
-        :for={replicon <- @replicons}
-        replicon={replicon}
-        selected_replicon_id={@selected_replicon_id}
-        selected_gene_index={@selected_gene_index}
-      />
-
-      <div class="seed-domain-legend">
-        <span :for={entry <- domain_legend()} class="seed-domain-legend__item">
-          <span class={["seed-domain-legend__swatch", "seed-domain-legend__swatch--#{entry.tone}"]}>
-          </span>
-          <span>{entry.label}</span>
-        </span>
-      </div>
-
-      <p class="sim-muted">
-        <%= if @seed_locked? do %>
-          This committed atlas is now read-only, but gene composition and intergenic blocks remain inspectable.
-        <% else %>
-          The atlas is now the advanced chromosome editor surface: phenotype presets seed the baseline, then custom genes extend the chromosome gene-by-gene.
-        <% end %>
-      </p>
-    </div>
-    """
-  end
-
-  attr(:replicon, :map, required: true)
-  attr(:selected_replicon_id, :string, required: true)
-  attr(:selected_gene_index, :integer, required: true)
-
-  defp replicon_track(assigns) do
-    ~H"""
-    <div class="seed-replicon">
-      <div class="seed-replicon__header">
-        <span class={["seed-replicon__tone", "seed-replicon__tone--#{@replicon.tone}"]}></span>
-        <span class="seed-replicon__title">{@replicon.label}</span>
-        <span class="seed-replicon__meta">{length(@replicon.genes)} genes</span>
-      </div>
-
-      <div class="seed-replicon__genes">
-        <button
-          :for={gene <- @replicon.genes}
-          type="button"
-          phx-click="focus_gene"
-          phx-value-replicon={@replicon.id}
-          phx-value-gene={gene.index}
-          class={[
-            "seed-gene",
-            (@selected_replicon_id == @replicon.id and @selected_gene_index == gene.index) &&
-              "seed-gene--selected",
-            gene.is_custom && "seed-gene--custom"
-          ]}
-        >
-          <div :if={intergenic_badges(gene.intergenic_blocks) != []} class="seed-intergenic-summary">
-            <span
-              :for={entry <- intergenic_badges(gene.intergenic_blocks)}
-              class="seed-intergenic-chip"
-            >
-              {entry}
-            </span>
-          </div>
-
-          <div class="seed-gene__bar">
-            <span
-              :for={domain <- gene.domains}
-              class={["seed-domain", "seed-domain--#{domain.tone}"]}
-              style={"flex: #{domain.flex};"}
-              title={domain.label}
-            >
-            </span>
-          </div>
-          <div class="seed-gene__meta">
-            {gene.label} · {gene.domain_count} domains · {gene.codon_count} codons
-          </div>
-        </button>
-      </div>
-    </div>
-    """
-  end
-
-  attr(:preview, :map, required: true)
-  attr(:custom_gene_specs, :list, required: true)
-  attr(:selected_replicon_id, :string, required: true)
-  attr(:selected_gene_index, :integer, required: true)
 
   defp gene_inspector(assigns) do
     gene =
@@ -969,15 +1016,6 @@ defmodule ArkeaWeb.SeedLabLive do
     <div class="sim-env-reading">
       <span class="sim-env-reading__label">{@label}</span>
       <span class="sim-env-reading__value">{@value}</span>
-    </div>
-    """
-  end
-
-  defp stat_chip(assigns) do
-    ~H"""
-    <div class={["sim-stat-chip", "sim-stat-chip--#{@tone}"]}>
-      <span class="sim-stat-chip__label">{@label}</span>
-      <span class="sim-stat-chip__value">{@value}</span>
     </div>
     """
   end
@@ -1183,6 +1221,44 @@ defmodule ArkeaWeb.SeedLabLive do
       {value, _rest} when value >= 0 -> value
       _ -> 0
     end
+  end
+
+  defp locate_gene_by_id(preview, gene_id) do
+    case Enum.find_index(preview.genome.chromosome, &(&1.id == gene_id)) do
+      nil ->
+        preview.genome.plasmids
+        |> Enum.with_index(1)
+        |> Enum.find_value(:not_found, fn {plasmid, idx} ->
+          genes = if is_map(plasmid), do: plasmid.genes, else: plasmid
+
+          case Enum.find_index(genes, &(&1.id == gene_id)) do
+            nil -> nil
+            gene_idx -> {"plasmid_#{idx}", gene_idx + 1}
+          end
+        end)
+
+      chrom_idx ->
+        {"chromosome", chrom_idx + 1}
+    end
+  end
+
+  defp swap_at(list, i, j)
+       when is_integer(i) and is_integer(j) and i >= 0 and j >= 0 and i != j do
+    case {Enum.at(list, i), Enum.at(list, j)} do
+      {nil, _} -> list
+      {_, nil} -> list
+      {a, b} -> list |> List.replace_at(i, b) |> List.replace_at(j, a)
+    end
+  end
+
+  defp swap_at(list, _i, _j), do: list
+
+  defp seed_lab_nav_items do
+    [
+      %{label: "Dashboard", href: "/dashboard", active: false},
+      %{label: "World", href: "/world", active: false},
+      %{label: "Seed Lab", href: "/seed-lab", active: true}
+    ]
   end
 
   defp replicon_views(preview, custom_gene_specs) do
@@ -1439,20 +1515,6 @@ defmodule ArkeaWeb.SeedLabLive do
   defp domain_tone(:repair_fidelity), do: "repair"
   defp domain_tone(:structural_fold), do: "structure"
   defp domain_tone(_type), do: "other"
-
-  defp domain_legend do
-    [
-      %{label: "Binding", tone: "binding"},
-      %{label: "Catalysis", tone: "catalytic"},
-      %{label: "Energy", tone: "energy"},
-      %{label: "Membrane", tone: "membrane"},
-      %{label: "Regulation", tone: "regulation"},
-      %{label: "Sensor", tone: "sensor"},
-      %{label: "Repair", tone: "repair"},
-      %{label: "Structure", tone: "structure"},
-      %{label: "Other", tone: "other"}
-    ]
-  end
 
   defp domain_label(:dna_binding), do: "DNA Binding"
 

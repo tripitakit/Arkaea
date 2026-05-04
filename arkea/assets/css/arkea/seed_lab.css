@@ -1,0 +1,227 @@
+/*
+ * Arkea Seed Lab (UI rewrite — phase U5)
+ *
+ * Two distinct surfaces in this slice:
+ *
+ * 1. Page wrapper: shell-aware container + heading. The Seed Lab keeps the
+ *    existing 2-col grid (form left, multi-card sidebar right) — the deeper
+ *    3-col split with right inspector panel is wired through the genome
+ *    canvas below.
+ *
+ * 2. Circular genome canvas: SVG with chromosome ring, gene arcs, and a
+ *    domain crown. Plasmids render as smaller satellite circles.
+ *
+ * 3. Draft gene domain editor: each domain row exposes ↑/↓/× controls
+ *    (a11y-first; the JS DnD hook lands later as an additive enhancement).
+ */
+
+/* ─── Page wrapper ──────────────────────────────────────────────────────── */
+
+.arkea-seed-lab {
+  padding: var(--arkea-space-5) var(--arkea-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-4);
+}
+
+.arkea-seed-lab__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+  max-width: 56rem;
+}
+
+.arkea-seed-lab__eyebrow {
+  font-size: var(--arkea-text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--arkea-fg-faint);
+}
+
+.arkea-seed-lab__title {
+  font-size: var(--arkea-text-lg);
+  font-weight: 600;
+  margin: 0;
+  color: var(--arkea-fg);
+}
+
+.arkea-seed-lab__copy {
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.arkea-seed-lab__chips { margin-top: 0; }
+
+/* ─── Genome canvas ─────────────────────────────────────────────────────── */
+
+.arkea-genome-canvas {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--arkea-bg-deep);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-md);
+  margin-top: var(--arkea-space-4);
+  padding: var(--arkea-space-3);
+  min-height: 480px;
+}
+
+.arkea-genome-canvas__svg {
+  width: 100%;
+  height: auto;
+  max-width: 720px;
+  display: block;
+}
+
+.arkea-genome-canvas__replicon-ring {
+  fill: none;
+  stroke: var(--arkea-border);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 2;
+  opacity: 0.5;
+}
+
+.arkea-genome-canvas__replicon-label {
+  fill: var(--arkea-fg-faint);
+  font-size: 11px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arkea-genome-canvas__gene {
+  cursor: pointer;
+  outline: none;
+}
+
+.arkea-genome-canvas__gene-arc {
+  opacity: 0.78;
+  transition: opacity 150ms ease, filter 150ms ease;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 0.4;
+}
+
+.arkea-genome-canvas__gene:hover .arkea-genome-canvas__gene-arc,
+.arkea-genome-canvas__gene-arc:focus-visible {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__gene-arc {
+  opacity: 1;
+  stroke: var(--arkea-fg);
+  stroke-width: 1.2;
+}
+
+.arkea-genome-canvas__gene-label {
+  fill: var(--arkea-fg-muted);
+  font-size: 10px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__gene-label {
+  fill: var(--arkea-fg);
+  font-weight: 600;
+}
+
+.arkea-genome-canvas__gene--editable .arkea-genome-canvas__gene-arc {
+  /* Subtle dashed accent on user-authored genes. */
+  stroke-dasharray: 2 1.5;
+}
+
+.arkea-genome-canvas__domain {
+  pointer-events: none;
+  opacity: 0.92;
+  transition: opacity 200ms ease;
+}
+
+.arkea-genome-canvas__gene--selected .arkea-genome-canvas__domain {
+  opacity: 1;
+}
+
+/* ─── Draft gene domain editor (↑/↓/× controls) ─────────────────────────── */
+
+.arkea-draft-domains {
+  list-style: none;
+  margin: var(--arkea-space-2) 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-draft-domain {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--arkea-space-2);
+  align-items: center;
+  padding: var(--arkea-space-1) var(--arkea-space-2);
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  font-size: var(--arkea-text-sm);
+}
+
+.arkea-draft-domain--empty {
+  grid-template-columns: 1fr;
+  color: var(--arkea-fg-faint);
+  font-style: italic;
+  background: transparent;
+  border-style: dashed;
+  text-align: center;
+  padding: var(--arkea-space-3);
+}
+
+.arkea-draft-domain__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.arkea-draft-domain__label {
+  color: var(--arkea-fg);
+}
+
+.arkea-draft-domain__controls {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.arkea-draft-domain__btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--arkea-fg-muted);
+  font-family: inherit;
+  font-size: var(--arkea-text-sm);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--arkea-radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.arkea-draft-domain__btn:hover:not(:disabled) {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+  border-color: var(--arkea-border);
+}
+
+.arkea-draft-domain__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.arkea-draft-domain__btn--danger:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--arkea-accent-stress) 18%, var(--arkea-surface-2));
+  color: var(--arkea-accent-stress);
+  border-color: color-mix(in oklch, var(--arkea-accent-stress) 50%, transparent);
+}
