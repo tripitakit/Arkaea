@@ -331,6 +331,7 @@ defmodule ArkeaWeb.SimLive do
                 <.lineage_drawer
                   lineage={@selected_lineage}
                   phenotype_cache={@phenotype_cache}
+                  biotope_id={@biotope_id}
                 />
               </aside>
             </div>
@@ -557,6 +558,7 @@ defmodule ArkeaWeb.SimLive do
 
   attr :lineage, :map, required: true
   attr :phenotype_cache, :map, required: true
+  attr :biotope_id, :string, required: true
 
   defp lineage_drawer(assigns) do
     phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
@@ -623,6 +625,13 @@ defmodule ArkeaWeb.SimLive do
           title="Open the audit log to inspect lineage events"
         >
           Audit log →
+        </.link>
+        <.link
+          navigate={~p"/biotopes/#{@biotope_id}/hgt-ledger"}
+          class="arkea-button arkea-button--secondary"
+          title="Open the HGT provenance ledger for this biotope"
+        >
+          HGT ledger →
         </.link>
       </:footer>
     </Panel.panel>

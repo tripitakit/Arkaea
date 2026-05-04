@@ -44,6 +44,7 @@ defmodule ArkeaWeb.Router do
       live "/world", WorldLive
       live "/seed-lab", SeedLabLive
       live "/biotopes/:id", SimLive
+      live "/biotopes/:id/hgt-ledger", HGTLedgerLive
       live "/audit", AuditLive
       live "/community", CommunityLive
       live "/help", HelpLive
