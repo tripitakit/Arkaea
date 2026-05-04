@@ -44,8 +44,17 @@ defmodule Arkea.Sim.Biomass do
   # freshwater baseline). Outside the band osmotic stress builds up;
   # the slope is gentle (1/600) so a *normal* phase contributes zero
   # decay even when its osmolarity is +/-100 mOsm/L off target.
+  # Calibration (2026-05-05): the original tolerance band was too
+  # narrow — phases at osmolarity 50 (oligotrophic lake) and 1100
+  # (saline estuary marine layer) sat just inside the cap, producing
+  # ~0.06 wall decay per tick that exceeded the biosynthesis progress
+  # of `thrifty`/`balanced` cassettes. Founder colonies collapsed in
+  # ~15 ticks before the player could observe any selective pressure.
+  # Widening the tolerance to 280 keeps the lake (50) and pond
+  # (100–200) phases stress-free while still putting marine layers
+  # (≥1000) under non-trivial osmotic load.
   @osmotic_target 300.0
-  @osmotic_tolerance 200.0
+  @osmotic_tolerance 280.0
   @osmotic_scale 600.0
 
   @doc """

@@ -162,14 +162,15 @@ Each player can claim **up to 3 home biotopes** (badge `Homes N/3` at the top ri
 
 #### Quick-start: scenario presets
 
-Above the form fields, a row of **chips** offers four pre-packaged scenarios. Click → all fields (archetype, metabolism, membrane, regulation, mobile module, name) are populated with a combination that illustrates a specific evolutionary phenomenon:
+Above the form fields, a row of **chips** offers three pre-packaged scenarios. Click → all fields (archetype, metabolism, membrane, regulation, mobile module, name) are populated with a combination validated to **survive ≥ 400 ticks** with the default founder:
 
-- **Mutator vs steady (Oligotrophic lake)** — `regulation_profile = mutator` + `latent_prophage` in an oligotrophic lake. The fastest starting point to observe `dna_damage` accumulation and SOS-triggered prophage induction.
-- **Cross-feeding bloom (Eutrophic pond)** — `metabolism = bloom` + `responsive` + `conjugative_plasmid`. Abundant glucose + accumulating by-products (acetate/lactate): the metabolite heatmap reveals C-cycle closure within a few hundred ticks.
-- **Halotolerant estuary** — `saline_estuary` + `salinity_tuned`. Survival comparison across freshwater layer / mixing zone / marine layer.
-- **Acidophile iron oxidiser** — `acid_mine_drainage` + `fortified` + `steady`. pH ≈ 3, niche for chemolithotrophs.
+- **Oligotrophic lake + latent prophage** — `balanced` + `porous` + `responsive` + `latent_prophage`. Low-nutrient lake; population stabilises modest (N~40–50). Once density rises, stress can induce the prophage via SOS.
+- **Cross-feeding bloom (Eutrophic pond)** — `bloom` + `porous` + `responsive` + `conjugative_plasmid`. Abundant glucose + accumulating by-products (acetate/lactate): the metabolite heatmap reveals C-cycle closure within a few hundred ticks. Population peaks around N~3000 and settles at N~1800.
+- **Mesophilic soil generalist** — `balanced` + `salinity_tuned` + `responsive` + `conjugative_plasmid`. Three phases (aerated_pore, wet_clump, soil_water): pronounced niche partitioning and a sustained-growth population (N~5000+ at tick 400).
 
 After clicking you can still edit any field: the preset is a starting point, not a commit.
+
+> **Calibration note (2026-05-05)**: extreme archetypes like `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment`, and the `marine_layer` of `saline_estuary` are **real chemolithotrophic niches** where the default founder — whose `balanced/thrifty/bloom` cassette only binds glucose — cannot sustain itself long-term. They remain selectable from the main form: to grow a seed to maturity in those niches you have to build **custom genes** in the gene designer that bind the local substrates (Fe²⁺, H₂, H₂S, SO₄²⁻). The `regulation_profile = mutator` is also still available but does not appear among the presets because in oligotrophic phases it collapses into error catastrophe before the founder can stabilise: pair it with a `bloom` cassette in eutrophic settings to study it. The `BIOLOGICAL-MODEL-REVIEW.md` Phase 14–15 work will add native chemolithotrophic metabolism profiles.
 
 #### Seed name
 

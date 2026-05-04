@@ -8,6 +8,21 @@ defmodule Arkea.Game.Scenarios do
   can land in an interesting evolutionary corner without designing
   from scratch.
 
+  ## Survival calibration (2026-05-05)
+
+  Every preset shipped here is validated against the live tick to
+  keep the founder colony alive for ≥ 400 ticks at default
+  parameters. Configurations that collapse the founder via osmotic
+  shock or substrate exhaustion (e.g. `mutator` regulation in
+  oligotrophic phases, default cassettes in chemolithotrophic
+  archetypes like `acid_mine_drainage` / `hydrothermal_vent` /
+  `methanogenic_bog`) are deliberately *not* exposed as quick-start
+  chips: the simulation's substrate-binding domains target glucose
+  by default, and reaching those archetypes productively requires
+  manual customisation of the catalytic / substrate domains in the
+  gene designer. They remain available for hand-built seeds —
+  experimentation is the point — but the chips below stay safe.
+
   The simulation already exposes 8 archetypes, 3 metabolism profiles,
   3 membrane profiles, 3 regulation profiles and 3 mobile modules;
   the goal of this module is *not* to enumerate the combinatorial
@@ -17,16 +32,16 @@ defmodule Arkea.Game.Scenarios do
 
   @scenarios [
     %{
-      id: "mutator_vs_steady_lake",
-      title: "Mutator vs steady (Oligotrophic lake)",
+      id: "lake_with_prophage",
+      title: "Oligotrophic lake + latent prophage",
       summary:
-        "Mutator-edge regulation in a low-nutrient lake. Watch DNA-damage scores climb and SOS-driven prophage induction kick in.",
+        "Cool low-nutrient lake with a balanced cassette and a latent prophage in the seed. Population stays modest; once density is high enough the prophage can induce under stress.",
       params: %{
-        "seed_name" => "Mutator Edge",
+        "seed_name" => "Lake Pioneer",
         "starter_archetype" => "oligotrophic_lake",
-        "metabolism_profile" => "thrifty",
+        "metabolism_profile" => "balanced",
         "membrane_profile" => "porous",
-        "regulation_profile" => "mutator",
+        "regulation_profile" => "responsive",
         "mobile_module" => "latent_prophage"
       }
     },
@@ -45,31 +60,17 @@ defmodule Arkea.Game.Scenarios do
       }
     },
     %{
-      id: "saline_gradient_estuary",
-      title: "Halotolerant estuary",
+      id: "soil_generalist",
+      title: "Mesophilic soil generalist",
       summary:
-        "Tidal salinity gradient with a salinity-tuned envelope. Compare survival across the freshwater / mixing-zone / marine layers.",
+        "Patchy soil with aerobic pores + wet clumps + soil water. Balanced cassette and salinity-tuned envelope handle the moderate osmotic gradient; ideal for observing niche partitioning across phases.",
       params: %{
-        "seed_name" => "Estuary Halophile",
-        "starter_archetype" => "saline_estuary",
+        "seed_name" => "Soil Generalist",
+        "starter_archetype" => "mesophilic_soil",
         "metabolism_profile" => "balanced",
         "membrane_profile" => "salinity_tuned",
         "regulation_profile" => "responsive",
-        "mobile_module" => "none"
-      }
-    },
-    %{
-      id: "acidophile_mine",
-      title: "Acidophile iron oxidiser",
-      summary:
-        "pH ≈ 3 acid mine drainage, fortified envelope, balanced metabolism. Iron-cycling niche for chemolithotrophs.",
-      params: %{
-        "seed_name" => "Acidophile Pioneer",
-        "starter_archetype" => "acid_mine_drainage",
-        "metabolism_profile" => "balanced",
-        "membrane_profile" => "fortified",
-        "regulation_profile" => "steady",
-        "mobile_module" => "none"
+        "mobile_module" => "conjugative_plasmid"
       }
     }
   ]

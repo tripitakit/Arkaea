@@ -162,14 +162,15 @@ Ogni player può claimare **fino a 3 home biotopi** (badge `Homes N/3` in alto a
 
 #### Quick-start: scenario presets
 
-Sopra i campi del form, una riga di **chip** offre quattro scenari pre-confezionati. Click → tutti i campi (archetype, metabolismo, membrana, regolazione, mobile module, nome) si popolano in una combinazione che illustra un fenomeno evolutivo specifico:
+Sopra i campi del form, una riga di **chip** offre tre scenari pre-confezionati. Click → tutti i campi (archetype, metabolismo, membrana, regolazione, mobile module, nome) si popolano in una combinazione validata per **sopravvivere ≥ 400 tick** col founder default:
 
-- **Mutator vs steady (Oligotrophic lake)** — `regulation_profile = mutator` + `latent_prophage` in un lago oligotrofo. Il punto di partenza più rapido per osservare l'accumulo di `dna_damage` e l'induction profago da SOS.
-- **Cross-feeding bloom (Eutrophic pond)** — `metabolism = bloom` + `responsive` + `conjugative_plasmid`. Glucosio abbondante + by-product (acetato/lattato) che accumulano: la heatmap dei metaboliti rivela la chiusura del ciclo C in poche centinaia di tick.
-- **Halotolerant estuary** — `saline_estuary` + `salinity_tuned`. Confronto di sopravvivenza tra freshwater layer / mixing zone / marine layer.
-- **Acidophile iron oxidiser** — `acid_mine_drainage` + `fortified` + `steady`. pH ≈ 3, nicchia per chemiolitotrofi.
+- **Oligotrophic lake + latent prophage** — `balanced` + `porous` + `responsive` + `latent_prophage`. Lago a basso nutrimento; popolazione si stabilizza modesta (N~40-50). Quando la densità sale lo stress può indurre il profago via SOS.
+- **Cross-feeding bloom (Eutrophic pond)** — `bloom` + `porous` + `responsive` + `conjugative_plasmid`. Glucosio abbondante + by-product (acetato/lattato) che accumulano: la heatmap dei metaboliti rivela la chiusura del ciclo C in poche centinaia di tick. La popolazione picca attorno N~3000 e si assesta a N~1800.
+- **Mesophilic soil generalist** — `balanced` + `salinity_tuned` + `responsive` + `conjugative_plasmid`. Tre fasi (aerated_pore, wet_clump, soil_water): niche partitioning marcato e popolazione che cresce sostenuta (N~5000+ a tick 400).
 
 Dopo il click puoi comunque modificare ogni campo: il preset è un punto di partenza, non un commit.
+
+> **Nota di calibrazione (2026-05-05)**: archetipi estremi come `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment` e il `marine_layer` del `saline_estuary` sono **nicchie chemiolitotrofiche reali** dove il founder default — la cui cassette `balanced/thrifty/bloom` lega solo glucosio — non riesce a sopravvivere lungo termine. Sono comunque selezionabili dal form principale: per portare un seed alla maturità in queste niche serve costruire **gene custom** che leghino i substrati locali (Fe²⁺, H₂, H₂S, SO₄²⁻) via il gene designer. Il `regulation_profile = mutator` resta disponibile ma non figura nei preset perché in oligotrofi precipita in error catastrophe prima che la founder si stabilizzi: per esibirlo, accoppia con `bloom` cassette in eutrofici. Il piano `BIOLOGICAL-MODEL-REVIEW.md` Phase 14-15 aggiungerà profili metabolici chemiolitotrofici nativi.
 
 #### Nome del seed
 

@@ -1066,24 +1066,75 @@ defmodule Arkea.Game.SeedLab do
     %{glucose: 12.0, acetate: 6.0, oxygen: 8.0, nh3: 3.0, po4: 1.5, co2: 4.0}
   end
 
+  # Note (calibration, 2026-05-05): the new "extreme" archetypes are
+  # biologically dominated by sulphur / iron / hydrogen chemistry, but
+  # the default `balanced` / `thrifty` / `bloom` substrate-binding
+  # cassettes only target glucose. Until the metabolism profiles get
+  # extended to chemolithotrophic substrates, every preset needs at
+  # least a baseline level of glucose + acetate + N + P so a default
+  # founder colony can survive long enough to reveal the archetype's
+  # selective pressures. The "flavour" metabolites (H₂, H₂S, Fe, SO₄)
+  # remain dominant — they're just no longer the only food on the
+  # menu.
   defp starting_pool(:saline_estuary) do
     %{glucose: 10.0, acetate: 3.0, oxygen: 7.0, nh3: 2.0, no3: 1.5, so4: 4.0, po4: 1.0}
   end
 
   defp starting_pool(:marine_sediment) do
-    %{acetate: 4.0, h2: 1.5, oxygen: 1.0, so4: 8.0, h2s: 2.0, iron: 0.5, co2: 4.0}
+    %{
+      glucose: 6.0,
+      acetate: 4.0,
+      h2: 1.5,
+      oxygen: 1.0,
+      so4: 8.0,
+      h2s: 2.0,
+      iron: 0.5,
+      co2: 4.0,
+      nh3: 1.5,
+      po4: 0.6
+    }
   end
 
   defp starting_pool(:methanogenic_bog) do
-    %{acetate: 5.0, h2: 3.0, co2: 6.0, ch4: 1.0, nh3: 1.5, oxygen: 0.5}
+    %{
+      glucose: 5.0,
+      acetate: 5.0,
+      h2: 3.0,
+      co2: 6.0,
+      ch4: 1.0,
+      nh3: 1.5,
+      oxygen: 0.5,
+      po4: 0.5
+    }
   end
 
   defp starting_pool(:hydrothermal_vent) do
-    %{h2: 4.0, h2s: 3.0, co2: 5.0, iron: 1.5, so4: 4.0, oxygen: 0.5}
+    %{
+      glucose: 4.0,
+      acetate: 2.0,
+      h2: 4.0,
+      h2s: 3.0,
+      co2: 5.0,
+      iron: 1.5,
+      so4: 4.0,
+      oxygen: 0.5,
+      nh3: 1.0,
+      po4: 0.4
+    }
   end
 
   defp starting_pool(:acid_mine_drainage) do
-    %{iron: 4.0, so4: 6.0, oxygen: 4.0, co2: 3.0, h2s: 0.5}
+    %{
+      glucose: 6.0,
+      acetate: 2.0,
+      iron: 4.0,
+      so4: 6.0,
+      oxygen: 4.0,
+      co2: 3.0,
+      h2s: 0.5,
+      nh3: 1.2,
+      po4: 0.5
+    }
   end
 
   defp inflow_profile(:eutrophic_pond) do
@@ -1103,19 +1154,55 @@ defmodule Arkea.Game.SeedLab do
   end
 
   defp inflow_profile(:marine_sediment) do
-    %{acetate: 1.5, h2: 0.8, so4: 3.0, oxygen: 0.3, iron: 0.2}
+    %{
+      glucose: 2.0,
+      acetate: 1.5,
+      h2: 0.8,
+      so4: 3.0,
+      oxygen: 0.3,
+      iron: 0.2,
+      nh3: 0.6,
+      po4: 0.3
+    }
   end
 
   defp inflow_profile(:methanogenic_bog) do
-    %{acetate: 1.8, h2: 1.2, co2: 2.5, nh3: 0.7, oxygen: 0.1}
+    %{
+      glucose: 1.5,
+      acetate: 1.8,
+      h2: 1.2,
+      co2: 2.5,
+      nh3: 0.7,
+      oxygen: 0.1,
+      po4: 0.2
+    }
   end
 
   defp inflow_profile(:hydrothermal_vent) do
-    %{h2: 2.0, h2s: 1.5, co2: 2.0, iron: 0.7, so4: 1.5}
+    %{
+      glucose: 1.2,
+      acetate: 0.8,
+      h2: 2.0,
+      h2s: 1.5,
+      co2: 2.0,
+      iron: 0.7,
+      so4: 1.5,
+      nh3: 0.5,
+      po4: 0.2
+    }
   end
 
   defp inflow_profile(:acid_mine_drainage) do
-    %{iron: 1.8, so4: 2.5, oxygen: 1.5, co2: 1.0}
+    %{
+      glucose: 2.0,
+      acetate: 0.8,
+      iron: 1.8,
+      so4: 2.5,
+      oxygen: 1.5,
+      co2: 1.0,
+      nh3: 0.5,
+      po4: 0.2
+    }
   end
 
   defp phase_pool_factor(phase_name, :oxygen)
@@ -1136,7 +1223,13 @@ defmodule Arkea.Game.SeedLab do
   defp phase_seed_weight(:soil_water), do: 1.0
   defp phase_seed_weight(:freshwater_layer), do: 1.0
   defp phase_seed_weight(:mixing_zone), do: 0.8
-  defp phase_seed_weight(:marine_layer), do: 0.5
+  # Marine_layer (osmolarity 1100) is too harsh for a founder colony
+  # without a salinity-tuned envelope — putting cells there at tick 0
+  # collapses the seed via osmotic-shock lysis before any selection
+  # can happen. The founder is now seeded only in freshwater + mixing
+  # phases; cells reach the marine layer naturally via inter-phase
+  # migration once the population has stabilised.
+  defp phase_seed_weight(:marine_layer), do: 0.0
   defp phase_seed_weight(_phase_name), do: 0.85
 
   defp starter_ecotype(archetype) when is_atom(archetype) do
