@@ -487,6 +487,23 @@ Click su ⚙ in header → modal con metadati di rete:
 
 I neighbor sono usati dalla migration: cellule possono passare da un biotope all'altro lungo questi edge (probabilità configurata via `dilution_rate` × `migration_factor`).
 
+### 5.8 Ricolonizzare un home estinto
+
+Quando la popolazione totale del tuo biotopo home crolla a zero, sopra la scena compare un **banner "Colony extinct"** con un pulsante **"Recolonize home"**.
+
+- Il banner è visibile **solo all'owner** del biotopo, e **solo** quando `BiotopeState.total_abundance(state) == 0`.
+- Click → confirm dialog → il sistema costruisce un **fondatore fresco dallo stesso blueprint locked** (genoma identico a quello che avevi progettato originariamente nel Seed Lab) e lo inocula nel biotopo. Distribuzione iniziale: **N=420** spalmati sulle fasi correnti del biotopo.
+- Il biotope mantiene il suo `id` e il suo `tick_count`: la sequenza temporale è continua. Quello che cambia è solo il pool di cellule.
+- L'operazione è loggata in Audit come `intervention` con kind `home_recolonized` e l'`actor_player_id` del provisioning. Forensic-traceable.
+
+Limiti correnti:
+
+- Funziona solo sul biotopo home del player. Wild biotopes e biotopi di altri player non si possono ricolonizzare.
+- La ricolonizzazione **non resetta** la chimica, i pool fagici, i plasmidi liberi nel `dna_pool` o l'ambiente: il fondatore eredita lo stato ambientale corrente del biotopo. Se il biotopo era stato sterilizzato da un fago dilagante, la ricolonizzazione lo riapre allo stesso stress.
+- Non c'è rate limit dedicato (a differenza degli intervention): se la colonia ricolonizzata si estingue di nuovo dopo un tick, puoi premere ancora subito.
+
+> **Suggerimento**: dopo una ricolonizzazione, è spesso utile applicare anche un **mixing event** (Interventions tab) per omogeneizzare il chimismo che ha portato alla precedente estinzione, oppure un **nutrient pulse** sulla fase con popolazione iniziale dominante.
+
 ---
 
 ## 6. Pressioni selettive: cosa aspettarti
@@ -808,7 +825,13 @@ No. La simulazione è server-authoritative e gira 24/7. La pausa nello simulator
 
 #### Posso resettare il biotope?
 
-No. Per ricominciare, registra un nuovo player (email diversa). I biotopi loccati restano nel runtime fino a estinzione naturale.
+Non c'è un reset arbitrario, ma se la **colonia seminata si è estinta** (popolazione totale = 0) puoi **ricolonizzare il biotopo home** con un fondatore fresco. Vedi §5.8 sotto.
+
+#### La mia colonia si è estinta — perdo tutto?
+
+No. Quando il biotopo home (e solo quello) collassa a popolazione 0, sopra la scena del biotopo compare un **banner rosso "Colony extinct"** con un pulsante **"Recolonize home"**. Il click conferma e re-inocula il biotopo con un fondatore costruito **dallo stesso blueprint locked** (lo stesso genoma che hai progettato in Seed Lab) — N=420 distribuito sulle fasi correnti del biotopo. L'evento è loggato in Audit come `intervention` con kind `home_recolonized`.
+
+Solo l'owner del biotopo vede il banner. Biotopi `wild` o di altri player non si possono ricolonizzare.
 
 #### Cosa succede se chiudo il browser durante un intervention?
 

@@ -20,6 +20,7 @@ defmodule ArkeaWeb.SimLive do
 
   alias Arkea.Ecology.Lineage
   alias Arkea.Game.PlayerInterventions
+  alias Arkea.Game.SeedLab
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
@@ -172,6 +173,23 @@ defmodule ArkeaWeb.SimLive do
     {:noreply, assign(socket, interventions_open: not socket.assigns.interventions_open)}
   end
 
+  def handle_event("recolonize_home", _params, socket) do
+    case SeedLab.recolonize_home(socket.assigns.player) do
+      {:ok, %{lineage_id: lineage_id, tick: tick}} ->
+        entry = %{kind: "Home recolonized", scope: "biotope", tick: tick, lineage: lineage_id}
+
+        {:noreply,
+         socket
+         |> assign(
+           operator_log: prepend_operator_log(socket.assigns.operator_log, entry),
+           operator_error: nil
+         )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, operator_error: recolonize_error_message(reason))}
+    end
+  end
+
   def handle_event("apply_intervention", params, socket) do
     case socket.assigns.sim_state do
       %BiotopeState{id: biotope_id} ->
@@ -261,6 +279,14 @@ defmodule ArkeaWeb.SimLive do
           <.loading_view />
         <% true -> %>
           <div class="arkea-biotope">
+            <.recolonize_banner
+              :if={
+                @intervention_status.owner? and
+                  BiotopeState.total_abundance(@sim_state) == 0
+              }
+              operator_error={@operator_error}
+            />
+
             <div class="arkea-biotope__main">
               <BiotopeScene.biotope_scene
                 layout={@scene_layout}
@@ -432,6 +458,38 @@ defmodule ArkeaWeb.SimLive do
         sim_state={@sim_state}
         selected_phase_name={@selected_phase_name}
       />
+    </div>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Recolonize banner — surfaced only when the owner's home biotope has
+  # collapsed to zero abundance.
+
+  attr :operator_error, :string, default: nil
+
+  defp recolonize_banner(assigns) do
+    ~H"""
+    <div class="arkea-recolonize-banner" role="status">
+      <div class="arkea-recolonize-banner__body">
+        <span class="arkea-recolonize-banner__title">Colony extinct</span>
+        <p class="arkea-recolonize-banner__copy">
+          The seeded population has collapsed to zero. You can re-inoculate the
+          home biotope with a fresh founder lineage built from the same locked
+          blueprint — the genome you originally designed in the Seed Lab.
+        </p>
+        <p :if={@operator_error} class="arkea-recolonize-banner__error">
+          {@operator_error}
+        </p>
+      </div>
+      <button
+        type="button"
+        phx-click="recolonize_home"
+        phx-confirm="Re-inoculate the home biotope with a fresh founder colony from the locked seed?"
+        class="arkea-button arkea-button--primary arkea-recolonize-banner__cta"
+      >
+        Recolonize home
+      </button>
     </div>
     """
   end
@@ -1365,6 +1423,21 @@ defmodule ArkeaWeb.SimLive do
   defp intervention_label("plasmid_inoculation"), do: "Plasmid inoculation"
   defp intervention_label("mixing_event"), do: "Mixing event"
   defp intervention_label(kind) when is_binary(kind), do: humanize_string(kind)
+
+  defp recolonize_error_message(:not_extinct),
+    do: "Recolonization is only allowed when the home biotope is extinct."
+
+  defp recolonize_error_message(:no_home),
+    do: "No locked home biotope is associated with this player."
+
+  defp recolonize_error_message(:biotope_missing),
+    do: "The home biotope process is no longer running on this node."
+
+  defp recolonize_error_message(:blueprint_unreadable),
+    do: "The persisted blueprint could not be decoded; recolonization aborted."
+
+  defp recolonize_error_message(other),
+    do: "Recolonization failed: #{inspect(other)}."
 
   defp atom_to_string(nil), do: ""
   defp atom_to_string(value) when is_atom(value), do: Atom.to_string(value)

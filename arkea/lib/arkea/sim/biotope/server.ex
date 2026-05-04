@@ -128,6 +128,22 @@ defmodule Arkea.Sim.Biotope.Server do
     GenServer.call(via(id), {:apply_intervention, command})
   end
 
+  @doc """
+  Re-seed an extinct biotope with a fresh founder lineage.
+
+  Refuses with `{:error, :not_extinct}` when the biotope still carries any
+  living cells; recolonization is only allowed once the original colony has
+  collapsed to `total_abundance == 0`. The supplied `lineage` is added to
+  the state at the current tick; an `:intervention` audit event with kind
+  `"home_recolonized"` is broadcast for forensic traceability.
+  """
+  @spec recolonize(binary(), Arkea.Ecology.Lineage.t(), keyword()) ::
+          {:ok, %{tick: non_neg_integer()}} | {:error, atom()}
+  def recolonize(id, lineage, opts \\ [])
+      when is_binary(id) and is_map(lineage) and is_list(opts) do
+    GenServer.call(via(id), {:recolonize, lineage, opts})
+  end
+
   # ---------------------------------------------------------------------------
   # GenServer callbacks
 
@@ -187,6 +203,31 @@ defmodule Arkea.Sim.Biotope.Server do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:recolonize, lineage, opts}, _from, state) do
+    if BiotopeState.total_abundance(state) > 0 do
+      {:reply, {:error, :not_extinct}, state}
+    else
+      new_state = %{state | lineages: [lineage]}
+
+      events = [
+        %{
+          type: :intervention,
+          payload:
+            %{
+              kind: "home_recolonized",
+              lineage_id: lineage.id,
+              tick: state.tick_count
+            }
+            |> Map.merge(Map.new(opts))
+        }
+      ]
+
+      post_transition(state.id, new_state, events, :recolonize)
+      {:reply, {:ok, %{tick: new_state.tick_count}}, new_state}
     end
   end
 

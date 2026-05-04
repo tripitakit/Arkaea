@@ -487,6 +487,23 @@ Click ⚙ in the header → modal with network metadata:
 
 Neighbors are used by migration: cells can pass from one biotope to another along these edges (probability configured via `dilution_rate` × `migration_factor`).
 
+### 5.8 Recolonizing an extinct home
+
+When your home biotope's total population drops to zero, a **"Colony extinct" banner** appears above the scene with a **"Recolonize home"** button.
+
+- The banner is visible **only to the owner** of the biotope, and **only** when `BiotopeState.total_abundance(state) == 0`.
+- Click → confirm dialog → the system builds a **fresh founder from the same locked blueprint** (genome identical to the one you originally designed in the Seed Lab) and inoculates it into the biotope. Initial distribution: **N=420** spread across the biotope's current phases.
+- The biotope keeps its `id` and `tick_count`: the timeline is continuous. Only the cell pool changes.
+- The operation is logged in Audit as an `intervention` with kind `home_recolonized` and the `actor_player_id` of the provisioning. Forensic-traceable.
+
+Current limits:
+
+- Works only on the player's home biotope. Wild biotopes and other players' biotopes cannot be recolonized.
+- Recolonization **does not reset** chemistry, phage pools, free plasmids in the `dna_pool`, or the environment: the founder inherits the biotope's current ambient state. If the biotope had been sterilized by a runaway phage, recolonization re-exposes it to the same stress.
+- No dedicated rate limit (unlike interventions): if the recolonized colony goes extinct again on the next tick, you can press the button again immediately.
+
+> **Tip**: after a recolonization it is often useful to also apply a **mixing event** (Interventions tab) to homogenise the chemistry that drove the previous extinction, or a **nutrient pulse** on the phase carrying the dominant initial population.
+
 ---
 
 ## 6. Selective pressures: what to expect
@@ -808,7 +825,13 @@ No. The simulation is server-authoritative and runs 24/7. Pausing would break sh
 
 #### Can I reset the biotope?
 
-No. To start over, register a new player (different email). Locked biotopes remain in the runtime until natural extinction.
+No arbitrary reset, but if your **seeded colony has gone extinct** (total population = 0) you can **recolonize the home biotope** with a fresh founder. See §5.8 below.
+
+#### My colony went extinct — do I lose everything?
+
+No. When your home biotope (and only that one) collapses to zero population, a **red "Colony extinct" banner** appears above the biotope scene with a **"Recolonize home"** button. Confirming it re-inoculates the biotope with a founder built from **the same locked blueprint** (the genome you originally designed in the Seed Lab) — N=420 distributed across the biotope's current phases. The event is logged in Audit as an `intervention` with kind `home_recolonized`.
+
+Only the owner of the biotope sees the banner. Wild biotopes and biotopes belonging to other players cannot be recolonized.
 
 #### What happens if I close the browser during an intervention?
 

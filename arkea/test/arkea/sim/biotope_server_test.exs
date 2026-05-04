@@ -285,4 +285,44 @@ defmodule Arkea.Sim.Biotope.ServerTest do
     assert Process.alive?(pid)
     assert GenServer.call(pid, :current_tick) == 0
   end
+
+  # ---------------------------------------------------------------------------
+  # Recolonization
+
+  test "recolonize replaces lineages on an extinct biotope" do
+    extinct_state =
+      build_state(:surface, 100, 0, 0.05)
+      |> Map.put(:lineages, [])
+
+    {pid, _name} = start_server(extinct_state)
+
+    fresh_lineage =
+      Lineage.new_founder(genome_fixture(), %{surface: 420}, 0)
+
+    {:ok, %{tick: tick}} =
+      GenServer.call(pid, {:recolonize, fresh_lineage, [actor_player_id: "p"]})
+
+    assert tick == 0
+
+    state_after = GenServer.call(pid, :get_state)
+    assert length(state_after.lineages) == 1
+    assert hd(state_after.lineages).id == fresh_lineage.id
+    assert BiotopeState.total_abundance(state_after) == 420
+  end
+
+  test "recolonize refuses on a non-extinct biotope" do
+    state = build_state(:surface, 100, 0, 0.05)
+    {pid, _name} = start_server(state)
+
+    fresh_lineage =
+      Lineage.new_founder(genome_fixture(), %{surface: 420}, 0)
+
+    assert {:error, :not_extinct} =
+             GenServer.call(pid, {:recolonize, fresh_lineage, []})
+
+    state_after = GenServer.call(pid, :get_state)
+    # Original (single) lineage is preserved untouched.
+    assert length(state_after.lineages) == 1
+    assert hd(state_after.lineages).id != fresh_lineage.id
+  end
 end

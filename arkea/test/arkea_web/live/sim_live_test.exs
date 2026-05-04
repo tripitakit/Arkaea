@@ -89,6 +89,40 @@ defmodule ArkeaWeb.SimLiveTest do
     refute has_element?(view, ".arkea-drawer--right")
   end
 
+  test "recolonize banner is hidden while the home colony is alive", %{conn: conn, biotope_id: id} do
+    {:ok, _view, html} = live(conn, ~p"/biotopes/#{id}")
+    refute html =~ "arkea-recolonize-banner"
+    refute html =~ "Recolonize home"
+  end
+
+  test "extinct home surfaces the recolonize banner; clicking re-inoculates the biotope",
+       %{conn: conn, biotope_id: id} do
+    {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+    # Force the biotope into extinction without waiting for natural collapse.
+    [{pid, _}] = Registry.lookup(Arkea.Sim.Registry, {:biotope, id})
+    :sys.replace_state(pid, fn state -> %{state | lineages: []} end)
+
+    # Push a fresh tick into the LiveView so the assigns refresh from the
+    # mutated state.
+    Phoenix.PubSub.broadcast(
+      Arkea.PubSub,
+      "biotope:#{id}",
+      {:biotope_tick, :sys.get_state(pid), []}
+    )
+
+    html_extinct = render(view)
+    assert html_extinct =~ "arkea-recolonize-banner"
+    assert html_extinct =~ "Colony extinct"
+    assert has_element?(view, "button[phx-click='recolonize_home']")
+
+    view |> element("button[phx-click='recolonize_home']") |> render_click()
+
+    state_after = :sys.get_state(pid)
+    assert length(state_after.lineages) == 1
+    assert Arkea.Sim.BiotopeState.total_abundance(state_after) == 420
+  end
+
   test "operator console applies an intervention on a player-owned biotope", %{
     conn: conn,
     biotope_id: id

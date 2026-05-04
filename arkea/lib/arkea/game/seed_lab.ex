@@ -23,6 +23,7 @@ defmodule Arkea.Game.SeedLab do
   alias Arkea.Persistence.ArkeonBlueprint
   alias Arkea.Persistence.PlayerBiotope
   alias Arkea.Persistence.Store
+  alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
@@ -371,6 +372,101 @@ defmodule Arkea.Game.SeedLab do
     with :ok <- validate(spec),
          :ok <- ensure_home_slot_available(player_profile.id) do
       do_provision(player_profile, spec)
+    end
+  end
+
+  @doc """
+  Re-inoculate the player's home biotope with a fresh founder lineage built
+  from the locked blueprint.
+
+  Allowed only when the running biotope is **extinct**
+  (`BiotopeState.total_abundance(state) == 0`). Returns `{:error, :no_home}`
+  when the player has not yet provisioned, `{:error, :biotope_missing}` when
+  the registered biotope is no longer running, `{:error, :not_extinct}`
+  when the population is still alive, or `{:error, :blueprint_unreadable}`
+  when the persisted genome cannot be decoded.
+  """
+  @spec recolonize_home(%{id: binary()} | binary()) ::
+          {:ok, %{biotope_id: binary(), lineage_id: binary(), tick: non_neg_integer()}}
+          | {:error, atom()}
+  def recolonize_home(player_or_id) do
+    player_profile = normalize_player_profile(player_or_id)
+
+    with %{biotope_id: biotope_id, blueprint_id: _, params: params} <-
+           locked_seed(player_profile) || :no_home,
+         %BiotopeState{} = state <- safe_get_state(biotope_id),
+         :ok <- ensure_extinct(state),
+         {:ok, genome} <- load_genome_from_blueprint(player_profile.id) do
+      spec = normalize_params(params)
+      lineage = build_seed_lineage(genome, state.phases)
+
+      case BiotopeServer.recolonize(biotope_id, lineage,
+             actor: player_profile.display_name,
+             actor_player_id: player_profile.id,
+             seed_name: spec.seed_name
+           ) do
+        {:ok, %{tick: tick}} ->
+          Phoenix.PubSub.broadcast(
+            Arkea.PubSub,
+            "world:registry",
+            {:world_changed, biotope_id}
+          )
+
+          {:ok, %{biotope_id: biotope_id, lineage_id: lineage.id, tick: tick}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      :no_home -> {:error, :no_home}
+      nil -> {:error, :biotope_missing}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  True when the player owns a home biotope and the biotope is currently
+  extinct (`total_abundance == 0`). Used by the UI to gate the
+  "Recolonize home" affordance.
+  """
+  @spec home_extinct?(%{id: binary()} | binary()) :: boolean()
+  def home_extinct?(player_or_id) do
+    case locked_seed(normalize_player_profile(player_or_id)) do
+      %{biotope_id: id} ->
+        case safe_get_state(id) do
+          %BiotopeState{} = state -> BiotopeState.total_abundance(state) == 0
+          _ -> false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp safe_get_state(biotope_id) do
+    BiotopeServer.get_state(biotope_id)
+  rescue
+    _ -> nil
+  end
+
+  defp ensure_extinct(%BiotopeState{} = state) do
+    if BiotopeState.total_abundance(state) == 0 do
+      :ok
+    else
+      {:error, :not_extinct}
+    end
+  end
+
+  defp load_genome_from_blueprint(player_id) do
+    case PlayerAssets.active_home_with_blueprint(player_id) do
+      %PlayerBiotope{source_blueprint: %ArkeonBlueprint{} = blueprint} ->
+        case ArkeonBlueprint.load_genome(blueprint.genome_binary) do
+          {:ok, genome} -> {:ok, genome}
+          _ -> {:error, :blueprint_unreadable}
+        end
+
+      _ ->
+        {:error, :no_home}
     end
   end
 

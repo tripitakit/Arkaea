@@ -243,6 +243,59 @@
   padding: var(--arkea-space-3) var(--arkea-space-4);
 }
 
+/* ─── Recolonize banner (extinct home, owner only) ─────────────────────── */
+
+.arkea-recolonize-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-3);
+  margin: var(--arkea-space-3) var(--arkea-space-4) 0;
+  padding: var(--arkea-space-3) var(--arkea-space-4);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--arkea-accent-stress) 18%, var(--arkea-surface-2)),
+      var(--arkea-surface-2) 70%
+    );
+  border: 1px solid color-mix(in oklch, var(--arkea-accent-stress) 50%, transparent);
+  border-radius: var(--arkea-radius-md);
+  flex-wrap: wrap;
+}
+
+.arkea-recolonize-banner__body {
+  flex: 1;
+  min-width: 16rem;
+}
+
+.arkea-recolonize-banner__title {
+  display: block;
+  font-size: var(--arkea-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--arkea-accent-stress);
+  margin-bottom: 2px;
+}
+
+.arkea-recolonize-banner__copy {
+  margin: 0;
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg-muted);
+  line-height: 1.45;
+}
+
+.arkea-recolonize-banner__error {
+  margin: var(--arkea-space-1) 0 0;
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-accent-stress);
+}
+
+.arkea-recolonize-banner__cta {
+  width: auto !important;
+  margin-top: 0 !important;
+  flex-shrink: 0;
+}
+
 /* Lineage row selected state */
 .arkea-lineage-row:hover { background: var(--arkea-surface-2); }
 .arkea-lineage-row--selected {
