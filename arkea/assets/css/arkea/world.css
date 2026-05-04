@@ -1,0 +1,302 @@
+/*
+ * Arkea world view (UI rewrite — phase U2)
+ *
+ * Two-column layout: full-bleed SVG graph + 320px right side panel.
+ * Neither column scrolls the page — the side panel scrolls inside its
+ * fixed allotment via .arkea-scrollable / opt-in panel bodies.
+ */
+
+.arkea-world {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .arkea-world {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+}
+
+.arkea-world__graph {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--arkea-border);
+}
+
+.arkea-world__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-3) var(--arkea-space-4);
+  border-bottom: 1px solid var(--arkea-border);
+  background: var(--arkea-surface-2);
+  flex-wrap: wrap;
+}
+
+.arkea-world__filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--arkea-surface-3);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+}
+
+.arkea-world__filter {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--arkea-fg-muted);
+  font-size: var(--arkea-text-xs);
+  font-family: inherit;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: var(--arkea-space-1) var(--arkea-space-3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.arkea-world__filter:hover { color: var(--arkea-fg); }
+
+.arkea-world__filter--active {
+  background: var(--arkea-surface);
+  color: var(--arkea-fg);
+  box-shadow: inset 0 0 0 1px var(--arkea-border-strong);
+}
+
+.arkea-world__chips {
+  margin-left: auto;
+}
+
+.arkea-world__canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 25% 30%, oklch(20% 0.02 235 / 30%), transparent 60%),
+    radial-gradient(circle at 75% 70%, oklch(20% 0.02 145 / 25%), transparent 55%),
+    var(--arkea-bg);
+}
+
+.arkea-world__svg {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+.arkea-world__edges {
+  pointer-events: none;
+}
+
+.arkea-world__edge {
+  stroke: var(--arkea-border-strong);
+  stroke-width: 0.18;
+  fill: none;
+  opacity: 0.6;
+}
+
+.arkea-world__node {
+  cursor: pointer;
+  outline: none;
+}
+
+.arkea-world__node-halo {
+  fill: var(--arkea-node-accent, var(--arkea-accent-teal));
+  opacity: 0.18;
+  transition: opacity 120ms ease, r 120ms ease;
+}
+
+.arkea-world__node-core {
+  fill: var(--arkea-node-accent, var(--arkea-accent-teal));
+  stroke: var(--arkea-bg);
+  stroke-width: 0.18;
+  transition: r 120ms ease;
+}
+
+.arkea-world__node-label {
+  fill: var(--arkea-fg-muted);
+  font-size: 1.6px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  text-anchor: middle;
+  dominant-baseline: hanging;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+.arkea-world__node:hover .arkea-world__node-halo,
+.arkea-world__node:focus-visible .arkea-world__node-halo {
+  opacity: 0.32;
+}
+
+.arkea-world__node:hover .arkea-world__node-label,
+.arkea-world__node:focus-visible .arkea-world__node-label {
+  fill: var(--arkea-fg);
+}
+
+.arkea-world__node--selected .arkea-world__node-halo {
+  opacity: 0.42;
+}
+
+.arkea-world__node--selected .arkea-world__node-core {
+  stroke: var(--arkea-fg);
+  stroke-width: 0.32;
+}
+
+.arkea-world__node--selected .arkea-world__node-label {
+  fill: var(--arkea-fg);
+  font-weight: 600;
+}
+
+.arkea-world__node--owned .arkea-world__node-core { filter: drop-shadow(0 0 0.5px currentColor); }
+
+.arkea-world__node:focus-visible {
+  outline: none;
+}
+
+.arkea-world__node:focus-visible .arkea-world__node-core {
+  stroke: var(--arkea-accent-teal);
+  stroke-width: 0.4;
+}
+
+.arkea-world__empty {
+  text-align: center;
+  color: var(--arkea-fg-muted);
+  max-width: 32rem;
+}
+
+.arkea-world__empty h2 {
+  color: var(--arkea-fg);
+  font-size: var(--arkea-text-md);
+  margin: 0 0 var(--arkea-space-2);
+}
+
+.arkea-world__filter-empty {
+  position: absolute;
+  bottom: var(--arkea-space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--arkea-fg-muted);
+  font-size: var(--arkea-text-xs);
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  padding: var(--arkea-space-1) var(--arkea-space-3);
+  margin: 0;
+}
+
+/* Right side panel */
+.arkea-world__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-3);
+  padding: var(--arkea-space-3);
+  background: var(--arkea-bg-deep);
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--arkea-border-strong) transparent;
+}
+
+.arkea-world__side::-webkit-scrollbar { width: 8px; }
+.arkea-world__side::-webkit-scrollbar-thumb {
+  background: var(--arkea-border-strong);
+  border-radius: 4px;
+}
+
+.arkea-world__archetype-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 2px;
+  margin-bottom: var(--arkea-space-3);
+}
+
+.arkea-world__archetype-segment {
+  min-width: 6px;
+  height: 100%;
+}
+
+.arkea-world__archetype-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-world__archetype-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-world__archetype-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.arkea-world__archetype-name { color: var(--arkea-fg); }
+
+.arkea-world__archetype-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--arkea-fg-muted);
+}
+
+/* Buttons used inside the side panels */
+.arkea-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--arkea-space-2);
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  border-radius: var(--arkea-radius-sm);
+  font-size: var(--arkea-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--arkea-border);
+  background: var(--arkea-surface-2);
+  color: var(--arkea-fg);
+  transition: background 120ms ease, border-color 120ms ease;
+  width: 100%;
+  margin-top: var(--arkea-space-2);
+  font-family: inherit;
+}
+
+.arkea-button:hover {
+  background: var(--arkea-surface-3);
+  border-color: var(--arkea-border-strong);
+}
+
+.arkea-button--primary {
+  background: color-mix(in oklch, var(--arkea-accent-teal) 22%, var(--arkea-surface-2));
+  border-color: color-mix(in oklch, var(--arkea-accent-teal) 60%, transparent);
+  color: var(--arkea-fg);
+}
+
+.arkea-button--primary:hover {
+  background: color-mix(in oklch, var(--arkea-accent-teal) 32%, var(--arkea-surface-2));
+}
+
+.arkea-button--secondary { color: var(--arkea-fg-muted); }
+.arkea-button--secondary:hover { color: var(--arkea-fg); }

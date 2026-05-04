@@ -111,6 +111,7 @@
 @import "./arkea/panel.css";
 @import "./arkea/metric.css";
 @import "./arkea/dashboard.css";
+@import "./arkea/world.css";
 
 :root {
   --sim-bg: oklch(13% 0.012 253);
