@@ -26,7 +26,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     html =
       view
-      |> form("form.seed-form", %{
+      |> form("form.arkea-seed-form", %{
         "seed" => %{
           "starter_archetype" => "oligotrophic_lake",
           "metabolism_profile" => "thrifty",
@@ -49,7 +49,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     html =
       view
-      |> form("form.seed-form", %{
+      |> form("form.arkea-seed-form", %{
         "seed" => %{
           "metabolism_profile" => "balanced",
           "membrane_profile" => "porous",
@@ -98,7 +98,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     |> render_click()
 
     view
-    |> form("form.seed-form", %{
+    |> form("form.arkea-seed-form", %{
       "seed" => %{
         "starter_archetype" => "mesophilic_soil",
         "metabolism_profile" => "balanced",
@@ -111,7 +111,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     |> render_change()
 
     view
-    |> form("form.seed-form")
+    |> form("form.arkea-seed-form")
     |> render_submit()
 
     {path, _flash} = assert_redirect(view)
@@ -173,7 +173,7 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     changed_html =
       view
-      |> form("form.seed-form", %{
+      |> form("form.arkea-seed-form", %{
         "seed" => %{
           "starter_archetype" => "mesophilic_soil",
           "metabolism_profile" => "bloom",

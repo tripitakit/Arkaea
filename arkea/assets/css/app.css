@@ -117,8 +117,9 @@
 @import "./arkea/seed_lab.css";
 @import "./arkea/audit.css";
 
-/* Legacy sim-*/seed-*/world-*/biotope-*/game-nav-* styles still rendered
-   by login HEEx + inner panels of SimLive/SeedLabLive. Slated for
-   incremental migration to arkea/* modules. */
-@import "./arkea/legacy.css";
+/* Inner-panel primitives (post-U7 migration of legacy.css):
+   shared card/table/token/action-button/event-entry styles, the
+   seed-lab form + gene-designer stack, the topology modal box,
+   and the login page chrome. */
+@import "./arkea/inner.css";
 

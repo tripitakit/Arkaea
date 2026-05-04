@@ -283,25 +283,25 @@ defmodule ArkeaWeb.SeedLabLive do
         </Metric.metric_strip>
 
         <div
-          class="sim-main-grid mt-6"
+          class="arkea-main-grid mt-6"
           style="grid-template-columns: minmax(0, 0.9fr) minmax(21rem, 1.1fr);"
         >
-          <section class="sim-card seed-form-card">
-            <div class="sim-card__header">
+          <section class="arkea-card arkea-seed-form-card">
+            <div class="arkea-card__header">
               <div>
-                <div class="sim-card__eyebrow">Builder</div>
-                <h2 class="sim-card__title">Phenotype + genome engineering</h2>
+                <div class="arkea-card__eyebrow">Builder</div>
+                <h2 class="arkea-card__title">Phenotype + genome engineering</h2>
               </div>
-              <div class="sim-card__meta">
+              <div class="arkea-card__meta">
                 {builder_status(@seed_locked?, @seed_ready?, @home_slot_open?)}
               </div>
             </div>
 
             <%= if @seed_locked? do %>
-              <div class="seed-lock-banner">
+              <div class="arkea-seed-lock-banner">
                 <div>
-                  <div class="seed-lock-banner__title">Arkeon seed locked</div>
-                  <div class="seed-lock-banner__copy">
+                  <div class="arkea-seed-lock-banner__title">Arkeon seed locked</div>
+                  <div class="arkea-seed-lock-banner__copy">
                     This phenotype/genome configuration is already bound to the first colonized home biotope and can no longer be edited.
                   </div>
                 </div>
@@ -309,39 +309,39 @@ defmodule ArkeaWeb.SeedLabLive do
                 <.link
                   :if={@home_biotope_id}
                   href={~p"/biotopes/#{@home_biotope_id}"}
-                  class="sim-action-button"
+                  class="arkea-action-button"
                 >
                   Open home viewport
                 </.link>
               </div>
             <% end %>
 
-            <form phx-change="change_seed" phx-submit="provision_seed" class="seed-form">
-              <fieldset disabled={@seed_locked?} class="seed-form__fieldset">
-                <div class="seed-field">
-                  <label class="seed-field__label" for="seed_name">Seed name</label>
+            <form phx-change="change_seed" phx-submit="provision_seed" class="arkea-seed-form">
+              <fieldset disabled={@seed_locked?} class="arkea-seed-form__fieldset">
+                <div class="arkea-seed-field">
+                  <label class="arkea-seed-field__label" for="seed_name">Seed name</label>
                   <input
                     id="seed_name"
                     name="seed[seed_name]"
                     type="text"
                     value={@form[:seed_name].value}
-                    class="seed-input"
+                    class="arkea-seed-input"
                     maxlength="40"
                   />
-                  <p :if={Map.has_key?(@errors, :seed_name)} class="seed-field__error">
+                  <p :if={Map.has_key?(@errors, :seed_name)} class="arkea-seed-field__error">
                     {@errors.seed_name}
                   </p>
                 </div>
 
-                <div class="seed-field">
-                  <div class="seed-field__label">Biotope archetype to colonize</div>
-                  <div class="seed-choice-grid">
+                <div class="arkea-seed-field">
+                  <div class="arkea-seed-field__label">Biotope archetype to colonize</div>
+                  <div class="arkea-seed-choice-grid">
                     <label
                       :for={ecotype <- @starter_ecotypes}
                       class={[
-                        "seed-choice",
-                        @form[:starter_archetype].value == ecotype.id && "seed-choice--active",
-                        @seed_locked? && "seed-choice--locked"
+                        "arkea-seed-choice",
+                        @form[:starter_archetype].value == ecotype.id && "arkea-seed-choice--active",
+                        @seed_locked? && "arkea-seed-choice--locked"
                       ]}
                     >
                       <input
@@ -350,16 +350,16 @@ defmodule ArkeaWeb.SeedLabLive do
                         value={ecotype.id}
                         checked={@form[:starter_archetype].value == ecotype.id}
                       />
-                      <span class="seed-choice__title">{ecotype.label}</span>
-                      <span class="seed-choice__copy">{ecotype.strapline}</span>
+                      <span class="arkea-seed-choice__title">{ecotype.label}</span>
+                      <span class="arkea-seed-choice__copy">{ecotype.strapline}</span>
                     </label>
                   </div>
-                  <p :if={Map.has_key?(@errors, :starter_archetype)} class="seed-field__error">
+                  <p :if={Map.has_key?(@errors, :starter_archetype)} class="arkea-seed-field__error">
                     {@errors.starter_archetype}
                   </p>
                 </div>
 
-                <div class="seed-config-grid">
+                <div class="arkea-seed-config-grid">
                   <.option_select
                     field="metabolism_profile"
                     label="Metabolic cassette"
@@ -393,15 +393,15 @@ defmodule ArkeaWeb.SeedLabLive do
                 />
               </fieldset>
 
-              <div class="seed-submit-row">
+              <div class="arkea-seed-submit-row">
                 <button
                   type="submit"
-                  class="sim-action-button seed-submit"
+                  class="arkea-action-button arkea-seed-submit"
                   disabled={!@seed_ready?}
                 >
                   Colonize selected biotope
                 </button>
-                <p class="sim-muted">
+                <p class="arkea-muted">
                   <%= if @seed_locked? do %>
                     The committed seed stays readable here, but its phenotype and genome options are frozen after first colonization.
                   <% else %>
@@ -412,14 +412,14 @@ defmodule ArkeaWeb.SeedLabLive do
             </form>
           </section>
 
-          <div class="sim-sidebar">
-            <section class="sim-card">
-              <div class="sim-card__header">
+          <div class="arkea-sidebar">
+            <section class="arkea-card">
+              <div class="arkea-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">Morphology</div>
-                  <h2 class="sim-card__title">Arkeon phenotype portrait</h2>
+                  <div class="arkea-card__eyebrow">Morphology</div>
+                  <h2 class="arkea-card__title">Arkeon phenotype portrait</h2>
                 </div>
-                <div class="sim-card__meta">
+                <div class="arkea-card__meta">
                   <%= if @seed_locked? do %>
                     committed
                   <% else %>
@@ -431,65 +431,65 @@ defmodule ArkeaWeb.SeedLabLive do
               <.arkeon_portrait preview={@preview} seed_locked?={@seed_locked?} />
             </section>
 
-            <section class="sim-card">
-              <div class="sim-card__header">
+            <section class="arkea-card">
+              <div class="arkea-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">Preview</div>
-                  <h2 class="sim-card__title">{preview_seed_name(@preview)}</h2>
+                  <div class="arkea-card__eyebrow">Preview</div>
+                  <h2 class="arkea-card__title">{preview_seed_name(@preview)}</h2>
                 </div>
-                <div class="sim-card__meta">{preview_ecotype_label(@preview)}</div>
+                <div class="arkea-card__meta">{preview_ecotype_label(@preview)}</div>
               </div>
 
-              <div class="sim-phase-kpis" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">µ (h⁻¹)</span>
-                  <span class="sim-mini-stat__value">
+              <div class="arkea-phase-kpis" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">µ (h⁻¹)</span>
+                  <span class="arkea-mini-stat__value">
                     {format_float(@preview.phenotype.base_growth_rate, 2)}
                   </span>
                 </div>
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">ε (repair)</span>
-                  <span class="sim-mini-stat__value">
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">ε (repair)</span>
+                  <span class="arkea-mini-stat__value">
                     {format_float(@preview.phenotype.repair_efficiency, 2)}
                   </span>
                 </div>
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">E (ATP)</span>
-                  <span class="sim-mini-stat__value">
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">E (ATP)</span>
+                  <span class="arkea-mini-stat__value">
                     {format_float(@preview.phenotype.energy_cost, 2)}
                   </span>
                 </div>
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">n_TM</span>
-                  <span class="sim-mini-stat__value">{@preview.phenotype.n_transmembrane}</span>
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">n_TM</span>
+                  <span class="arkea-mini-stat__value">{@preview.phenotype.n_transmembrane}</span>
                 </div>
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">σ affinity</span>
-                  <span class="sim-mini-stat__value">
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">σ affinity</span>
+                  <span class="arkea-mini-stat__value">
                     {format_float(@preview.phenotype.dna_binding_affinity, 2)}
                   </span>
                 </div>
-                <div class="sim-mini-stat">
-                  <span class="sim-mini-stat__label">QS signals</span>
-                  <span class="sim-mini-stat__value">{length(@preview.phenotype.qs_produces)}</span>
+                <div class="arkea-mini-stat">
+                  <span class="arkea-mini-stat__label">QS signals</span>
+                  <span class="arkea-mini-stat__value">{length(@preview.phenotype.qs_produces)}</span>
                 </div>
               </div>
 
-              <div class="seed-preview-copy">
-                <div class="world-mini-list__title">{@preview.playstyle}</div>
-                <div class="world-mini-list__copy">
+              <div class="arkea-seed-preview-copy">
+                <div class="arkea-mini-list__title">{@preview.playstyle}</div>
+                <div class="arkea-mini-list__copy">
                   {preview_world_copy(@preview)}
                 </div>
               </div>
             </section>
 
-            <section class="sim-card">
-              <div class="sim-card__header">
+            <section class="arkea-card">
+              <div class="arkea-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">Genome preview</div>
-                  <h2 class="sim-card__title">Chromosome atlas</h2>
+                  <div class="arkea-card__eyebrow">Genome preview</div>
+                  <h2 class="arkea-card__title">Chromosome atlas</h2>
                 </div>
-                <div class="sim-card__meta">{@preview.gene_count} genes total</div>
+                <div class="arkea-card__meta">{@preview.gene_count} genes total</div>
               </div>
 
               <.gene_designer
@@ -511,7 +511,7 @@ defmodule ArkeaWeb.SeedLabLive do
               <div>
                 <button
                   type="button"
-                  class="sim-card__eyebrow mb-2"
+                  class="arkea-card__eyebrow mb-2"
                   phx-click="toggle_inspector"
                   style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; color: #67e8f9;"
                 >
@@ -529,30 +529,30 @@ defmodule ArkeaWeb.SeedLabLive do
               </div>
             </section>
 
-            <section class="sim-card">
-              <div class="sim-card__header">
+            <section class="arkea-card">
+              <div class="arkea-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">Cassette manifest</div>
-                  <h2 class="sim-card__title">Domain inventory</h2>
+                  <div class="arkea-card__eyebrow">Cassette manifest</div>
+                  <h2 class="arkea-card__title">Domain inventory</h2>
                 </div>
-                <div class="sim-card__meta">{length(@preview.modules)} replicon views</div>
+                <div class="arkea-card__meta">{length(@preview.modules)} replicon views</div>
               </div>
 
-              <div class="world-mini-list">
-                <div :for={entry <- @preview.modules} class="world-mini-list__item">
-                  <div class="world-mini-list__title">{entry.scope} · {entry.label}</div>
-                  <div class="world-mini-list__copy">{Enum.join(entry.domains, " · ")}</div>
+              <div class="arkea-mini-list">
+                <div :for={entry <- @preview.modules} class="arkea-mini-list__item">
+                  <div class="arkea-mini-list__title">{entry.scope} · {entry.label}</div>
+                  <div class="arkea-mini-list__copy">{Enum.join(entry.domains, " · ")}</div>
                 </div>
               </div>
             </section>
 
-            <section class="sim-card">
-              <div class="sim-card__header">
+            <section class="arkea-card">
+              <div class="arkea-card__header">
                 <div>
-                  <div class="sim-card__eyebrow">World insertion</div>
-                  <h2 class="sim-card__title">Home placement</h2>
+                  <div class="arkea-card__eyebrow">World insertion</div>
+                  <h2 class="arkea-card__title">Home placement</h2>
                 </div>
-                <div class="sim-card__meta">
+                <div class="arkea-card__meta">
                   <%= if starter_selected?(@preview) do %>
                     {@preview.phase_count} phases
                   <% else %>
@@ -562,7 +562,7 @@ defmodule ArkeaWeb.SeedLabLive do
               </div>
 
               <%= if starter_selected?(@preview) do %>
-                <div class="sim-topology-grid">
+                <div class="arkea-topology-grid">
                   <.env_reading
                     label="coords"
                     value={format_float(elem(@preview.spawn_coords, 0), 1) <> ", " <> format_float(elem(@preview.spawn_coords, 1), 1)}
@@ -571,16 +571,16 @@ defmodule ArkeaWeb.SeedLabLive do
                 </div>
 
                 <div>
-                  <div class="sim-card__eyebrow mb-2">Outgoing arcs</div>
+                  <div class="arkea-card__eyebrow mb-2">Outgoing arcs</div>
                   <%= if @preview.neighbor_ids == [] do %>
-                    <p class="sim-muted">
+                    <p class="arkea-muted">
                       No active biotopes detected yet. This home will start as an isolated prototype node.
                     </p>
                   <% else %>
-                    <div class="sim-token-cloud">
+                    <div class="arkea-token-cloud">
                       <span
                         :for={neighbor_id <- @preview.neighbor_ids}
-                        class="sim-token sim-token--ghost"
+                        class="arkea-token arkea-token--ghost"
                       >
                         {String.slice(neighbor_id, 0, 8)}
                       </span>
@@ -588,7 +588,7 @@ defmodule ArkeaWeb.SeedLabLive do
                   <% end %>
                 </div>
               <% else %>
-                <p class="sim-muted">
+                <p class="arkea-muted">
                   Choose a starter biotope archetype to preview insertion coordinates, nearby arcs, and the phase layout of the first controlled colony.
                 </p>
               <% end %>
@@ -640,14 +640,14 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp option_select(assigns) do
     ~H"""
-    <div class="seed-field">
-      <label class="seed-field__label" for={@field}>{@label}</label>
-      <select id={@field} name={"seed[#{@field}]"} class="seed-input">
+    <div class="arkea-seed-field">
+      <label class="arkea-seed-field__label" for={@field}>{@label}</label>
+      <select id={@field} name={"seed[#{@field}]"} class="arkea-seed-input">
         <option :for={option <- @options} value={option.id} selected={@value == option.id}>
           {option.label}
         </option>
       </select>
-      <p class="seed-field__hint">
+      <p class="arkea-seed-field__hint">
         {selected_description(@options, @value)}
       </p>
     </div>
@@ -674,40 +674,40 @@ defmodule ArkeaWeb.SeedLabLive do
       )
 
     ~H"""
-    <div class="seed-portrait">
-      <div class={["seed-portrait__glyph", @shell_class, @core_class, @pulse_class, @accessory_class]}>
+    <div class="arkea-seed-portrait">
+      <div class={["arkea-seed-portrait__glyph", @shell_class, @core_class, @pulse_class, @accessory_class]}>
         <span
           :for={slot <- @antenna_slots}
-          class="seed-portrait__antenna"
+          class="arkea-seed-portrait__antenna"
           style={"--slot: #{slot}; --slots: #{length(@antenna_slots)};"}
         >
         </span>
-        <span class="seed-portrait__ring seed-portrait__ring--outer"></span>
-        <span class="seed-portrait__ring seed-portrait__ring--mid"></span>
-        <span class="seed-portrait__core"></span>
-        <span class="seed-portrait__accessory"></span>
+        <span class="arkea-seed-portrait__ring arkea-seed-portrait__ring--outer"></span>
+        <span class="arkea-seed-portrait__ring arkea-seed-portrait__ring--mid"></span>
+        <span class="arkea-seed-portrait__core"></span>
+        <span class="arkea-seed-portrait__accessory"></span>
       </div>
 
-      <div class="seed-portrait__legend">
-        <div class="seed-portrait__legend-item">
-          <span class="seed-portrait__legend-label">Envelope</span>
-          <span class="seed-portrait__legend-copy">{@membrane_copy}</span>
+      <div class="arkea-seed-portrait__legend">
+        <div class="arkea-seed-portrait__legend-item">
+          <span class="arkea-seed-portrait__legend-label">Envelope</span>
+          <span class="arkea-seed-portrait__legend-copy">{@membrane_copy}</span>
         </div>
-        <div class="seed-portrait__legend-item">
-          <span class="seed-portrait__legend-label">Metabolism</span>
-          <span class="seed-portrait__legend-copy">{@metabolism_copy}</span>
+        <div class="arkea-seed-portrait__legend-item">
+          <span class="arkea-seed-portrait__legend-label">Metabolism</span>
+          <span class="arkea-seed-portrait__legend-copy">{@metabolism_copy}</span>
         </div>
-        <div class="seed-portrait__legend-item">
-          <span class="seed-portrait__legend-label">Regulation</span>
-          <span class="seed-portrait__legend-copy">{@regulation_copy}</span>
+        <div class="arkea-seed-portrait__legend-item">
+          <span class="arkea-seed-portrait__legend-label">Regulation</span>
+          <span class="arkea-seed-portrait__legend-copy">{@regulation_copy}</span>
         </div>
-        <div class="seed-portrait__legend-item">
-          <span class="seed-portrait__legend-label">Accessory</span>
-          <span class="seed-portrait__legend-copy">{@accessory_copy}</span>
+        <div class="arkea-seed-portrait__legend-item">
+          <span class="arkea-seed-portrait__legend-label">Accessory</span>
+          <span class="arkea-seed-portrait__legend-copy">{@accessory_copy}</span>
         </div>
       </div>
 
-      <p class="sim-muted">
+      <p class="arkea-muted">
         This portrait is a gameplay-facing abstraction derived from the current phenotype choices. It is not a cell renderer, but it makes envelope, metabolism, regulation, and accessory modules visually legible.
       </p>
     </div>
@@ -735,40 +735,40 @@ defmodule ArkeaWeb.SeedLabLive do
       )
 
     ~H"""
-    <div class="seed-editor">
-      <div class="seed-editor__summary">
-        <div class="sim-phase-kpis">
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">chromosome genes</span>
-            <span class="sim-mini-stat__value">{@preview.chromosome_gene_count}</span>
+    <div class="arkea-seed-editor">
+      <div class="arkea-seed-editor__summary">
+        <div class="arkea-phase-kpis">
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">chromosome genes</span>
+            <span class="arkea-mini-stat__value">{@preview.chromosome_gene_count}</span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">custom genes</span>
-            <span class="sim-mini-stat__value">{@preview.custom_gene_count}</span>
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">custom genes</span>
+            <span class="arkea-mini-stat__value">{@preview.custom_gene_count}</span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">draft blocks</span>
-            <span class="sim-mini-stat__value">
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">draft blocks</span>
+            <span class="arkea-mini-stat__value">
               {length(@draft_domains)} + {@draft_intergenic_count}
             </span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">replicons</span>
-            <span class="sim-mini-stat__value">
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">replicons</span>
+            <span class="arkea-mini-stat__value">
               {1 + @preview.plasmid_count + @preview.prophage_count}
             </span>
           </div>
         </div>
       </div>
 
-      <div class="seed-editor__panel">
-        <div class="sim-card__eyebrow">Custom chromosome gene designer</div>
-        <p class="sim-muted seed-editor__copy">
+      <div class="arkea-seed-editor__panel">
+        <div class="arkea-card__eyebrow">Custom chromosome gene designer</div>
+        <p class="arkea-muted arkea-seed-editor__copy">
           Compose a chromosome gene from the functional domains implemented in the simulation. Intergenic blocks now feed runtime expression control, transfer bias, and duplication hotspots.
         </p>
 
-        <div class="seed-editor__draft">
-          <div class="seed-editor__draft-title">Draft gene</div>
+        <div class="arkea-seed-editor__draft">
+          <div class="arkea-seed-editor__draft-title">Draft gene</div>
           <ul class="arkea-draft-domains" role="list">
             <li
               :for={{domain_id, idx} <- Enum.with_index(@draft_domains)}
@@ -823,49 +823,49 @@ defmodule ArkeaWeb.SeedLabLive do
             </li>
           </ul>
 
-          <div class="seed-intergenic-summary">
-            <span :for={entry <- intergenic_badges(@draft_intergenic)} class="seed-intergenic-chip">
+          <div class="arkea-seed-intergenic-summary">
+            <span :for={entry <- intergenic_badges(@draft_intergenic)} class="arkea-seed-intergenic-chip">
               {entry}
             </span>
-            <span :if={intergenic_badges(@draft_intergenic) == []} class="sim-muted">
+            <span :if={intergenic_badges(@draft_intergenic) == []} class="arkea-muted">
               no intergenic blocks attached
             </span>
           </div>
 
-          <p :if={@gene_editor_error} class="seed-field__error">{@gene_editor_error}</p>
+          <p :if={@gene_editor_error} class="arkea-seed-field__error">{@gene_editor_error}</p>
         </div>
 
-        <div class="seed-editor__palette">
+        <div class="arkea-seed-editor__palette">
           <button
             :for={domain <- @domain_palette}
             type="button"
             class={[
-              "seed-palette-button",
-              domain.runtime == :latent && "seed-palette-button--latent"
+              "arkea-seed-palette-button",
+              domain.runtime == :latent && "arkea-seed-palette-button--latent"
             ]}
             phx-click="append_domain"
             phx-value-type={domain.id}
             disabled={@seed_locked?}
             title={domain.description}
           >
-            <span class="seed-palette-button__title">{domain.label}</span>
-            <span class="seed-palette-button__meta">
+            <span class="arkea-seed-palette-button__title">{domain.label}</span>
+            <span class="arkea-seed-palette-button__meta">
               {if(domain.runtime == :active, do: "active now", else: "stored / future")}
             </span>
           </button>
         </div>
 
-        <div class="seed-intergenic-grid">
-          <div :for={{family, entries} <- @intergenic_palette} class="seed-intergenic-group">
-            <div class="seed-editor__draft-title">{intergenic_family_label(family)}</div>
-            <div class="seed-intergenic-group__buttons">
+        <div class="arkea-seed-intergenic-grid">
+          <div :for={{family, entries} <- @intergenic_palette} class="arkea-seed-intergenic-group">
+            <div class="arkea-seed-editor__draft-title">{intergenic_family_label(family)}</div>
+            <div class="arkea-seed-intergenic-group__buttons">
               <button
                 :for={entry <- entries}
                 type="button"
                 class={[
-                  "seed-intergenic-button",
+                  "arkea-seed-intergenic-button",
                   intergenic_selected?(@draft_intergenic, family, entry.id) &&
-                    "seed-intergenic-button--active"
+                    "arkea-seed-intergenic-button--active"
                 ]}
                 phx-click="toggle_intergenic"
                 phx-value-family={family}
@@ -879,10 +879,10 @@ defmodule ArkeaWeb.SeedLabLive do
           </div>
         </div>
 
-        <div class="seed-editor__actions">
+        <div class="arkea-seed-editor__actions">
           <button
             type="button"
-            class="sim-action-button"
+            class="arkea-action-button"
             phx-click="undo_gene_domain"
             disabled={@seed_locked? or @draft_domains == []}
           >
@@ -890,7 +890,7 @@ defmodule ArkeaWeb.SeedLabLive do
           </button>
           <button
             type="button"
-            class="sim-action-button"
+            class="arkea-action-button"
             phx-click="clear_gene_draft"
             disabled={@seed_locked? or (@draft_domains == [] and @draft_intergenic_count == 0)}
           >
@@ -898,7 +898,7 @@ defmodule ArkeaWeb.SeedLabLive do
           </button>
           <button
             type="button"
-            class="sim-action-button"
+            class="arkea-action-button"
             phx-click="commit_custom_gene"
             disabled={@seed_locked?}
           >
@@ -907,40 +907,40 @@ defmodule ArkeaWeb.SeedLabLive do
         </div>
       </div>
 
-      <div class="seed-custom-gene-list">
-        <div class="seed-editor__draft-title">Committed custom genes</div>
+      <div class="arkea-seed-custom-gene-list">
+        <div class="arkea-seed-editor__draft-title">Committed custom genes</div>
         <%= if @custom_gene_specs == [] do %>
-          <p class="sim-muted">
+          <p class="arkea-muted">
             No custom chromosome genes committed yet. The atlas currently shows only the phenotype-derived base genome.
           </p>
         <% else %>
-          <div :for={{gene, index} <- Enum.with_index(@custom_gene_specs, 1)} class="seed-custom-gene">
-            <div class="seed-custom-gene__header">
-              <span class="seed-custom-gene__title">Custom gene {index}</span>
+          <div :for={{gene, index} <- Enum.with_index(@custom_gene_specs, 1)} class="arkea-seed-custom-gene">
+            <div class="arkea-seed-custom-gene__header">
+              <span class="arkea-seed-custom-gene__title">Custom gene {index}</span>
               <button
                 :if={!@seed_locked?}
                 type="button"
-                class="seed-custom-gene__remove"
+                class="arkea-seed-custom-gene__remove"
                 phx-click="remove_custom_gene"
                 phx-value-index={index - 1}
               >
                 Remove
               </button>
             </div>
-            <div class="seed-gene__bar">
+            <div class="arkea-seed-gene__bar">
               <span
                 :for={domain_id <- gene.domains}
-                class={["seed-domain", "seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
+                class={["arkea-seed-domain", "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"]}
                 style="flex: 23;"
                 title={domain_label(domain_type_from_id(domain_id))}
               >
               </span>
             </div>
-            <div class="seed-custom-gene__meta">
+            <div class="arkea-seed-custom-gene__meta">
               {Enum.map_join(gene.domains, " · ", &domain_label(domain_type_from_id(&1)))}
             </div>
-            <div class="seed-intergenic-summary">
-              <span :for={entry <- intergenic_badges(gene.intergenic)} class="seed-intergenic-chip">
+            <div class="arkea-seed-intergenic-summary">
+              <span :for={entry <- intergenic_badges(gene.intergenic)} class="arkea-seed-intergenic-chip">
                 {entry}
               </span>
             </div>
@@ -968,43 +968,43 @@ defmodule ArkeaWeb.SeedLabLive do
     assigns = assign(assigns, gene: gene)
 
     ~H"""
-    <div :if={@gene} class="seed-gene-inspector">
-      <div class="seed-gene-inspector__header">
+    <div :if={@gene} class="arkea-seed-gene-inspector">
+      <div class="arkea-seed-gene-inspector__header">
         <div>
-          <div class="sim-card__eyebrow">Gene inspector</div>
-          <h3 id="seed-gene-inspector-title" class="seed-gene-inspector__title">
+          <div class="arkea-card__eyebrow">Gene inspector</div>
+          <h3 id="arkea-seed-gene-inspector-title" class="arkea-seed-gene-inspector__title">
             {@gene.replicon_label} · {@gene.label}
           </h3>
         </div>
-        <div class="seed-gene-inspector__meta">
+        <div class="arkea-seed-gene-inspector__meta">
           {@gene.domain_count} domains · {@gene.codon_count} codons
         </div>
       </div>
 
-      <p class="sim-muted">
+      <p class="arkea-muted">
         {@gene.behavior_copy}
       </p>
 
-      <div :if={intergenic_badges(@gene.intergenic_blocks) != []} class="seed-gene-inspector__blocks">
-        <span :for={entry <- intergenic_badges(@gene.intergenic_blocks)} class="seed-intergenic-chip">
+      <div :if={intergenic_badges(@gene.intergenic_blocks) != []} class="arkea-seed-gene-inspector__blocks">
+        <span :for={entry <- intergenic_badges(@gene.intergenic_blocks)} class="arkea-seed-intergenic-chip">
           {entry}
         </span>
       </div>
 
-      <div class="seed-domain-stack">
+      <div class="arkea-seed-domain-stack">
         <div
           :for={{domain, index} <- Enum.with_index(@gene.raw_gene.domains, 1)}
-          class="seed-domain-card"
+          class="arkea-seed-domain-card"
         >
-          <div class="seed-domain-card__header">
+          <div class="arkea-seed-domain-card__header">
             <span class={[
-              "seed-domain-legend__swatch",
-              "seed-domain-legend__swatch--#{domain_tone(domain.type)}"
+              "arkea-seed-domain-legend__swatch",
+              "arkea-seed-domain-legend__swatch--#{domain_tone(domain.type)}"
             ]}>
             </span>
-            <span class="seed-domain-card__title">Domain {index} · {domain_label(domain.type)}</span>
+            <span class="arkea-seed-domain-card__title">Domain {index} · {domain_label(domain.type)}</span>
           </div>
-          <div class="seed-domain-card__copy">{domain_summary(domain)}</div>
+          <div class="arkea-seed-domain-card__copy">{domain_summary(domain)}</div>
         </div>
       </div>
     </div>
@@ -1013,9 +1013,9 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp env_reading(assigns) do
     ~H"""
-    <div class="sim-env-reading">
-      <span class="sim-env-reading__label">{@label}</span>
-      <span class="sim-env-reading__value">{@value}</span>
+    <div class="arkea-env-reading">
+      <span class="arkea-env-reading__label">{@label}</span>
+      <span class="arkea-env-reading__value">{@value}</span>
     </div>
     """
   end
@@ -1464,21 +1464,21 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp format_float(value, _decimals) when is_integer(value), do: to_string(value)
 
-  defp shell_class("porous"), do: "seed-portrait__glyph--porous"
-  defp shell_class("fortified"), do: "seed-portrait__glyph--fortified"
-  defp shell_class("salinity_tuned"), do: "seed-portrait__glyph--salinity"
+  defp shell_class("porous"), do: "arkea-seed-portrait__glyph--porous"
+  defp shell_class("fortified"), do: "arkea-seed-portrait__glyph--fortified"
+  defp shell_class("salinity_tuned"), do: "arkea-seed-portrait__glyph--salinity"
 
-  defp core_class("thrifty"), do: "seed-portrait__glyph--thrifty"
-  defp core_class("balanced"), do: "seed-portrait__glyph--balanced"
-  defp core_class("bloom"), do: "seed-portrait__glyph--bloom"
+  defp core_class("thrifty"), do: "arkea-seed-portrait__glyph--thrifty"
+  defp core_class("balanced"), do: "arkea-seed-portrait__glyph--balanced"
+  defp core_class("bloom"), do: "arkea-seed-portrait__glyph--bloom"
 
-  defp pulse_class("steady"), do: "seed-portrait__glyph--steady"
-  defp pulse_class("responsive"), do: "seed-portrait__glyph--responsive"
-  defp pulse_class("mutator"), do: "seed-portrait__glyph--mutator"
+  defp pulse_class("steady"), do: "arkea-seed-portrait__glyph--steady"
+  defp pulse_class("responsive"), do: "arkea-seed-portrait__glyph--responsive"
+  defp pulse_class("mutator"), do: "arkea-seed-portrait__glyph--mutator"
 
-  defp accessory_class("none"), do: "seed-portrait__glyph--no-accessory"
-  defp accessory_class("conjugative_plasmid"), do: "seed-portrait__glyph--plasmid"
-  defp accessory_class("latent_prophage"), do: "seed-portrait__glyph--prophage"
+  defp accessory_class("none"), do: "arkea-seed-portrait__glyph--no-accessory"
+  defp accessory_class("conjugative_plasmid"), do: "arkea-seed-portrait__glyph--plasmid"
+  defp accessory_class("latent_prophage"), do: "arkea-seed-portrait__glyph--prophage"
 
   defp membrane_copy("porous"), do: "Light shell, lower structural cost."
   defp membrane_copy("fortified"), do: "Thicker wall, higher upkeep, sturdier shell."

@@ -492,10 +492,10 @@ defmodule ArkeaWeb.SimLive do
 
   defp loading_view(assigns) do
     ~H"""
-    <div class="sim-loading mt-6">
+    <div class="arkea-loading mt-6">
       <span class="arkea-spinner" aria-hidden="true"></span>
-      <h2 class="sim-loading__title">Loading biotope viewport</h2>
-      <p class="sim-loading__copy">
+      <h2 class="arkea-loading__title">Loading biotope viewport</h2>
+      <p class="arkea-loading__copy">
         Waiting for the authoritative biotope process to publish its first state.
       </p>
     </div>
@@ -504,16 +504,16 @@ defmodule ArkeaWeb.SimLive do
 
   defp missing_view(assigns) do
     ~H"""
-    <div class="sim-loading mt-6">
-      <h2 class="sim-loading__title">Biotope not found</h2>
-      <p class="sim-loading__copy">
+    <div class="arkea-loading mt-6">
+      <h2 class="arkea-loading__title">Biotope not found</h2>
+      <p class="arkea-loading__copy">
         No active `Biotope.Server` is registered for {@biotope_id || "this route"}.
       </p>
-      <div class="world-cta-stack">
-        <.link href={~p"/world"} class="sim-action-button sim-action-button--wide">
+      <div class="arkea-cta-stack">
+        <.link href={~p"/world"} class="arkea-action-button arkea-action-button--wide">
           Return to world overview
         </.link>
-        <.link href={~p"/seed-lab"} class="sim-action-button sim-action-button--wide">
+        <.link href={~p"/seed-lab"} class="arkea-action-button arkea-action-button--wide">
           Open seed lab
         </.link>
       </div>
@@ -543,49 +543,49 @@ defmodule ArkeaWeb.SimLive do
       )
 
     ~H"""
-    <section class="sim-card">
+    <section class="arkea-card">
       <%= if @phase do %>
-        <div class="sim-card__header">
+        <div class="arkea-card__header">
           <div>
-            <div class="sim-card__eyebrow">Focused phase</div>
-            <h2 id="phase-inspector-title" class="sim-card__title">{phase_label(@phase.name)}</h2>
+            <div class="arkea-card__eyebrow">Focused phase</div>
+            <h2 id="phase-inspector-title" class="arkea-card__title">{phase_label(@phase.name)}</h2>
           </div>
-          <div class="sim-phase-mark" style={"background: #{phase_color(@phase.name)}"}></div>
+          <div class="arkea-phase-mark" style={"background: #{phase_color(@phase.name)}"}></div>
         </div>
 
-        <div class="sim-phase-kpis">
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">N</span>
-            <span class="sim-mini-stat__value">{format_compact(@total_population)}</span>
+        <div class="arkea-phase-kpis">
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">N</span>
+            <span class="arkea-mini-stat__value">{format_compact(@total_population)}</span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">richness</span>
-            <span class="sim-mini-stat__value">{@richness}</span>
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">richness</span>
+            <span class="arkea-mini-stat__value">{@richness}</span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">H′ (Shannon)</span>
-            <span class="sim-mini-stat__value">{@shannon}</span>
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">H′ (Shannon)</span>
+            <span class="arkea-mini-stat__value">{@shannon}</span>
           </div>
-          <div class="sim-mini-stat">
-            <span class="sim-mini-stat__label">phages</span>
-            <span class="sim-mini-stat__value">{@phage_load}</span>
+          <div class="arkea-mini-stat">
+            <span class="arkea-mini-stat__label">phages</span>
+            <span class="arkea-mini-stat__value">{@phage_load}</span>
           </div>
         </div>
 
-        <div class="sim-phase-environment">
+        <div class="arkea-phase-environment">
           <.env_reading label="T (°C)" value={format_float(@phase.temperature, 1)} />
           <.env_reading label="pH" value={format_float(@phase.ph, 1)} />
           <.env_reading label="Osm (mOsm/L)" value={format_float(@phase.osmolarity, 0)} />
           <.env_reading label="D (%/tick)" value={format_float(@phase.dilution_rate * 100.0, 1)} />
         </div>
       <% else %>
-        <div class="sim-card__header">
+        <div class="arkea-card__header">
           <div>
-            <div class="sim-card__eyebrow">Focused phase</div>
-            <h2 id="phase-inspector-title" class="sim-card__title">No phase available</h2>
+            <div class="arkea-card__eyebrow">Focused phase</div>
+            <h2 id="phase-inspector-title" class="arkea-card__title">No phase available</h2>
           </div>
         </div>
-        <p class="sim-muted">
+        <p class="arkea-muted">
           This biotope does not currently expose any authoritative phase pocket.
         </p>
       <% end %>
@@ -595,9 +595,9 @@ defmodule ArkeaWeb.SimLive do
 
   defp env_reading(assigns) do
     ~H"""
-    <div class="sim-env-reading">
-      <span class="sim-env-reading__label">{@label}</span>
-      <span class="sim-env-reading__value">{@value}</span>
+    <div class="arkea-env-reading">
+      <span class="arkea-env-reading__label">{@label}</span>
+      <span class="arkea-env-reading__value">{@value}</span>
     </div>
     """
   end
@@ -614,16 +614,16 @@ defmodule ArkeaWeb.SimLive do
     ~H"""
     <dialog id="topology-modal" class="modal">
       <div
-        class="modal-box biotope-modal"
+        class="modal-box arkea-modal-box"
         style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);"
       >
         <form method="dialog">
           <button class="arkea-modal__close" aria-label="Close">✕</button>
         </form>
-        <div class="sim-card__eyebrow mb-1">Topology</div>
-        <h3 class="sim-card__title mb-4">Network-facing metadata</h3>
+        <div class="arkea-card__eyebrow mb-1">Topology</div>
+        <h3 class="arkea-card__title mb-4">Network-facing metadata</h3>
 
-        <div class="sim-topology-grid">
+        <div class="arkea-topology-grid">
           <.env_reading label="biotope" value={short_id(@sim_state.id)} />
           <.env_reading label="zone" value={phase_label(@sim_state.zone)} />
           <.env_reading
@@ -634,12 +634,12 @@ defmodule ArkeaWeb.SimLive do
         </div>
 
         <div class="mt-3">
-          <div class="sim-card__eyebrow mb-2">Neighbor ids ({length(@sim_state.neighbor_ids)})</div>
+          <div class="arkea-card__eyebrow mb-2">Neighbor ids ({length(@sim_state.neighbor_ids)})</div>
           <%= if @sim_state.neighbor_ids == [] do %>
-            <p class="sim-muted">No migration edge attached yet.</p>
+            <p class="arkea-muted">No migration edge attached yet.</p>
           <% else %>
-            <div class="sim-token-cloud">
-              <span :for={nid <- @sim_state.neighbor_ids} class="sim-token sim-token--ghost">
+            <div class="arkea-token-cloud">
+              <span :for={nid <- @sim_state.neighbor_ids} class="arkea-token arkea-token--ghost">
                 {short_id(nid)}
               </span>
             </div>
@@ -668,23 +668,23 @@ defmodule ArkeaWeb.SimLive do
 
     ~H"""
     <div>
-      <div class="sim-operator-status mb-3">
+      <div class="arkea-operator-status mb-3">
         <%= cond do %>
           <% not @intervention_status.owner? -> %>
-            <span class="sim-token sim-token--ghost">Read-only · not owner</span>
+            <span class="arkea-token arkea-token--ghost">Read-only · not owner</span>
           <% @intervention_status.allowed? -> %>
-            <span class="sim-token">Slot open · {phase_label(@selected_phase_name)}</span>
+            <span class="arkea-token">Slot open · {phase_label(@selected_phase_name)}</span>
           <% true -> %>
-            <span class="sim-token sim-token--ghost">
+            <span class="arkea-token arkea-token--ghost">
               Locked {format_duration(@intervention_status.remaining_seconds)}
             </span>
         <% end %>
       </div>
 
-      <div class="sim-action-grid">
+      <div class="arkea-action-grid">
         <button
           type="button"
-          class="sim-action-button"
+          class="arkea-action-button"
           phx-click="apply_intervention"
           phx-value-kind="nutrient_pulse"
           disabled={@phase_actions_disabled}
@@ -694,7 +694,7 @@ defmodule ArkeaWeb.SimLive do
         </button>
         <button
           type="button"
-          class="sim-action-button"
+          class="arkea-action-button"
           phx-click="apply_intervention"
           phx-value-kind="plasmid_inoculation"
           disabled={@phase_actions_disabled}
@@ -704,7 +704,7 @@ defmodule ArkeaWeb.SimLive do
         </button>
         <button
           type="button"
-          class="sim-action-button sim-action-button--wide"
+          class="arkea-action-button arkea-action-button--wide"
           phx-click="apply_intervention"
           phx-value-kind="mixing_event"
           phx-value-scope="biotope"
@@ -716,13 +716,13 @@ defmodule ArkeaWeb.SimLive do
       </div>
 
       <%= if @operator_error do %>
-        <p class="sim-muted mt-3">{@operator_error}</p>
+        <p class="arkea-muted mt-3">{@operator_error}</p>
       <% end %>
 
       <%= if @operator_log != [] do %>
         <div class="mt-3">
-          <div class="sim-card__eyebrow mb-2">Recent interventions</div>
-          <table class="sim-table">
+          <div class="arkea-card__eyebrow mb-2">Recent interventions</div>
+          <table class="arkea-table">
             <thead>
               <tr>
                 <th>Kind</th>
@@ -783,17 +783,17 @@ defmodule ArkeaWeb.SimLive do
     assigns = assign(assigns, sorted_lineages: lineages, max_abundance: max_abundance, selected_id: selected_id)
 
     ~H"""
-    <section class="sim-card">
-      <div class="sim-card__header">
+    <section class="arkea-card">
+      <div class="arkea-card__header">
         <div>
-          <div class="sim-card__eyebrow">Lineages</div>
-          <h2 class="sim-card__title">Population board</h2>
+          <div class="arkea-card__eyebrow">Lineages</div>
+          <h2 class="arkea-card__title">Population board</h2>
         </div>
-        <div class="sim-card__meta">{length(@sorted_lineages)}</div>
+        <div class="arkea-card__meta">{length(@sorted_lineages)}</div>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="sim-table">
+        <table class="arkea-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -824,7 +824,7 @@ defmodule ArkeaWeb.SimLive do
           <tbody>
             <%= if @sorted_lineages == [] do %>
               <tr>
-                <td colspan="7" class="sim-table__empty">No lineages present.</td>
+                <td colspan="7" class="arkea-table__empty">No lineages present.</td>
               </tr>
             <% else %>
               <.lineage_row
@@ -872,9 +872,9 @@ defmodule ArkeaWeb.SimLive do
       class={["arkea-lineage-row", @is_selected && "arkea-lineage-row--selected"]}
       style="height: 2rem; cursor: pointer;">
       <td style="padding: 0.45rem 0.5rem;">
-        <div class="sim-lineage-id">
-          <span class="sim-lineage-swatch" style={"background: #{@color}"}></span>
-          <span class="sim-lineage-id__main">{@short_id}</span>
+        <div class="arkea-lineage-id">
+          <span class="arkea-lineage-swatch" style={"background: #{@color}"}></span>
+          <span class="arkea-lineage-id__main">{@short_id}</span>
         </div>
       </td>
       <td style="padding: 0.45rem 0.5rem;">
@@ -884,11 +884,11 @@ defmodule ArkeaWeb.SimLive do
         {@dominant_phase}
       </td>
       <td style="padding: 0.45rem 0.5rem;">
-        <div class="sim-abundance-bar">
-          <div class="sim-abundance-bar__track" style="min-width: 3rem;">
-            <div class="sim-abundance-bar__fill" style={"width: #{@pct}%; background: #{@color}"} />
+        <div class="arkea-abundance-bar">
+          <div class="arkea-abundance-bar__track" style="min-width: 3rem;">
+            <div class="arkea-abundance-bar__fill" style={"width: #{@pct}%; background: #{@color}"} />
           </div>
-          <span class="sim-abundance-bar__value" style="font-size: var(--text-sm);">
+          <span class="arkea-abundance-bar__value" style="font-size: var(--text-sm);">
             {@abundance}
           </span>
         </div>
@@ -911,22 +911,22 @@ defmodule ArkeaWeb.SimLive do
     assigns = assign(assigns, chem: chem)
 
     ~H"""
-    <section class="sim-card">
-      <div class="sim-card__header">
+    <section class="arkea-card">
+      <div class="arkea-card__header">
         <div>
-          <div class="sim-card__eyebrow">Chemistry</div>
-          <h2 class="sim-card__title">Metabolite pools</h2>
+          <div class="arkea-card__eyebrow">Chemistry</div>
+          <h2 class="arkea-card__title">Metabolite pools</h2>
         </div>
-        <div class="sim-card__meta">
+        <div class="arkea-card__meta">
           {length(@sim_state.phases)} phases × {length(@chem.metabolites)} metabolites
         </div>
       </div>
 
       <%= if @chem.rows == [] do %>
-        <p class="sim-muted">No phase pools available.</p>
+        <p class="arkea-muted">No phase pools available.</p>
       <% else %>
         <div class="overflow-x-auto">
-          <table class="sim-heatmap">
+          <table class="arkea-heatmap">
             <thead>
               <tr>
                 <th></th>
@@ -938,7 +938,7 @@ defmodule ArkeaWeb.SimLive do
                 <td>{phase_label(row.phase)}</td>
                 <td
                   :for={{conc, max_c} <- Enum.zip(row.concentrations, @chem.max_per_met)}
-                  class="sim-heatmap__cell"
+                  class="arkea-heatmap__cell"
                   style={"--fill: #{Float.round(if(max_c > 0, do: conc / max_c, else: 0.0), 2)}"}
                 >
                   {if conc > 0, do: format_μm(conc)}
@@ -948,10 +948,10 @@ defmodule ArkeaWeb.SimLive do
           </table>
         </div>
 
-        <div class="sim-token-cloud mt-3">
-          <span :for={phase <- @sim_state.phases} class="sim-token sim-token--ghost">
-            <span class="sim-token__label">{phase_label(phase.name)}</span>
-            <span class="sim-token__value">
+        <div class="arkea-token-cloud mt-3">
+          <span :for={phase <- @sim_state.phases} class="arkea-token arkea-token--ghost">
+            <span class="arkea-token__label">{phase_label(phase.name)}</span>
+            <span class="arkea-token__value">
               sig {round_metric(sum_pool(phase.signal_pool))} · phage {round_metric(
                 sum_phage_pool(phase.phage_pool)
               )}
@@ -967,7 +967,7 @@ defmodule ArkeaWeb.SimLive do
     ~H"""
     <div>
       <%= if @event_log == [] do %>
-        <p class="sim-muted">Awaiting broadcast events from the biotope server.</p>
+        <p class="arkea-muted">Awaiting broadcast events from the biotope server.</p>
       <% else %>
         <div class="space-y-1" id="event-log-scroll" phx-hook="EventLogScroll">
           <.event_entry :for={event <- @event_log} event={event} />
@@ -990,13 +990,13 @@ defmodule ArkeaWeb.SimLive do
       )
 
     ~H"""
-    <div class="sim-event-entry" style="padding: 0.5rem 0.75rem;">
-      <span class={["sim-event-entry__icon w-4 h-4 flex-shrink-0", "sim-event-entry__icon--#{@tone}"]}>
+    <div class="arkea-event-entry" style="padding: 0.5rem 0.75rem;">
+      <span class={["arkea-event-entry__icon w-4 h-4 flex-shrink-0", "arkea-event-entry__icon--#{@tone}"]}>
         <span class={@icon_class}></span>
       </span>
-      <div class="sim-event-entry__body">
-        <div class="sim-event-entry__label">{@label}</div>
-        <div class="sim-event-entry__meta">
+      <div class="arkea-event-entry__body">
+        <div class="arkea-event-entry__label">{@label}</div>
+        <div class="arkea-event-entry__meta">
           tick {@tick}
           <%= if @short_lineage != "" do %>
             · {@short_lineage}

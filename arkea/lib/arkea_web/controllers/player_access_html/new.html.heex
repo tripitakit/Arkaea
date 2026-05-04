@@ -1,66 +1,66 @@
-<div class="sim-shell" data-view="access">
-  <div class="sim-shell__aurora sim-shell__aurora--west"></div>
-  <div class="sim-shell__aurora sim-shell__aurora--east"></div>
-  <div class="sim-shell__grid"></div>
+<div class="arkea-access-shell" data-view="access">
+  <div class="arkea-access-shell__aurora arkea-access-shell__aurora--west"></div>
+  <div class="arkea-access-shell__aurora arkea-access-shell__aurora--east"></div>
+  <div class="arkea-access-shell__grid"></div>
 
-  <div class="sim-shell__content">
-    <nav class="game-nav access-nav">
-      <div class="game-nav__brand">
-        <span class="game-nav__brand-mark"></span>
+  <div class="arkea-access-shell__content">
+    <nav class="arkea-old-nav arkea-access-nav">
+      <div class="arkea-old-nav__brand">
+        <span class="arkea-old-nav__brand-mark"></span>
         <span>Arkea</span>
       </div>
 
-      <div class="game-nav__links">
-        <span class="game-nav__link game-nav__link--active">Shared simulation</span>
-        <span class="game-nav__link">24/7 runtime</span>
-        <span class="game-nav__link">Player-seeded biotopes</span>
+      <div class="arkea-old-nav__links">
+        <span class="arkea-old-nav__link arkea-old-nav__link--active">Shared simulation</span>
+        <span class="arkea-old-nav__link">24/7 runtime</span>
+        <span class="arkea-old-nav__link">Player-seeded biotopes</span>
       </div>
 
-      <div class="game-nav__operator">Create or resume a player</div>
+      <div class="arkea-old-nav__operator">Create or resume a player</div>
     </nav>
 
-    <section class="sim-hero access-hero mt-6">
+    <section class="arkea-access-hero arkea-access-hero mt-6">
       <div>
-        <div class="sim-hero__eyebrow">Arkea simulation · splash shell</div>
-        <h1 class="sim-hero__title">Persistent shared biotope simulation</h1>
-        <p class="sim-hero__copy">
+        <div class="arkea-access-hero__eyebrow">Arkea simulation · splash shell</div>
+        <h1 class="arkea-access-hero__title">Persistent shared biotope simulation</h1>
+        <p class="arkea-access-hero__copy">
           Create a player, design a seed, colonize a controlled biotope. This
           entrypoint opens the same simulation shell used by the shared world,
           seed engineering, and authoritative biotope views.
         </p>
       </div>
 
-      <div class="sim-stat-strip">
-        <div class="sim-stat-chip sim-stat-chip--gold">
-          <span class="sim-stat-chip__label">entry</span>
-          <span class="sim-stat-chip__value">player access</span>
+      <div class="arkea-stat-strip">
+        <div class="arkea-stat-chip arkea-stat-chip--gold">
+          <span class="arkea-stat-chip__label">entry</span>
+          <span class="arkea-stat-chip__value">player access</span>
         </div>
-        <div class="sim-stat-chip sim-stat-chip--teal">
-          <span class="sim-stat-chip__label">build</span>
-          <span class="sim-stat-chip__value">custom seed</span>
+        <div class="arkea-stat-chip arkea-stat-chip--teal">
+          <span class="arkea-stat-chip__label">build</span>
+          <span class="arkea-stat-chip__value">custom seed</span>
         </div>
-        <div class="sim-stat-chip sim-stat-chip--sky">
-          <span class="sim-stat-chip__label">deploy</span>
-          <span class="sim-stat-chip__value">home biotope</span>
+        <div class="arkea-stat-chip arkea-stat-chip--sky">
+          <span class="arkea-stat-chip__label">deploy</span>
+          <span class="arkea-stat-chip__value">home biotope</span>
         </div>
-        <div class="sim-stat-chip sim-stat-chip--amber">
-          <span class="sim-stat-chip__label">runtime</span>
-          <span class="sim-stat-chip__value">server-authoritative</span>
+        <div class="arkea-stat-chip arkea-stat-chip--amber">
+          <span class="arkea-stat-chip__label">runtime</span>
+          <span class="arkea-stat-chip__value">server-authoritative</span>
         </div>
       </div>
     </section>
 
-    <div class="sim-main-grid access-main-grid mt-6">
-      <section class="sim-card access-card access-card--create">
-        <div class="sim-card__header">
+    <div class="arkea-main-grid arkea-access-main-grid mt-6">
+      <section class="arkea-card arkea-access-card arkea-access-card--create">
+        <div class="arkea-card__header">
           <div>
-            <div class="sim-card__eyebrow">Player access</div>
-            <h2 class="sim-card__title">Create player</h2>
+            <div class="arkea-card__eyebrow">Player access</div>
+            <h2 class="arkea-card__title">Create player</h2>
           </div>
-          <div class="sim-card__meta">new session</div>
+          <div class="arkea-card__meta">new session</div>
         </div>
 
-        <p class="sim-muted access-card__lead">
+        <p class="arkea-muted arkea-access-card__lead">
           Creates a persistent player record used by seed provisioning,
           home-biotope ownership, and intervention audit.
         </p>
@@ -69,7 +69,7 @@
           for={@register_form}
           action={~p"/players/register"}
           method="post"
-          class="access-form mt-4"
+          class="arkea-access-form mt-4"
         >
           <.input
             field={@register_form[:display_name]}
@@ -84,21 +84,21 @@
             autocomplete="email"
             required
           />
-          <.button class="access-submit w-full">Create player and enter world</.button>
+          <.button class="arkea-access-submit w-full">Create player and enter world</.button>
         </.form>
       </section>
 
-      <div class="sim-sidebar access-sidebar">
-        <section class="sim-card access-card access-card--resume">
-          <div class="sim-card__header">
+      <div class="arkea-sidebar arkea-access-sidebar">
+        <section class="arkea-card arkea-access-card arkea-access-card--resume">
+          <div class="arkea-card__header">
             <div>
-              <div class="sim-card__eyebrow">Session resume</div>
-              <h2 class="sim-card__title">Resume player</h2>
+              <div class="arkea-card__eyebrow">Session resume</div>
+              <h2 class="arkea-card__title">Resume player</h2>
             </div>
-            <div class="sim-card__meta">email-only</div>
+            <div class="arkea-card__meta">email-only</div>
           </div>
 
-          <p class="sim-muted access-card__lead">
+          <p class="arkea-muted arkea-access-card__lead">
             Re-enter the same email to reopen the shared world, the seed lab,
             and every controlled biotope owned by that player.
           </p>
@@ -107,7 +107,7 @@
             for={@login_form}
             action={~p"/players/log-in"}
             method="post"
-            class="access-form mt-4"
+            class="arkea-access-form mt-4"
           >
             <.input
               field={@login_form[:email]}
@@ -116,41 +116,41 @@
               autocomplete="email"
               required
             />
-            <.button class="access-submit access-submit--outline w-full" variant="primary">
+            <.button class="arkea-access-submit arkea-access-submit--outline w-full" variant="primary">
               Resume existing player
             </.button>
           </.form>
         </section>
 
-        <section class="sim-card access-card access-card--brief">
-          <div class="sim-card__header">
+        <section class="arkea-card arkea-access-card arkea-access-card--brief">
+          <div class="arkea-card__header">
             <div>
-              <div class="sim-card__eyebrow">Simulation brief</div>
-              <h2 class="sim-card__title">What starts after login</h2>
+              <div class="arkea-card__eyebrow">Simulation brief</div>
+              <h2 class="arkea-card__title">What starts after login</h2>
             </div>
-            <div class="sim-card__meta">shared runtime</div>
+            <div class="arkea-card__meta">shared runtime</div>
           </div>
 
-          <div class="access-brief-grid">
-            <article class="access-brief-item">
-              <div class="sim-card__eyebrow">World</div>
-              <p class="access-brief-copy">
+          <div class="arkea-access-brief-grid">
+            <article class="arkea-access-brief-item">
+              <div class="arkea-card__eyebrow">World</div>
+              <p class="arkea-access-brief-copy">
                 Shared map of active biotopes, ownership state, topology, and
                 ecotype inventory.
               </p>
             </article>
 
-            <article class="access-brief-item">
-              <div class="sim-card__eyebrow">Seed lab</div>
-              <p class="access-brief-copy">
+            <article class="arkea-access-brief-item">
+              <div class="arkea-card__eyebrow">Seed lab</div>
+              <p class="arkea-access-brief-copy">
                 Phenotype-first tuning, genome preview, custom gene design, and
                 first home-biotope placement.
               </p>
             </article>
 
-            <article class="access-brief-item">
-              <div class="sim-card__eyebrow">Biotope view</div>
-              <p class="access-brief-copy">
+            <article class="arkea-access-brief-item">
+              <div class="arkea-card__eyebrow">Biotope view</div>
+              <p class="arkea-access-brief-copy">
                 Realtime authoritative viewport with phase inspection,
                 procedural visualization, and audited interventions.
               </p>
