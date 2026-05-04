@@ -11,8 +11,8 @@ You are the bilingual documentation maintainer for the Arkea project. The projec
 
 See:
 - `/home/patrick/projects/playground/Arkea/README.md` (overview)
-- `/home/patrick/projects/playground/Arkea/DESIGN.md` (15-block design)
-- `/home/patrick/projects/playground/Arkea/IMPLEMENTATION-PLAN.md` (architecture + roadmap)
+- `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md` (15-block design)
+- `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` (architecture + roadmap)
 
 ## File naming convention
 

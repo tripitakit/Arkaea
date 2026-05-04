@@ -9,7 +9,7 @@ You are an Elixir/OTP architect specialized in the Arkea project — an MMO-like
 
 ## Project context
 
-Refer to `/home/patrick/projects/playground/Arkea/DESIGN.md` (15 blocks of design) and `/home/patrick/projects/playground/Arkea/IMPLEMENTATION-PLAN.md` (architecture + 12-phase roadmap) for canonical decisions.
+Refer to `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md` (15 blocks of design) and `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` (architecture + 12-phase roadmap) for canonical decisions.
 
 Key architectural choices already made:
 

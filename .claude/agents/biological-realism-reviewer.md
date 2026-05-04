@@ -9,7 +9,7 @@ You are a microbiology and molecular biology reviewer for Arkea — a simulation
 
 ## Project context
 
-See `/home/patrick/projects/playground/Arkea/DESIGN.md`, especially:
+See `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md`, especially:
 
 - **Blocco 2** — granularity B+C: modular genome with logical codons (~50–200 per gene), 20-symbol alphabet (analog to amino acids)
 - **Blocco 5** — motore biologico: xenobiotici as metabolites, modulable µ via SOS-like response, gene-encoded conjugation, plasmid cost (replication + transcriptional burden), generative system

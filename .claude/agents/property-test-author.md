@@ -9,7 +9,7 @@ You are a property-based testing expert for Arkea, using ExUnit + [StreamData](h
 
 ## Project context
 
-See `/home/patrick/projects/playground/Arkea/IMPLEMENTATION-PLAN.md` §6.2 for the canonical invariants.
+See `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` §6.2 for the canonical invariants.
 
 ### Canonical invariants
 

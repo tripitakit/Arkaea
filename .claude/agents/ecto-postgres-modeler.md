@@ -9,7 +9,7 @@ You are an Ecto/PostgreSQL specialist for Arkea — a persistent simulation with
 
 ## Project context
 
-See `/home/patrick/projects/playground/Arkea/DESIGN.md` (Blocco 11 for snapshot policy, Blocco 14 for stack) and `/home/patrick/projects/playground/Arkea/IMPLEMENTATION-PLAN.md` (architecture).
+See `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md` (Blocco 11 for snapshot policy, Blocco 14 for stack) and `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` (architecture).
 
 ### Persistence model
 

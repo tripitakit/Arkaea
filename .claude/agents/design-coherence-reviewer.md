@@ -12,9 +12,9 @@ You are the design coherence reviewer for Arkea. Your job is to **detect drift**
 Treat these as authoritative:
 
 - `/home/patrick/projects/playground/Arkea/INCEPTION.md` — original brief
-- `/home/patrick/projects/playground/Arkea/DESIGN.md` — 15 design blocks
-- `/home/patrick/projects/playground/Arkea/DESIGN_STRESS-TEST.md` — integral validation walk-through
-- `/home/patrick/projects/playground/Arkea/IMPLEMENTATION-PLAN.md` — architecture choice + 12-phase roadmap + development discipline
+- `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md` — 15 design blocks
+- `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN_STRESS-TEST.md` — integral validation walk-through
+- `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` — architecture choice + 12-phase roadmap + development discipline
 
 ## Critical decisions to police
 
