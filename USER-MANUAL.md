@@ -220,7 +220,7 @@ Mentre compili il form, sulla sidebar destra trovi uno **schema diagrammatico de
 **Altri elementi**:
 
 - **Flagello** (lunga curva teal sul lato destro) = se il cluster fenotipico calcola "motile" (n_transmembrane ≥ 2 e nessun surface tag biofilm).
-- **Alone tratteggiato pulsante rosso** intorno alla cellula = il `regulation_profile` è `mutator` (cellula sotto stress di hypermutazione cronica).
+- **Alone (halo) caldo intorno alla cellula** = il `regulation_profile` è `mutator` (cellula sotto stress di hypermutazione cronica). L'effetto è composto da cinque anelli concentrici sovrapposti — bande esterne morbide che sfumano, un anello tratteggiato intermedio che ruota lentamente (shimmer), e un accento sottile sul bordo della cellula. Tutto pulsa con un respiro ~3.6 s. La rotazione e il pulse rispettano `prefers-reduced-motion`.
 
 Sotto lo schema, una **legenda di 4 righe** (Envelope / Metabolism / Regulation / Accessory) descrive in linguaggio naturale la scelta corrente.
 

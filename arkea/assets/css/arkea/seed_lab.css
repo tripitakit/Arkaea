@@ -82,20 +82,65 @@
   display: block;
 }
 
-/* ─── Stress halo (mutator) ────────────────────────────────────────────── */
+/* ─── Mutator stress halo ──────────────────────────────────────────────
+   Five stacked ellipses compose the halo: outer bands fade outward, the
+   inner shimmer ring rotates slowly, and the whole group pulses softly.
+   The composite reads as a warm crimson glow without any SVG filter. */
+
 .arkea-arkeon-schematic__stress-halo {
-  stroke: var(--arkea-accent-stress);
-  stroke-width: 1;
-  animation: arkea-arkeon-stress-pulse 2.4s ease-in-out infinite;
+  /* Group-level pulse: every ring inside breathes together. */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: arkea-stress-halo-pulse 3.6s ease-in-out infinite;
 }
 
-@keyframes arkea-arkeon-stress-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.85; }
+.arkea-arkeon-schematic__stress-halo-ring {
+  stroke: var(--arkea-accent-stress);
+  stroke-linecap: round;
+}
+
+/* Outer / mid / inner glow bands: pure soft fill via stroke-width, no dash. */
+.arkea-arkeon-schematic__stress-halo-ring--glow_outer,
+.arkea-arkeon-schematic__stress-halo-ring--glow_mid,
+.arkea-arkeon-schematic__stress-halo-ring--glow_inner {
+  stroke: oklch(60% 0.22 22 / 100%);
+}
+
+/* Slight warm tint shift between bands gives the halo depth. */
+.arkea-arkeon-schematic__stress-halo-ring--glow_mid {
+  stroke: oklch(65% 0.20 18 / 100%);
+}
+
+.arkea-arkeon-schematic__stress-halo-ring--glow_inner {
+  stroke: oklch(70% 0.18 14 / 100%);
+}
+
+/* Shimmer ring: dashed, with its own slow rotation via stroke-dashoffset. */
+.arkea-arkeon-schematic__stress-halo-ring--shimmer {
+  stroke: oklch(72% 0.22 22 / 100%);
+  animation: arkea-stress-halo-shimmer 6s linear infinite;
+}
+
+/* Accent ring: tight, sharp, follows the envelope. */
+.arkea-arkeon-schematic__stress-halo-ring--accent {
+  stroke: oklch(80% 0.18 12 / 100%);
+}
+
+@keyframes arkea-stress-halo-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.04); opacity: 1; }
+}
+
+@keyframes arkea-stress-halo-shimmer {
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -56; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arkea-arkeon-schematic__stress-halo { animation: none; }
+  .arkea-arkeon-schematic__stress-halo,
+  .arkea-arkeon-schematic__stress-halo-ring--shimmer {
+    animation: none;
+  }
 }
 
 /* ─── Flagellum ────────────────────────────────────────────────────────── */

@@ -223,7 +223,7 @@ defmodule Arkea.Views.ArkeonSchematicTest do
       assert Enum.all?(layout.nucleoid.loops, &(&1.path =~ "M "))
     end
 
-    test "mutator regulation surfaces a stress halo" do
+    test "mutator regulation surfaces a layered stress halo" do
       layout =
         ArkeonSchematic.build(%{
           spec: %{
@@ -237,7 +237,36 @@ defmodule Arkea.Views.ArkeonSchematicTest do
         })
 
       assert layout.stress_halo != nil
-      assert layout.stress_halo.stroke_dasharray =~ "3"
+      # Five stacked ellipses build the halo glow.
+      assert length(layout.stress_halo.rings) == 5
+
+      layers = Enum.map(layout.stress_halo.rings, & &1.layer)
+
+      assert layers == [
+               :glow_outer,
+               :glow_mid,
+               :glow_inner,
+               :shimmer,
+               :accent
+             ]
+
+      # Outer rings must be larger than inner rings (true halo geometry).
+      [outer | rest] = layout.stress_halo.rings
+      [innermost | _] = Enum.reverse(rest)
+      assert outer.rx > innermost.rx and outer.ry > innermost.ry
+
+      # The shimmer layer carries the dasharray; everything else is solid.
+      shimmer = Enum.find(layout.stress_halo.rings, &(&1.layer == :shimmer))
+      assert shimmer.dasharray =~ ~r/\d+\s+\d+/
+
+      assert Enum.all?(
+               Enum.reject(layout.stress_halo.rings, &(&1.layer == :shimmer)),
+               &(not Map.has_key?(&1, :dasharray))
+             )
+
+      # Opacities must rise from outer (faintest) to inner shimmer ring.
+      [o0, o1, o2, o3, _o4] = Enum.map(layout.stress_halo.rings, & &1.opacity)
+      assert o0 < o1 and o1 < o2 and o2 < o3
     end
 
     test "granule count grows with metabolism profile aggressiveness" do

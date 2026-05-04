@@ -220,7 +220,7 @@ As you fill the form, the right sidebar shows a **diagrammatic schematic of the 
 **Other elements**:
 
 - **Flagellum** (long teal curve on the right side) = the phenotype clusters as "motile" (n_transmembrane ≥ 2 and no biofilm surface tag).
-- **Pulsing dashed red halo** around the cell = the `regulation_profile` is `mutator` (cell under chronic hypermutation stress).
+- **Warm halo around the cell** = the `regulation_profile` is `mutator` (cell under chronic hypermutation stress). The effect is composed of five concentric stacked rings — soft outer bands that fade outward, an intermediate dashed ring that slowly rotates (shimmer), and a thin accent on the cell edge. The whole halo breathes at ~3.6 s. Rotation and pulse respect `prefers-reduced-motion`.
 
 Below the schematic, a **4-line legend** (Envelope / Metabolism / Regulation / Accessory) describes the current choice in natural language.
 

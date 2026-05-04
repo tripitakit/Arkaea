@@ -597,16 +597,40 @@ defmodule Arkea.Views.ArkeonSchematic do
 
   # ---------------------------------------------------------------------------
   # Stress halo
+  #
+  # Composed of five stacked ellipses (outer → inner): a wide soft glow that
+  # fades almost to transparent at the outer edge, three intermediate bands
+  # with progressively higher opacity, and a near-the-cell dashed ring that
+  # carries the "rotational shimmer" animation in CSS. Stacking multiple
+  # rings rather than relying on an SVG <filter> avoids feGaussianBlur
+  # rendering quirks across browsers and keeps the halo crisp at any zoom.
 
   defp stress_halo(:mutator) do
-    %{
-      cx: @cx,
-      cy: @cy,
-      rx: @rx + 12,
-      ry: @ry + 10,
-      stroke_dasharray: "3 3",
-      opacity: 0.55
-    }
+    cx = @cx
+    cy = @cy
+
+    rings = [
+      # Outer-most very soft glow.
+      %{layer: :glow_outer, rx: @rx + 34, ry: @ry + 28, stroke_width: 10.0, opacity: 0.10},
+      # Wide mid glow.
+      %{layer: :glow_mid, rx: @rx + 24, ry: @ry + 20, stroke_width: 7.0, opacity: 0.20},
+      # Inner glow band.
+      %{layer: :glow_inner, rx: @rx + 16, ry: @ry + 13, stroke_width: 4.5, opacity: 0.34},
+      # Dashed "shimmer" ring — the one that rotates / pulses; reads as the
+      # actual halo edge.
+      %{
+        layer: :shimmer,
+        rx: @rx + 9,
+        ry: @ry + 7,
+        stroke_width: 1.6,
+        opacity: 0.85,
+        dasharray: "3 4"
+      },
+      # Faint accent right above the envelope.
+      %{layer: :accent, rx: @rx + 4, ry: @ry + 3, stroke_width: 0.8, opacity: 0.45}
+    ]
+
+    %{cx: cx, cy: cy, rings: rings}
   end
 
   defp stress_halo(_), do: nil

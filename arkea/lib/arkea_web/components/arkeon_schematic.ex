@@ -26,20 +26,31 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
         role="img"
         aria-label="Schematic Arkeon cell"
       >
-        <%!-- Stress halo (mutator) — drawn first so it sits behind the cell. --%>
-        <ellipse
+        <%!-- Stress halo (mutator) — drawn first so it sits behind the cell.
+              Five stacked ellipses build a true halo glow: wide soft outer
+              bands fade outward, an inner dashed shimmer ring rotates, and
+              a thin accent traces the cell edge. --%>
+        <g
           :if={@layout.stress_halo}
           class="arkea-arkeon-schematic__stress-halo"
-          cx={@layout.stress_halo.cx}
-          cy={@layout.stress_halo.cy}
-          rx={@layout.stress_halo.rx}
-          ry={@layout.stress_halo.ry}
-          fill="none"
-          stroke-dasharray={@layout.stress_halo.stroke_dasharray}
-          opacity={@layout.stress_halo.opacity}
         >
+          <ellipse
+            :for={ring <- @layout.stress_halo.rings}
+            class={[
+              "arkea-arkeon-schematic__stress-halo-ring",
+              "arkea-arkeon-schematic__stress-halo-ring--#{ring.layer}"
+            ]}
+            cx={@layout.stress_halo.cx}
+            cy={@layout.stress_halo.cy}
+            rx={ring.rx}
+            ry={ring.ry}
+            fill="none"
+            stroke-width={ring.stroke_width}
+            stroke-dasharray={Map.get(ring, :dasharray)}
+            opacity={ring.opacity}
+          />
           <title>Mutator stress halo (low repair, hypermutation regime)</title>
-        </ellipse>
+        </g>
 
         <%!-- Flagellum (motile) --%>
         <path
