@@ -194,19 +194,37 @@ The mobile module is the key to triggering fast HGT in scenarios of a few hundre
 
 #### Arkeon schematic (right sidebar)
 
-As you fill the form, the right sidebar shows a **diagrammatic schematic of the cell**, updated in real time. It is not a photorealistic rendering — it is an abstract microbiology-style sketch where each visible feature maps to a phenotype choice:
+As you fill the form, the right sidebar shows a **diagrammatic schematic of the cell**, updated in real time. It is not a photorealistic rendering — it is an abstract microbiology-style sketch where each visible feature maps to a phenotype choice. Every element carries an SVG `<title>` (hover tooltip) explaining its biological meaning:
 
-- **Envelope shape** = `membrane_profile` (porous: thin smooth contour · fortified: double membrane · salinity_tuned: scalloped contour).
-- **Radial ticks across the envelope** = number of transmembrane spans (`phenotype.n_transmembrane`).
-- **Cytoplasm tint + internal granules count** = `metabolism_profile` (bloom: many granules, dense cytoplasm · thrifty: few).
-- **Inner loop (nucleoid)** = the chromosome, drawn as a wavy ring.
-- **Small circles next to the nucleoid** = plasmids (one per plasmid in the genome; if you picked `conjugative_plasmid` but the genome is not provisioned yet, you see a dashed hinted plasmid).
-- **Orange triangle integrated into the nucleoid** = latent prophage (`latent_prophage` or any prophages in the genome).
-- **Surface appendages**: pili (lines), adhesins (small green circles), phage receptor (orange T) derived from the `surface_tags` of the phenotype.
-- **Flagellum (long curve on the right side)** = the phenotype clusters as "motile" (n_transmembrane ≥ 2 and no biofilm surface tag).
-- **Pulsing dashed halo** = the `regulation_profile` is `mutator` (cell under hypermutation stress).
+**Membrane / wall (`membrane_profile`).** The three options are visually very distinct:
 
-Under the schematic, a 4-line legend (Envelope / Metabolism / Regulation / Accessory) describes the current choice in natural language.
+- **`porous`** — thin sky-blue single-bilayer contour + **8 porin marks** distributed along the membrane (open channels for small molecules). Fast uptake, fragile to osmotic stress.
+- **`fortified`** — **true double envelope**: thick outer membrane (rust-coloured) + dense periplasmic space rendered as short radial ticks between the two membranes (peptidoglycan / S-layer hint) + thinner inner plasma membrane. More expensive but robust.
+- **`salinity_tuned`** — deep-scallop contour (rings of osmotic adaptation) + **dashed inner layer** evoking the ion-sequestration system characteristic of halotolerant cells.
+
+**Internal features**:
+
+- **Short radial ticks across the envelope** = individual transmembrane proteins (`phenotype.n_transmembrane`, capped at 12 for legibility).
+- **Tinted cytoplasm** in sky-blue, opacity proportional to `metabolism_profile` (bloom dense · thrifty faint).
+- **Storage granules (gold/amber circles with a white inner highlight)** = intracellular inclusions analogous to poly-β-hydroxybutyrate (PHB), polyphosphate, and glycogen. Their count tracks `metabolism_profile`: bloom = 8, balanced = 5, thrifty = 2. They sit in the outer cytoplasmic ring so they don't overlap the nucleoid.
+- **Nucleoid** = three overlapping loops (suggesting supercoiled, folded chromosomal DNA) at the cell centre. More coils + wobble for active metabolism.
+- **Purple circles next to the nucleoid** = plasmids (extra-chromosomal DNA rings), one per plasmid in the genome. If you picked `conjugative_plasmid` but the genome is not provisioned yet, you see a dashed hinted plasmid.
+- **Prophage cassette** = a red/magenta arc with a **"Φ"** label integrated into the nucleoid loop. It only appears when `mobile_module = latent_prophage` or the genome already carries a prophage. The shape explicitly represents integration of the viral genome **into** the chromosome — not an external decoration.
+
+**Surface appendages** (derived from the phenotype's `surface_tags`):
+
+- **Pili** = teal lines radiating outside the envelope.
+- **Adhesins** = small green circles against the outer membrane.
+- **Phage receptor** = small orange "T" (stem + bar) protruding from the membrane.
+
+**Other elements**:
+
+- **Flagellum** (long teal curve on the right side) = the phenotype clusters as "motile" (n_transmembrane ≥ 2 and no biofilm surface tag).
+- **Pulsing dashed red halo** around the cell = the `regulation_profile` is `mutator` (cell under chronic hypermutation stress).
+
+Below the schematic, a **4-line legend** (Envelope / Metabolism / Regulation / Accessory) describes the current choice in natural language.
+
+> **Tip**: hover over any element of the schematic to see the tooltip explaining its biological meaning. All features carry SVG `<title>` annotations.
 
 ### 4.2 Circular chromosome (center of the Seed Lab)
 

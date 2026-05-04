@@ -1354,7 +1354,7 @@ body {
   }
 
   .arkea-arkeon-schematic__svg {
-    max-width: min(100%, 13rem);
+    max-width: min(100%, 22rem);
   }
 
   .world-node {

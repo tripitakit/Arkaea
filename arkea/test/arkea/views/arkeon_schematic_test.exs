@@ -18,8 +18,9 @@ defmodule Arkea.Views.ArkeonSchematicTest do
         })
 
       assert layout.viewbox =~ "0 0"
-      assert layout.envelope.kind == :smooth
+      assert layout.envelope.kind == :porous
       refute layout.envelope.double?
+      assert is_list(layout.envelope.porins) and length(layout.envelope.porins) > 0
       assert layout.membrane_spans == []
       assert is_list(layout.granules) and length(layout.granules) > 0
       assert layout.plasmids == []
@@ -30,7 +31,31 @@ defmodule Arkea.Views.ArkeonSchematicTest do
       assert length(layout.legend) == 4
     end
 
-    test "fortified envelope renders a double outline" do
+    test "porous envelope carries a ring of porin marks" do
+      layout =
+        ArkeonSchematic.build(%{
+          spec: %{
+            membrane_profile: "porous",
+            metabolism_profile: "balanced",
+            regulation_profile: "responsive",
+            mobile_module: "none"
+          },
+          phenotype: %{n_transmembrane: 0, surface_tags: []},
+          genome: %{plasmids: [], prophages: []}
+        })
+
+      assert layout.envelope.kind == :porous
+      assert length(layout.envelope.porins) == 8
+
+      # Porins must be evenly distributed (their angular positions sum to
+      # roughly the full circle, modulo phase) — quick check: every porin
+      # has a positive radius and is on or near the envelope contour.
+      for porin <- layout.envelope.porins do
+        assert porin.r > 0
+      end
+    end
+
+    test "fortified envelope is a true double envelope with periplasmic ticks" do
       layout =
         ArkeonSchematic.build(%{
           spec: %{
@@ -43,12 +68,15 @@ defmodule Arkea.Views.ArkeonSchematicTest do
           genome: %{plasmids: [], prophages: []}
         })
 
-      assert layout.envelope.kind == :smooth
+      assert layout.envelope.kind == :fortified
       assert layout.envelope.double?
       assert layout.envelope.inner_offset > 0
+      assert layout.envelope.inner_stroke_width > 0
+      assert is_list(layout.envelope.periplasm_ticks)
+      assert length(layout.envelope.periplasm_ticks) >= 20
     end
 
-    test "salinity_tuned envelope renders a scalloped path" do
+    test "salinity_tuned envelope: deep scallops + dashed inner ion-handling layer" do
       layout =
         ArkeonSchematic.build(%{
           spec: %{
@@ -61,8 +89,10 @@ defmodule Arkea.Views.ArkeonSchematicTest do
           genome: %{plasmids: [], prophages: []}
         })
 
-      assert layout.envelope.kind == :scalloped
+      assert layout.envelope.kind == :salinity_tuned
       assert layout.envelope.path =~ "M "
+      assert layout.envelope.inner_dashed?
+      assert layout.envelope.lobe_amp > 3.0
     end
 
     test "transmembrane spans count matches phenotype.n_transmembrane (capped)" do
@@ -154,7 +184,7 @@ defmodule Arkea.Views.ArkeonSchematicTest do
       assert hd(layout.plasmids)[:hinted?]
     end
 
-    test "latent_prophage shows the prophage triangular mark" do
+    test "latent_prophage renders an integrated cassette with a Φ label" do
       layout =
         ArkeonSchematic.build(%{
           spec: %{
@@ -168,7 +198,29 @@ defmodule Arkea.Views.ArkeonSchematicTest do
         })
 
       assert layout.prophage != nil
-      assert layout.prophage.size > 0
+      assert layout.prophage.kind == :integrated_cassette
+      assert layout.prophage.label == "Φ"
+      assert layout.prophage.arc_path =~ "M "
+      assert layout.prophage.arc_path =~ " A "
+    end
+
+    test "nucleoid is rendered as three overlapping loops at distinct tilts" do
+      layout =
+        ArkeonSchematic.build(%{
+          spec: %{
+            membrane_profile: "porous",
+            metabolism_profile: "balanced",
+            regulation_profile: "responsive",
+            mobile_module: "none"
+          },
+          phenotype: %{n_transmembrane: 0, surface_tags: []},
+          genome: %{plasmids: [], prophages: []}
+        })
+
+      assert length(layout.nucleoid.loops) == 3
+      tilts = Enum.map(layout.nucleoid.loops, & &1.tilt)
+      assert length(Enum.uniq(tilts)) == 3
+      assert Enum.all?(layout.nucleoid.loops, &(&1.path =~ "M "))
     end
 
     test "mutator regulation surfaces a stress halo" do
@@ -247,10 +299,29 @@ defmodule Arkea.Views.ArkeonSchematicTest do
           genome: %{plasmids: [], prophages: []}
         })
 
-      assert layout.envelope.kind == :smooth
+      assert layout.envelope.kind == :porous
       assert layout.cytoplasm.density == :medium
       assert layout.stress_halo == nil
       assert layout.plasmids == []
+    end
+
+    test "granules carry an inner highlight and a non-trivial radius" do
+      layout =
+        ArkeonSchematic.build(%{
+          spec: %{
+            membrane_profile: "porous",
+            metabolism_profile: "bloom",
+            regulation_profile: "responsive",
+            mobile_module: "none"
+          },
+          phenotype: %{n_transmembrane: 0, surface_tags: []},
+          genome: %{plasmids: [], prophages: []}
+        })
+
+      assert Enum.all?(layout.granules, fn g ->
+               g.r >= 3.0 and g.highlight_r > 0 and
+                 (g.highlight_cx != g.cx or g.highlight_cy != g.cy)
+             end)
     end
   end
 end

@@ -194,19 +194,37 @@ Il modulo mobile è la chiave per innescare HGT veloce in scenari di pochi 100 t
 
 #### Schema Arkeon (sidebar destra)
 
-Mentre compili il form, sulla sidebar destra trovi uno **schema diagrammatico della cellula** aggiornato in tempo reale. Non è una rappresentazione fotorealistica — è una sintesi astratta in stile microbiologico, dove ogni feature visibile mappa una scelta di fenotipo:
+Mentre compili il form, sulla sidebar destra trovi uno **schema diagrammatico della cellula** aggiornato in tempo reale. Non è una rappresentazione fotorealistica — è una sintesi astratta in stile microbiologico, dove ogni feature visibile mappa una scelta di fenotipo. Ogni elemento porta un `<title>` SVG (tooltip al passaggio del mouse) che ne spiega il significato:
 
-- **Forma dell'envelope** = `membrane_profile` (porous: contorno liscio sottile · fortified: doppia membrana · salinity_tuned: contorno scalloppato).
-- **Trattini radiali sull'envelope** = numero di proteine transmembrana (`phenotype.n_transmembrane`).
-- **Densità del citoplasma + numero di granuli interni** = `metabolism_profile` (bloom: molti granuli, citoplasma denso · thrifty: pochi).
-- **Loop interno (nucleoide)** = il cromosoma, raffigurato come anello mosso.
-- **Cerchi piccoli vicino al nucleoide** = plasmidi (uno per ogni plasmide nel genome; se hai scelto `conjugative_plasmid` ma il genome non è ancora provisioned, vedi un plasmide tratteggiato come hint).
-- **Triangolo arancione integrato nel nucleoide** = profago latente (`latent_prophage` o profagi nel genome).
-- **Appendici di superficie**: pili (linee), adesine (cerchietti verdi), recettore fagico (T arancione) derivano dai `surface_tags` del fenotipo.
-- **Flagello (curva lunga sul lato destro)** = se il cluster fenotipico calcola "motile" (n_transmembrane ≥ 2 e nessun surface tag biofilm).
-- **Alone tratteggiato pulsante** = il `regulation_profile` è `mutator` (cellula sotto stress di hypermutazione).
+**Membrana / parete (`membrane_profile`).** Le tre opzioni sono visivamente molto distinte:
 
-Sotto lo schema, una legenda di 4 righe (Envelope / Metabolism / Regulation / Accessory) descrive in linguaggio naturale la scelta corrente.
+- **`porous`** — contorno azzurro sottile a singola bilayer + **8 cerchietti porini** distribuiti lungo la membrana (canali aperti per piccole molecole). Veloce uptake, fragile a stress osmotico.
+- **`fortified`** — **vero envelope doppio**: membrana esterna spessa (color rust) + spazio periplasmico denso reso da brevi trattini radiali tra le due membrane (suggerimento di peptidoglicano/strato S) + membrana plasmatica interna più sottile. Più costoso ma robusto.
+- **`salinity_tuned`** — contorno scalloppato profondo (anelli di adattamento osmotico) + **strato interno tratteggiato** che evoca il sistema di sequestrazione ionica caratteristico delle cellule alotolleranti.
+
+**Caratteristiche interne**:
+
+- **Trattini radiali brevi sull'envelope** = singole proteine transmembrana (`phenotype.n_transmembrane`, capped a 12 per leggibilità).
+- **Citoplasma colorato** con tinta sky-blue, opacità proporzionale a `metabolism_profile` (bloom denso · thrifty rarefatto).
+- **Granuli di stoccaggio (cerchi gialli/dorati con highlight bianco)** = inclusioni intracellulari analoghe a poli-β-idrossibutirrato (PHB), polifosfato e glicogeno. Il numero scala con `metabolism_profile`: bloom = 8, balanced = 5, thrifty = 2. Posizionati nella corona esterna del citoplasma per non sovrapporsi al nucleoide.
+- **Nucleoide** = tre anse intersecanti (suggerendo il DNA cromosomale supercoiled e foldato) al centro della cellula. Più anse e wobble per metabolismi attivi.
+- **Cerchi viola vicino al nucleoide** = plasmidi (anelli di DNA extra-cromosomale), uno per ogni plasmide nel genome. Se hai scelto `conjugative_plasmid` ma il genome non è ancora provisioned, vedi un plasmide tratteggiato come hint.
+- **Cassetta profago** = arco rosso/magenta con etichetta **"Φ"** integrato nel cerchio del nucleoide. Si vede solo se `mobile_module = latent_prophage` o se il genome contiene già un profago. La forma rappresenta esplicitamente l'integrazione del genoma virale dentro il cromosoma — non è una decorazione esterna.
+
+**Appendici di superficie** (derivano dai `surface_tags` del fenotipo):
+
+- **Pili** = linee teal radiate fuori dall'envelope.
+- **Adesine** = cerchietti verdi contro la membrana esterna.
+- **Recettore fagico** = piccolo "T" arancione (stem + barra) che sporge dalla membrana.
+
+**Altri elementi**:
+
+- **Flagello** (lunga curva teal sul lato destro) = se il cluster fenotipico calcola "motile" (n_transmembrane ≥ 2 e nessun surface tag biofilm).
+- **Alone tratteggiato pulsante rosso** intorno alla cellula = il `regulation_profile` è `mutator` (cellula sotto stress di hypermutazione cronica).
+
+Sotto lo schema, una **legenda di 4 righe** (Envelope / Metabolism / Regulation / Accessory) descrive in linguaggio naturale la scelta corrente.
+
+> **Suggerimento**: passa il mouse su qualsiasi elemento dello schema per vedere il tooltip che ne spiega il significato biologico. Tutti i feature hanno `<title>` SVG.
 
 ### 4.2 Cromosoma circolare (centro del Seed Lab)
 

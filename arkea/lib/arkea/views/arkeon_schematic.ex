@@ -36,12 +36,12 @@ defmodule Arkea.Views.ArkeonSchematic do
   Output is pure data (atom-keyed maps); no I/O, no GenServer, no HTML.
   """
 
-  @viewbox_w 280
-  @viewbox_h 240
-  @cx 140
-  @cy 120
-  @rx 86
-  @ry 56
+  @viewbox_w 360
+  @viewbox_h 320
+  @cx 180
+  @cy 160
+  @rx 116
+  @ry 76
 
   @type layout :: map()
 
@@ -97,47 +97,97 @@ defmodule Arkea.Views.ArkeonSchematic do
   # ---------------------------------------------------------------------------
   # Envelope
 
+  # Each membrane profile produces a structurally different envelope:
+  # `:porous` is a single thin membrane studded with porin marks; `:fortified`
+  # is a true double envelope with a visible periplasmic shell + inner
+  # plasma membrane; `:salinity_tuned` adds deep scalloping (osmotic
+  # adaptation) plus an inner ion-handling layer.
+
   defp envelope(:porous) do
     %{
-      kind: :smooth,
+      kind: :porous,
       cx: @cx,
       cy: @cy,
       rx: @rx,
       ry: @ry,
       double?: false,
-      stroke_width: 1.4
+      stroke_width: 1.6,
+      porins: porin_marks(8)
     }
   end
 
   defp envelope(:fortified) do
+    inner_offset = 7
+
     %{
-      kind: :smooth,
+      kind: :fortified,
       cx: @cx,
       cy: @cy,
       rx: @rx,
       ry: @ry,
       double?: true,
-      inner_offset: 4,
-      stroke_width: 2.0
+      inner_offset: inner_offset,
+      stroke_width: 2.4,
+      inner_stroke_width: 1.4,
+      # Periplasm: small radial ticks between outer and inner envelope,
+      # suggesting the dense peptidoglycan layer.
+      periplasm_ticks: periplasm_ticks(inner_offset, 30)
     }
   end
 
   defp envelope(:salinity_tuned) do
+    inner_offset = 5
+
     %{
-      kind: :scalloped,
+      kind: :salinity_tuned,
       cx: @cx,
       cy: @cy,
       rx: @rx,
       ry: @ry,
-      lobes: 18,
-      lobe_amp: 2.4,
-      path: scalloped_path(@cx, @cy, @rx, @ry, 18, 2.4),
-      double?: false,
-      stroke_width: 1.6
+      lobes: 22,
+      lobe_amp: 4.5,
+      path: scalloped_path(@cx, @cy, @rx, @ry, 22, 4.5),
+      inner_offset: inner_offset,
+      stroke_width: 2.0,
+      inner_stroke_width: 1.0,
+      # Inner ion-handling layer: a slightly smaller dashed ellipse hinting
+      # at the compartmentalised ion sequestration these envelopes carry.
+      inner_dashed?: true
     }
   end
 
   defp envelope(_), do: envelope(:porous)
+
+  # Porins: small open circles INSIDE the membrane line, evenly distributed.
+  # Make the "porous" name visible at a glance without crowding the cell.
+  defp porin_marks(n) do
+    for i <- 0..(n - 1) do
+      theta = i * 2 * :math.pi() / n
+      cx = @cx + @rx * :math.cos(theta)
+      cy = @cy + @ry * :math.sin(theta)
+      %{cx: cx, cy: cy, r: 2.4, index: i}
+    end
+  end
+
+  # Periplasmic ticks: short radial line segments between outer and inner
+  # envelope ellipses for the fortified profile. They suggest the dense
+  # peptidoglycan / S-layer scaffolding sitting in the periplasm.
+  defp periplasm_ticks(inner_offset, n) do
+    pad = 0.8
+
+    for i <- 0..(n - 1) do
+      theta = i * 2 * :math.pi() / n
+      cos_t = :math.cos(theta)
+      sin_t = :math.sin(theta)
+
+      x_outer = @cx + (@rx - pad) * cos_t
+      y_outer = @cy + (@ry - pad) * sin_t
+      x_inner = @cx + (@rx - inner_offset + pad) * cos_t
+      y_inner = @cy + (@ry - inner_offset + pad) * sin_t
+
+      %{x1: x_outer, y1: y_outer, x2: x_inner, y2: y_inner, index: i}
+    end
+  end
 
   defp scalloped_path(cx, cy, rx, ry, lobes, amp) do
     points =
@@ -196,35 +246,57 @@ defmodule Arkea.Views.ArkeonSchematic do
   # Drawn as a small near-circular polyline with subtle wobble — denser
   # nucleoid for high-metabolism profiles.
 
+  # The nucleoid is rendered as three overlapping loops at different
+  # rotations, suggesting the folded supercoiled DNA actually visible in
+  # bacterial cells. The number of coil bumps per loop tracks the metabolism
+  # profile (more active metabolism → denser, more wrinkled chromosome).
+
   defp nucleoid(metabolism) do
-    coil_count =
+    {coil_count, base_radius} =
       case metabolism do
-        :bloom -> 5
-        :balanced -> 4
-        :thrifty -> 3
-        _ -> 4
+        :bloom -> {7, 26}
+        :balanced -> {5, 24}
+        :thrifty -> {4, 22}
+        _ -> {5, 24}
       end
 
-    radius = 16
-    points = nucleoid_points(@cx, @cy, radius, coil_count, 28)
+    loops =
+      for {tilt, scale} <- [{0.0, 1.0}, {:math.pi() / 3, 0.86}, {-:math.pi() / 3, 0.92}] do
+        ry_loop = base_radius * scale * 0.62
+
+        nucleoid_loop(@cx, @cy, base_radius, ry_loop, coil_count, tilt)
+      end
 
     %{
       cx: @cx,
       cy: @cy,
-      radius: radius,
+      radius: base_radius,
       coil_count: coil_count,
-      path: polyline_path(points)
+      loops: loops
     }
   end
 
-  defp nucleoid_points(cx, cy, radius, coil_count, samples) do
-    for i <- 0..(samples - 1) do
-      theta = i * 2 * :math.pi() / samples
-      wobble = :math.sin(theta * coil_count) * 1.6
-      x = cx + (radius + wobble) * :math.cos(theta)
-      y = cy + (radius + wobble) * :math.sin(theta)
-      {x, y}
-    end
+  defp nucleoid_loop(cx, cy, rx, ry, coil_count, tilt) do
+    samples = 36
+
+    points =
+      for i <- 0..(samples - 1) do
+        theta = i * 2 * :math.pi() / samples
+        wobble = :math.sin(theta * coil_count) * 1.8
+
+        # Local coords around (0,0), then rotate by `tilt`.
+        lx = (rx + wobble) * :math.cos(theta)
+        ly = (ry + wobble) * :math.sin(theta)
+
+        cos_t = :math.cos(tilt)
+        sin_t = :math.sin(tilt)
+
+        x = cx + lx * cos_t - ly * sin_t
+        y = cy + lx * sin_t + ly * cos_t
+        {x, y}
+      end
+
+    %{path: polyline_path(points), tilt: tilt}
   end
 
   defp polyline_path([]), do: ""
@@ -283,22 +355,102 @@ defmodule Arkea.Views.ArkeonSchematic do
   defp prophage(_, :latent_prophage), do: prophage_mark()
   defp prophage(_, _), do: nil
 
+  # The prophage is rendered as a *labelled cassette* sitting on top of
+  # the nucleoid: a thicker red/magenta arc segment with a bold "Φ" glyph
+  # in its centre. Reads at a glance as "integrated phage genome on the
+  # chromosome" rather than a generic decoration.
+
   defp prophage_mark do
-    # Small triangle attached to the top-right of the nucleoid.
+    # Place the cassette on the upper-left of the nucleoid loop family
+    # so it doesn't collide with the plasmids (which sit upper-right).
+    angle = -:math.pi() * 0.62
+    base_radius = 28
+    sweep = :math.pi() * 0.32
+
+    start_angle = angle - sweep / 2
+    end_angle = angle + sweep / 2
+
+    inner_r = base_radius - 3.5
+    outer_r = base_radius + 3.5
+
+    arc_path =
+      ring_arc_path(@cx, @cy, outer_r, inner_r, start_angle, end_angle)
+
+    label_x = @cx + base_radius * :math.cos(angle)
+    label_y = @cy + base_radius * :math.sin(angle)
+
     %{
-      x: @cx + 8,
-      y: @cy - 18,
-      size: 6
+      kind: :integrated_cassette,
+      arc_path: arc_path,
+      label_x: label_x,
+      label_y: label_y,
+      label: "Φ"
     }
+  end
+
+  # Closed annular wedge — re-used from genome_canvas for the prophage
+  # cassette. Inlined here to avoid a cross-module dependency on a UI
+  # rendering helper.
+
+  defp ring_arc_path(cx, cy, r_outer, r_inner, start_angle, end_angle) do
+    large_arc = if end_angle - start_angle > :math.pi(), do: 1, else: 0
+
+    x1 = cx + r_outer * :math.cos(start_angle)
+    y1 = cy + r_outer * :math.sin(start_angle)
+    x2 = cx + r_outer * :math.cos(end_angle)
+    y2 = cy + r_outer * :math.sin(end_angle)
+    x3 = cx + r_inner * :math.cos(end_angle)
+    y3 = cy + r_inner * :math.sin(end_angle)
+    x4 = cx + r_inner * :math.cos(start_angle)
+    y4 = cy + r_inner * :math.sin(start_angle)
+
+    [
+      "M ",
+      f(x1),
+      " ",
+      f(y1),
+      " A ",
+      f(r_outer),
+      " ",
+      f(r_outer),
+      " 0 ",
+      Integer.to_string(large_arc),
+      " 1 ",
+      f(x2),
+      " ",
+      f(y2),
+      " L ",
+      f(x3),
+      " ",
+      f(y3),
+      " A ",
+      f(r_inner),
+      " ",
+      f(r_inner),
+      " 0 ",
+      Integer.to_string(large_arc),
+      " 0 ",
+      f(x4),
+      " ",
+      f(y4),
+      " Z"
+    ]
+    |> IO.iodata_to_binary()
   end
 
   # ---------------------------------------------------------------------------
   # Storage granules
 
+  # Storage granules: bigger, with a discernible inner highlight (rendered
+  # as a smaller paler circle on top of the granule body). Visually they
+  # read as distinct *inclusions* (poly-β-hydroxybutyrate / polyP /
+  # glycogen-like) rather than tiny dots. Distinct color from prophage
+  # (we use gold/amber here; prophage uses red/magenta).
+
   defp granules(metabolism) do
     count =
       case metabolism do
-        :bloom -> 9
+        :bloom -> 8
         :balanced -> 5
         :thrifty -> 2
         _ -> 4
@@ -310,14 +462,28 @@ defmodule Arkea.Views.ArkeonSchematic do
       h = :erlang.phash2({seed, i}, 1_000_000_007)
       ax = rem(h, 1000) / 1000.0
       ay = rem(div(h, 1000), 1000) / 1000.0
+      ar = rem(div(h, 1_000_000), 1000) / 1000.0
 
-      # Place inside an inner ellipse, away from the nucleoid (radius 16).
+      # Place inside an annular band: outside the nucleoid but inside the
+      # envelope, biased toward the periphery so granules don't overlap
+      # the nucleoid loops.
       angle = ax * 2 * :math.pi()
-      r_norm = 0.45 + ay * 0.35
-      x = @cx + r_norm * @rx * 0.7 * :math.cos(angle)
-      y = @cy + r_norm * @ry * 0.65 * :math.sin(angle)
+      r_norm = 0.55 + ay * 0.30
+      x = @cx + r_norm * (@rx - 18) * :math.cos(angle)
+      y = @cy + r_norm * (@ry - 18) * :math.sin(angle)
 
-      %{cx: x, cy: y, r: 1.6, index: i}
+      r = 3.4 + ar * 1.2
+
+      %{
+        cx: x,
+        cy: y,
+        r: r,
+        # Inner highlight gives them volume — subtle but recognisable.
+        highlight_cx: x - r * 0.32,
+        highlight_cy: y - r * 0.32,
+        highlight_r: r * 0.38,
+        index: i
+      }
     end
   end
 

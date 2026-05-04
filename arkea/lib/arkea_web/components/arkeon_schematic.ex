@@ -3,9 +3,10 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
   SVG schematic of an Arkeon cell driven by `Arkea.Views.ArkeonSchematic`.
 
   The component renders a small diagrammatic cell: envelope, transmembrane
-  spans, cytoplasm, nucleoid, plasmids, prophage mark, granules, surface
-  appendages, optional flagellum and stress halo. Geometry is computed by
-  the pure layout module; this component is rendering only.
+  spans, cytoplasm, multi-loop nucleoid (with optional integrated prophage
+  cassette), plasmids, storage granules, surface appendages, optional
+  flagellum and stress halo. Geometry is computed by the pure layout
+  module; this component is rendering only.
   """
   use Phoenix.Component
 
@@ -25,7 +26,7 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
         role="img"
         aria-label="Schematic Arkeon cell"
       >
-        <%!-- Stress halo (mutator) --%>
+        <%!-- Stress halo (mutator) — drawn first so it sits behind the cell. --%>
         <ellipse
           :if={@layout.stress_halo}
           class="arkea-arkeon-schematic__stress-halo"
@@ -36,7 +37,9 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
           fill="none"
           stroke-dasharray={@layout.stress_halo.stroke_dasharray}
           opacity={@layout.stress_halo.opacity}
-        />
+        >
+          <title>Mutator stress halo (low repair, hypermutation regime)</title>
+        </ellipse>
 
         <%!-- Flagellum (motile) --%>
         <path
@@ -44,50 +47,12 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
           class="arkea-arkeon-schematic__flagellum"
           d={@layout.flagellum.path}
           fill="none"
-        />
+        >
+          <title>Flagellum (motile cluster)</title>
+        </path>
 
-        <%!-- Cytoplasm + envelope (drawn together for layering) --%>
-        <%= case @layout.envelope.kind do %>
-          <% :smooth -> %>
-            <ellipse
-              class="arkea-arkeon-schematic__cytoplasm"
-              cx={@layout.envelope.cx}
-              cy={@layout.envelope.cy}
-              rx={@layout.envelope.rx}
-              ry={@layout.envelope.ry}
-              fill-opacity={@layout.cytoplasm.fill_opacity}
-            />
-            <ellipse
-              :if={@layout.envelope.double?}
-              class="arkea-arkeon-schematic__envelope-inner"
-              cx={@layout.envelope.cx}
-              cy={@layout.envelope.cy}
-              rx={@layout.envelope.rx - @layout.envelope.inner_offset}
-              ry={@layout.envelope.ry - @layout.envelope.inner_offset}
-              fill="none"
-            />
-            <ellipse
-              class="arkea-arkeon-schematic__envelope"
-              cx={@layout.envelope.cx}
-              cy={@layout.envelope.cy}
-              rx={@layout.envelope.rx}
-              ry={@layout.envelope.ry}
-              fill="none"
-              stroke-width={@layout.envelope.stroke_width}
-            />
-          <% :scalloped -> %>
-            <path
-              class="arkea-arkeon-schematic__cytoplasm"
-              d={@layout.envelope.path}
-              fill-opacity={@layout.cytoplasm.fill_opacity}
-            />
-            <path
-              class="arkea-arkeon-schematic__envelope"
-              d={@layout.envelope.path}
-              fill="none"
-              stroke-width={@layout.envelope.stroke_width}
-            />
-        <% end %>
+        <%!-- Cytoplasm fill + envelope, layered per membrane kind. --%>
+        <.envelope_group layout={@layout} />
 
         <%!-- Transmembrane spans --%>
         <g class="arkea-arkeon-schematic__tm-spans">
@@ -98,18 +63,29 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
             x2={span.x2}
             y2={span.y2}
             class="arkea-arkeon-schematic__tm-span"
-          />
+          >
+            <title>Transmembrane span</title>
+          </line>
         </g>
 
-        <%!-- Storage granules --%>
+        <%!-- Storage granules (PHB / polyP / glycogen-like inclusions) --%>
         <g class="arkea-arkeon-schematic__granules">
-          <circle
-            :for={g <- @layout.granules}
-            cx={g.cx}
-            cy={g.cy}
-            r={g.r}
-            class="arkea-arkeon-schematic__granule"
-          />
+          <%= for g <- @layout.granules do %>
+            <circle
+              cx={g.cx}
+              cy={g.cy}
+              r={g.r}
+              class="arkea-arkeon-schematic__granule"
+            >
+              <title>Storage granule (PHB / polyP / glycogen-like inclusion)</title>
+            </circle>
+            <circle
+              cx={g.highlight_cx}
+              cy={g.highlight_cy}
+              r={g.highlight_r}
+              class="arkea-arkeon-schematic__granule-highlight"
+            />
+          <% end %>
         </g>
 
         <%!-- Plasmids --%>
@@ -125,24 +101,41 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
               "arkea-arkeon-schematic__plasmid",
               p[:hinted?] && "arkea-arkeon-schematic__plasmid--hinted"
             ]}
-          />
+          >
+            <title>{plasmid_title(p)}</title>
+          </ellipse>
         </g>
 
-        <%!-- Nucleoid (looped chromosome) --%>
-        <path
-          class="arkea-arkeon-schematic__nucleoid"
-          d={@layout.nucleoid.path}
-          fill="none"
-        />
+        <%!-- Nucleoid: three overlapping loops form the folded chromosome. --%>
+        <g class="arkea-arkeon-schematic__nucleoid">
+          <path
+            :for={loop <- @layout.nucleoid.loops}
+            d={loop.path}
+            fill="none"
+            class="arkea-arkeon-schematic__nucleoid-loop"
+          />
+          <title>Nucleoid (folded chromosome)</title>
+        </g>
 
-        <%!-- Prophage mark --%>
-        <polygon
-          :if={@layout.prophage}
-          class="arkea-arkeon-schematic__prophage"
-          points={prophage_points(@layout.prophage)}
-        />
+        <%!-- Integrated prophage cassette on the nucleoid --%>
+        <g :if={@layout.prophage} class="arkea-arkeon-schematic__prophage">
+          <path
+            d={@layout.prophage.arc_path}
+            class="arkea-arkeon-schematic__prophage-arc"
+          />
+          <text
+            x={@layout.prophage.label_x}
+            y={@layout.prophage.label_y}
+            class="arkea-arkeon-schematic__prophage-label"
+            text-anchor="middle"
+            dominant-baseline="middle"
+          >
+            {@layout.prophage.label}
+          </text>
+          <title>Latent prophage integrated into the chromosome</title>
+        </g>
 
-        <%!-- Surface appendages --%>
+        <%!-- Surface appendages (pili, adhesins, phage receptor) --%>
         <g class="arkea-arkeon-schematic__appendages">
           <%= for app <- @layout.surface_appendages do %>
             <%= case app.kind do %>
@@ -153,14 +146,18 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
                   x2={app.x2}
                   y2={app.y2}
                   class="arkea-arkeon-schematic__pilus"
-                />
+                >
+                  <title>Pilus</title>
+                </line>
               <% :adhesin -> %>
                 <circle
                   cx={app.cx}
                   cy={app.cy}
                   r={app.r}
                   class="arkea-arkeon-schematic__adhesin"
-                />
+                >
+                  <title>Adhesin / biofilm matrix anchor</title>
+                </circle>
               <% :phage_receptor -> %>
                 <line
                   x1={app.base_x}
@@ -175,7 +172,9 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
                   x2={app.bar_end_x}
                   y2={app.bar_end_y}
                   class="arkea-arkeon-schematic__receptor-bar"
-                />
+                >
+                  <title>Phage receptor</title>
+                </line>
             <% end %>
           <% end %>
         </g>
@@ -184,7 +183,116 @@ defmodule ArkeaWeb.Components.ArkeonSchematic do
     """
   end
 
-  defp prophage_points(p) do
-    "#{p.x},#{p.y} #{p.x + p.size},#{p.y - p.size / 2} #{p.x + p.size / 2},#{p.y + p.size / 2}"
+  # ---------------------------------------------------------------------------
+  # Envelope group — one component per membrane kind so the structural
+  # differences read at a glance.
+
+  attr :layout, :map, required: true
+
+  defp envelope_group(assigns) do
+    ~H"""
+    <%= case @layout.envelope.kind do %>
+      <% :porous -> %>
+        <ellipse
+          class="arkea-arkeon-schematic__cytoplasm"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx}
+          ry={@layout.envelope.ry}
+          fill-opacity={@layout.cytoplasm.fill_opacity}
+        />
+        <ellipse
+          class="arkea-arkeon-schematic__envelope arkea-arkeon-schematic__envelope--porous"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx}
+          ry={@layout.envelope.ry}
+          fill="none"
+          stroke-width={@layout.envelope.stroke_width}
+        >
+          <title>Porous membrane (single thin bilayer with porin channels)</title>
+        </ellipse>
+
+        <circle
+          :for={porin <- @layout.envelope.porins}
+          cx={porin.cx}
+          cy={porin.cy}
+          r={porin.r}
+          class="arkea-arkeon-schematic__porin"
+        />
+      <% :fortified -> %>
+        <ellipse
+          class="arkea-arkeon-schematic__cytoplasm"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx}
+          ry={@layout.envelope.ry}
+          fill-opacity={@layout.cytoplasm.fill_opacity}
+        />
+        <%!-- Outer envelope --%>
+        <ellipse
+          class="arkea-arkeon-schematic__envelope arkea-arkeon-schematic__envelope--fortified"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx}
+          ry={@layout.envelope.ry}
+          fill="none"
+          stroke-width={@layout.envelope.stroke_width}
+        >
+          <title>Fortified envelope (outer membrane + periplasm + inner plasma membrane)</title>
+        </ellipse>
+        <%!-- Periplasmic ticks --%>
+        <g class="arkea-arkeon-schematic__periplasm">
+          <line
+            :for={tick <- @layout.envelope.periplasm_ticks}
+            x1={tick.x1}
+            y1={tick.y1}
+            x2={tick.x2}
+            y2={tick.y2}
+            class="arkea-arkeon-schematic__periplasm-tick"
+          />
+        </g>
+        <%!-- Inner plasma membrane --%>
+        <ellipse
+          class="arkea-arkeon-schematic__envelope-inner"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx - @layout.envelope.inner_offset}
+          ry={@layout.envelope.ry - @layout.envelope.inner_offset}
+          fill="none"
+          stroke-width={@layout.envelope.inner_stroke_width}
+        />
+      <% :salinity_tuned -> %>
+        <path
+          class="arkea-arkeon-schematic__cytoplasm"
+          d={@layout.envelope.path}
+          fill-opacity={@layout.cytoplasm.fill_opacity}
+        />
+        <path
+          class="arkea-arkeon-schematic__envelope arkea-arkeon-schematic__envelope--salinity"
+          d={@layout.envelope.path}
+          fill="none"
+          stroke-width={@layout.envelope.stroke_width}
+        >
+          <title>Salinity-tuned envelope (deep scallops + ion-handling inner layer)</title>
+        </path>
+        <%!-- Inner ion-handling layer --%>
+        <ellipse
+          class="arkea-arkeon-schematic__envelope-inner arkea-arkeon-schematic__envelope-inner--salinity"
+          cx={@layout.envelope.cx}
+          cy={@layout.envelope.cy}
+          rx={@layout.envelope.rx - @layout.envelope.inner_offset}
+          ry={@layout.envelope.ry - @layout.envelope.inner_offset}
+          fill="none"
+          stroke-width={@layout.envelope.inner_stroke_width}
+          stroke-dasharray={if @layout.envelope.inner_dashed?, do: "3 2", else: nil}
+        />
+    <% end %>
+    """
   end
+
+  defp plasmid_title(%{hinted?: true}),
+    do: "Conjugative plasmid (will be provisioned with the seed)"
+
+  defp plasmid_title(_), do: "Plasmid (extra-chromosomal DNA ring)"
 end

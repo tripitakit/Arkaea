@@ -54,33 +54,38 @@
 
 .arkea-seed-lab__chips { margin-top: 0; }
 
-/* ─── Arkeon schematic (cell diagram, replaces the old portrait glyph) ─── */
+/* ─── Arkeon schematic (cell diagram) ────────────────────────────────────
+   Bigger viewBox (360 × 320) and richer feature set: porous → single thin
+   bilayer with porin marks; fortified → outer membrane + periplasmic
+   ticks + inner plasma membrane; salinity_tuned → deep-scallop contour +
+   inner ion-handling layer. Storage granules are clearly distinct from
+   the labelled "Φ" prophage cassette sitting on the nucleoid. */
 
 .arkea-arkeon-schematic {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--arkea-space-3);
+  padding: var(--arkea-space-4);
   background:
-    radial-gradient(ellipse at center, oklch(20% 0.03 235 / 35%), transparent 70%),
+    radial-gradient(ellipse at center, oklch(22% 0.03 235 / 40%), transparent 70%),
     var(--arkea-bg-deep);
   border: 1px solid var(--arkea-border);
   border-radius: var(--arkea-radius-md);
-  min-height: 260px;
+  min-height: 340px;
 }
 
 .arkea-arkeon-schematic__svg {
   width: 100%;
-  max-width: 320px;
+  max-width: 480px;
   height: auto;
   display: block;
 }
 
-/* Stress halo (mutator) */
+/* ─── Stress halo (mutator) ────────────────────────────────────────────── */
 .arkea-arkeon-schematic__stress-halo {
   stroke: var(--arkea-accent-stress);
-  stroke-width: 0.8;
+  stroke-width: 1;
   animation: arkea-arkeon-stress-pulse 2.4s ease-in-out infinite;
 }
 
@@ -93,15 +98,15 @@
   .arkea-arkeon-schematic__stress-halo { animation: none; }
 }
 
-/* Flagellum */
+/* ─── Flagellum ────────────────────────────────────────────────────────── */
 .arkea-arkeon-schematic__flagellum {
   stroke: var(--arkea-accent-teal);
-  stroke-width: 1;
+  stroke-width: 1.4;
   stroke-linecap: round;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-/* Envelope + cytoplasm */
+/* ─── Envelope + cytoplasm ─────────────────────────────────────────────── */
 .arkea-arkeon-schematic__cytoplasm {
   fill: var(--arkea-accent-metabolite);
 }
@@ -110,70 +115,116 @@
   stroke: var(--arkea-fg-muted);
 }
 
+.arkea-arkeon-schematic__envelope--porous {
+  stroke: var(--arkea-accent-sky);
+}
+
+.arkea-arkeon-schematic__envelope--fortified {
+  stroke: var(--arkea-accent-rust);
+}
+
+.arkea-arkeon-schematic__envelope--salinity {
+  stroke: var(--arkea-accent-teal);
+}
+
 .arkea-arkeon-schematic__envelope-inner {
   stroke: var(--arkea-fg-faint);
-  stroke-width: 0.7;
-  stroke-dasharray: 1.5 1.5;
-  opacity: 0.65;
+  stroke-width: 1;
+  opacity: 0.7;
 }
 
-/* Transmembrane spans */
+.arkea-arkeon-schematic__envelope-inner--salinity {
+  stroke: var(--arkea-accent-teal);
+  opacity: 0.55;
+}
+
+/* Periplasm ticks (fortified): short radial bars between outer + inner. */
+.arkea-arkeon-schematic__periplasm-tick {
+  stroke: var(--arkea-accent-rust);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+/* Porin marks (porous): small open circles on the membrane line. */
+.arkea-arkeon-schematic__porin {
+  fill: var(--arkea-bg-deep);
+  stroke: var(--arkea-accent-sky);
+  stroke-width: 1;
+}
+
+/* ─── Transmembrane spans ─────────────────────────────────────────────── */
 .arkea-arkeon-schematic__tm-span {
   stroke: var(--arkea-fg);
-  stroke-width: 1.4;
+  stroke-width: 1.8;
   stroke-linecap: round;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
-/* Granules */
+/* ─── Storage granules (PHB / polyP / glycogen-like inclusions) ───────── */
 .arkea-arkeon-schematic__granule {
   fill: var(--arkea-accent-gold);
-  opacity: 0.78;
+  stroke: oklch(60% 0.16 70 / 70%);
+  stroke-width: 0.5;
+  opacity: 0.92;
 }
 
-/* Plasmids */
+.arkea-arkeon-schematic__granule-highlight {
+  fill: oklch(96% 0.06 90 / 70%);
+  pointer-events: none;
+}
+
+/* ─── Plasmids (extra-chromosomal DNA rings) ──────────────────────────── */
 .arkea-arkeon-schematic__plasmid {
   stroke: var(--arkea-accent-signal);
-  stroke-width: 0.9;
+  stroke-width: 1.6;
 }
 
 .arkea-arkeon-schematic__plasmid--hinted {
-  stroke-dasharray: 2 1.5;
+  stroke-dasharray: 2.5 2;
   opacity: 0.75;
 }
 
-/* Nucleoid */
-.arkea-arkeon-schematic__nucleoid {
+/* ─── Nucleoid (folded chromosome, three overlapping loops) ───────────── */
+.arkea-arkeon-schematic__nucleoid-loop {
   stroke: var(--arkea-fg);
-  stroke-width: 0.9;
+  stroke-width: 1.1;
   stroke-linejoin: round;
-  opacity: 0.78;
+  opacity: 0.62;
 }
 
-/* Prophage mark */
-.arkea-arkeon-schematic__prophage {
-  fill: var(--arkea-accent-rust);
+/* ─── Prophage cassette (integrated arc + Φ label on the nucleoid) ────── */
+.arkea-arkeon-schematic__prophage-arc {
+  fill: var(--arkea-accent-stress);
   stroke: var(--arkea-bg-deep);
-  stroke-width: 0.5;
-  opacity: 0.9;
+  stroke-width: 0.7;
+  opacity: 0.92;
 }
 
-/* Surface appendages */
+.arkea-arkeon-schematic__prophage-label {
+  fill: oklch(98% 0.02 0);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  pointer-events: none;
+}
+
+/* ─── Surface appendages ──────────────────────────────────────────────── */
 .arkea-arkeon-schematic__pilus {
   stroke: var(--arkea-accent-teal);
-  stroke-width: 0.9;
+  stroke-width: 1.2;
   stroke-linecap: round;
 }
 
 .arkea-arkeon-schematic__adhesin {
   fill: var(--arkea-accent-growth);
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .arkea-arkeon-schematic__receptor-stem,
 .arkea-arkeon-schematic__receptor-bar {
   stroke: var(--arkea-accent-rust);
-  stroke-width: 0.9;
+  stroke-width: 1.3;
   stroke-linecap: round;
 }
 
