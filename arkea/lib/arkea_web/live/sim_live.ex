@@ -493,7 +493,7 @@ defmodule ArkeaWeb.SimLive do
   defp loading_view(assigns) do
     ~H"""
     <div class="sim-loading mt-6">
-      <span class="loading loading-dots loading-lg text-primary"></span>
+      <span class="arkea-spinner" aria-hidden="true"></span>
       <h2 class="sim-loading__title">Loading biotope viewport</h2>
       <p class="sim-loading__copy">
         Waiting for the authoritative biotope process to publish its first state.
@@ -618,7 +618,7 @@ defmodule ArkeaWeb.SimLive do
         style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);"
       >
         <form method="dialog">
-          <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+          <button class="arkea-modal__close" aria-label="Close">✕</button>
         </form>
         <div class="sim-card__eyebrow mb-1">Topology</div>
         <h3 class="sim-card__title mb-4">Network-facing metadata</h3>

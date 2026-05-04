@@ -83,3 +83,48 @@
 .arkea-scrollable::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Spinner: replaces daisyUI .loading-dots in loading screens. */
+.arkea-spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--arkea-border-strong);
+  border-top-color: var(--arkea-accent-teal);
+  border-radius: 50%;
+  animation: arkea-spin 800ms linear infinite;
+}
+
+@keyframes arkea-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arkea-spinner { animation-duration: 3s; }
+}
+
+/* Modal close button: replaces daisyUI .btn-circle.btn-ghost */
+.arkea-modal__close {
+  position: absolute;
+  top: var(--arkea-space-2);
+  right: var(--arkea-space-2);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--arkea-fg-muted);
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--arkea-text-md);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.arkea-modal__close:hover {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+  border-color: var(--arkea-border);
+}
