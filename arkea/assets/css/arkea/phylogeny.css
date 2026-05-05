@@ -17,10 +17,10 @@
 .arkea-phylogeny__svg {
   width: 100%;
   height: auto;
-  /* The viewBox is 720×360. preserveAspectRatio="xMidYMid meet" already
-     scales it to fill width while preserving aspect; this min-height
-     ensures the rendered tree never collapses to a sliver inside a tall
-     bottom panel. */
+  /* Horizontal-orientation dendrogram: the natural canvas is wider
+     than it is tall (root on the left, leaves stacked vertically on
+     the right). The viewBox is 960×360, preserveAspectRatio meet
+     scales it to the container width preserving aspect. */
   min-height: 280px;
   display: block;
 }

@@ -23,7 +23,7 @@ defmodule ArkeaWeb.Components.Phylogeny do
 
   attr :model, :map, required: true, doc: "Arkea.Views.Phylogeny.t()"
   attr :class, :string, default: nil
-  attr :width, :integer, default: 720
+  attr :width, :integer, default: 960
   attr :height, :integer, default: 360
 
   def phylogeny(assigns) do
@@ -70,8 +70,16 @@ defmodule ArkeaWeb.Components.Phylogeny do
                     <% py = @y_scale.(parent.y) %>
                     <% cx = @x_scale.(child.x) %>
                     <% cy = @y_scale.(child.y) %>
+                    <%!--
+                      Horizontal dendrogram edge: leave the parent
+                      horizontally at parent.y, drop vertically at
+                      parent.x to child.y, then horizontally to the
+                      child anchor. This keeps the visible "trunk"
+                      length equal to (child.x - parent.x), i.e. the
+                      child's branch_length × scale.
+                    --%>
                     <path
-                      d={"M#{fmt(px)} #{fmt(py)} L#{fmt(cx)} #{fmt(py)} L#{fmt(cx)} #{fmt(cy)}"}
+                      d={"M#{fmt(px)} #{fmt(py)} L#{fmt(px)} #{fmt(cy)} L#{fmt(cx)} #{fmt(cy)}"}
                       class={[
                         "arkea-phylogeny__edge",
                         child.extinct? && "arkea-phylogeny__edge--extinct"
@@ -108,9 +116,9 @@ defmodule ArkeaWeb.Components.Phylogeny do
                   </circle>
                   <text
                     :if={node.leaf?}
-                    x={fmt(nx)}
-                    y={fmt(ny + node_radius(node) + 11)}
-                    text-anchor="middle"
+                    x={fmt(nx + node_radius(node) + 5)}
+                    y={fmt(ny + 4)}
+                    text-anchor="start"
                     class="arkea-phylogeny__node-label"
                   >
                     {short_id(node.id)}

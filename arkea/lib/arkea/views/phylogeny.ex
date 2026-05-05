@@ -54,8 +54,8 @@ defmodule Arkea.Views.Phylogeny do
   alias Arkea.Persistence.AuditLog
   alias Arkea.Sim.Phenotype
 
-  # Vertical sibling spread (one column per leaf).
-  @x_step 60.0
+  # Sibling spread (one row per leaf, vertical axis).
+  @sibling_step 48.0
 
   # Px per unit p-distance. p-distance ranges 0..1 in theory but in
   # practice most parent→child branches sit between 0.0 and ~0.05
@@ -68,7 +68,7 @@ defmodule Arkea.Views.Phylogeny do
   # descendants whose genome cache is `nil` — distance is reported as
   # 0 in that case) are still drawn as a small gap rather than
   # overlapping their parent.
-  @min_branch_px 8.0
+  @min_branch_px 12.0
 
   @type node_record :: %{
           id: String.t(),
@@ -126,6 +126,8 @@ defmodule Arkea.Views.Phylogeny do
     nodes = Enum.map(nodes_acc, &enrich_node(&1, lineages, children_by_parent))
     edges = build_edges(nodes_acc, born_payloads)
 
+    # Horizontal dendrogram: x = cumulative p-distance from root,
+    # y = sibling spread (one row per leaf).
     width = nodes |> Enum.map(& &1.x) |> Enum.max(fn -> 0.0 end)
     height = nodes |> Enum.map(& &1.y) |> Enum.max(fn -> 0.0 end)
     max_depth = nodes |> Enum.map(& &1.depth) |> Enum.max(fn -> 0 end)
@@ -133,8 +135,8 @@ defmodule Arkea.Views.Phylogeny do
     %{
       nodes: nodes,
       edges: edges,
-      width: width + @x_step,
-      height: height + 80.0,
+      width: width + 80.0,
+      height: height + @sibling_step,
       max_depth: max_depth
     }
   end
@@ -165,10 +167,11 @@ defmodule Arkea.Views.Phylogeny do
     |> Enum.sort_by(& &1.id)
   end
 
-  # Recursive layout — y is the cumulative p-distance from the root
-  # (× scale, with a per-edge floor to keep zero-distance branches
-  # visible). x is sibling spread — one column per leaf, parents
-  # centred above their children.
+  # Recursive layout for a horizontal dendrogram:
+  #   x = cumulative p-distance from the root, scaled to px (with a
+  #     per-edge floor so zero-distance branches stay visible),
+  #   y = sibling spread — one row per leaf, parents centred on the
+  #     y-midpoint of their direct children.
   defp layout_subtree(node, depth, cumulative_distance, cursor, parent_node, children_by_parent) do
     branch_length = branch_length_for(parent_node, node)
     edge_px = max(branch_length * @distance_scale, @min_branch_px)
@@ -181,14 +184,14 @@ defmodule Arkea.Views.Phylogeny do
         id: node.id,
         parent_id: node.parent_id,
         depth: depth,
-        x: cursor,
-        y: next_cumulative,
+        x: next_cumulative,
+        y: cursor,
         branch_length: branch_length,
         cumulative_distance: next_cumulative,
         lineage: node
       }
 
-      {[record], cursor + @x_step}
+      {[record], cursor + @sibling_step}
     else
       {child_records, next_cursor} =
         Enum.reduce(children, {[], cursor}, fn child, {acc, cur} ->
@@ -198,18 +201,18 @@ defmodule Arkea.Views.Phylogeny do
           {acc ++ laid, next}
         end)
 
-      mid_x =
+      mid_y =
         case Enum.filter(child_records, fn r -> r.parent_id == node.id end) do
           [] -> cursor
-          direct -> avg(Enum.map(direct, & &1.x))
+          direct -> avg(Enum.map(direct, & &1.y))
         end
 
       record = %{
         id: node.id,
         parent_id: node.parent_id,
         depth: depth,
-        x: mid_x,
-        y: next_cumulative,
+        x: next_cumulative,
+        y: mid_y,
         branch_length: branch_length,
         cumulative_distance: next_cumulative,
         lineage: node
