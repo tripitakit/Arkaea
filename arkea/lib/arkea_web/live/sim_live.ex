@@ -52,7 +52,6 @@ defmodule ArkeaWeb.SimLive do
        lineage_sort: :abundance,
        bottom_tab: :events,
        selected_lineage_id: nil,
-       interventions_open: false,
        trends_samples: [],
        trends_audit: [],
        phylogeny_model: nil,
@@ -197,10 +196,6 @@ defmodule ArkeaWeb.SimLive do
     {:noreply, assign(socket, selected_lineage_id: nil)}
   end
 
-  def handle_event("toggle_interventions", _params, socket) do
-    {:noreply, assign(socket, interventions_open: not socket.assigns.interventions_open)}
-  end
-
   def handle_event("recolonize_home", _params, socket) do
     case SeedLab.recolonize_home(socket.assigns.player, socket.assigns.biotope_id) do
       {:ok, %{lineage_id: lineage_id, tick: tick}} ->
@@ -269,15 +264,6 @@ defmodule ArkeaWeb.SimLive do
           <span>{phase_label(@sim_state.archetype)}</span>
         </span>
         <div class="arkea-shell__spacer"></div>
-        <button
-          :if={@sim_state}
-          type="button"
-          phx-click="toggle_interventions"
-          class="arkea-biotope__header-btn"
-          aria-pressed={@interventions_open}
-        >
-          Interventions
-        </button>
         <a
           :if={@sim_state}
           href={~p"/api/biotopes/#{@biotope_id}/snapshot"}
@@ -382,33 +368,6 @@ defmodule ArkeaWeb.SimLive do
                 <% end %>
               </div>
             </section>
-
-            <aside
-              :if={@interventions_open}
-              class="arkea-drawer arkea-drawer--left"
-              aria-label="Intervention controls"
-            >
-              <Panel.panel>
-                <:header eyebrow="Operator" title="Interventions" />
-                <:body scroll>
-                  <.operator_content
-                    selected_phase_name={@selected_phase_name}
-                    operator_log={@operator_log}
-                    operator_error={@operator_error}
-                    intervention_status={@intervention_status}
-                  />
-                </:body>
-                <:footer>
-                  <button
-                    type="button"
-                    phx-click="toggle_interventions"
-                    class="arkea-button arkea-button--secondary"
-                  >
-                    Close
-                  </button>
-                </:footer>
-              </Panel.panel>
-            </aside>
 
             <.topology_modal sim_state={@sim_state} />
           </div>
@@ -765,7 +724,15 @@ defmodule ArkeaWeb.SimLive do
     assigns = assign(assigns, owner: owner)
 
     ~H"""
-    <dialog id="topology-modal" class="modal">
+    <%!-- The dialog ships with `phx-update="ignore"` so LiveView's
+         per-tick DOM morph never touches the open modal — without this
+         flag, the next `:biotope_tick` (~2s) would re-render the
+         dialog's children, the browser would close the modal, and
+         the dialog's pending-close state could leave the page
+         inert. The metadata shown here is per-biotope immutable
+         (id, zone, coords, owner, neighbour ids) so freezing the
+         content after first mount is safe. --%>
+    <dialog id="topology-modal" class="modal" phx-update="ignore">
       <div
         class="modal-box arkea-modal-box"
         style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);"

@@ -189,14 +189,6 @@ defmodule ArkeaWeb.Components.Chart do
               class="arkea-chart__axis-line"
             />
           </svg>
-
-          <div class="arkea-chart__legend">
-            <span :for={line <- @lineage_paths} class="arkea-chart__legend-item">
-              <span class="arkea-chart__legend-swatch" style={"background: #{line.color}"} />
-              <span>{short_id(line.id)}</span>
-              <span class="arkea-chart__legend-peak">{format_count(line.peak)}</span>
-            </span>
-          </div>
       <% end %>
     </div>
     """
