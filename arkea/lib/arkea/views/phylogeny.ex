@@ -50,11 +50,25 @@ defmodule Arkea.Views.Phylogeny do
   """
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Genome.PDistance
   alias Arkea.Persistence.AuditLog
   alias Arkea.Sim.Phenotype
 
+  # Vertical sibling spread (one column per leaf).
   @x_step 60.0
-  @y_step 70.0
+
+  # Px per unit p-distance. p-distance ranges 0..1 in theory but in
+  # practice most parent→child branches sit between 0.0 and ~0.05
+  # (one-codon mutation over a 200-codon genome ≈ 0.005). The chosen
+  # scale gives a single mutation a visible 4 px branch while keeping
+  # cumulative drift across deep clades inside the SVG viewport.
+  @distance_scale 800.0
+
+  # Minimum branch length so identical genomes (e.g. delta-encoded
+  # descendants whose genome cache is `nil` — distance is reported as
+  # 0 in that case) are still drawn as a small gap rather than
+  # overlapping their parent.
+  @min_branch_px 8.0
 
   @type node_record :: %{
           id: String.t(),
@@ -62,6 +76,9 @@ defmodule Arkea.Views.Phylogeny do
           depth: non_neg_integer(),
           x: float(),
           y: float(),
+          branch_length: float(),
+          cumulative_distance: float(),
+          leaf?: boolean(),
           abundance: non_neg_integer(),
           extinct?: boolean(),
           gene_count: non_neg_integer(),
@@ -100,21 +117,24 @@ defmodule Arkea.Views.Phylogeny do
 
     {nodes_acc, _next_x} =
       Enum.reduce(roots, {[], 0.0}, fn root, {acc, cursor} ->
-        {laid_out, next} = layout_subtree(root, 0, cursor, by_id, children_by_parent)
+        {laid_out, next} =
+          layout_subtree(root, 0, 0.0, cursor, nil, children_by_parent)
+
         {acc ++ laid_out, next}
       end)
 
-    nodes = Enum.map(nodes_acc, &enrich_node(&1, lineages))
+    nodes = Enum.map(nodes_acc, &enrich_node(&1, lineages, children_by_parent))
     edges = build_edges(nodes_acc, born_payloads)
 
     width = nodes |> Enum.map(& &1.x) |> Enum.max(fn -> 0.0 end)
+    height = nodes |> Enum.map(& &1.y) |> Enum.max(fn -> 0.0 end)
     max_depth = nodes |> Enum.map(& &1.depth) |> Enum.max(fn -> 0 end)
 
     %{
       nodes: nodes,
       edges: edges,
       width: width + @x_step,
-      height: (max_depth + 1) * @y_step,
+      height: height + 80.0,
       max_depth: max_depth
     }
   end
@@ -145,10 +165,15 @@ defmodule Arkea.Views.Phylogeny do
     |> Enum.sort_by(& &1.id)
   end
 
-  # Recursive tidy layout — leftmost child anchors at the cursor, the
-  # parent is placed at the midpoint of its children's x range, and
-  # the cursor advances by @x_step for each leaf encountered.
-  defp layout_subtree(node, depth, cursor, _by_id, children_by_parent) do
+  # Recursive layout — y is the cumulative p-distance from the root
+  # (× scale, with a per-edge floor to keep zero-distance branches
+  # visible). x is sibling spread — one column per leaf, parents
+  # centred above their children.
+  defp layout_subtree(node, depth, cumulative_distance, cursor, parent_node, children_by_parent) do
+    branch_length = branch_length_for(parent_node, node)
+    edge_px = max(branch_length * @distance_scale, @min_branch_px)
+    next_cumulative = cumulative_distance + edge_px
+
     children = Map.get(children_by_parent, node.id, [])
 
     if children == [] do
@@ -157,7 +182,9 @@ defmodule Arkea.Views.Phylogeny do
         parent_id: node.parent_id,
         depth: depth,
         x: cursor,
-        y: depth * @y_step,
+        y: next_cumulative,
+        branch_length: branch_length,
+        cumulative_distance: next_cumulative,
         lineage: node
       }
 
@@ -165,7 +192,9 @@ defmodule Arkea.Views.Phylogeny do
     else
       {child_records, next_cursor} =
         Enum.reduce(children, {[], cursor}, fn child, {acc, cur} ->
-          {laid, next} = layout_subtree(child, depth + 1, cur, nil, children_by_parent)
+          {laid, next} =
+            layout_subtree(child, depth + 1, next_cumulative, cur, node, children_by_parent)
+
           {acc ++ laid, next}
         end)
 
@@ -180,7 +209,9 @@ defmodule Arkea.Views.Phylogeny do
         parent_id: node.parent_id,
         depth: depth,
         x: mid_x,
-        y: depth * @y_step,
+        y: next_cumulative,
+        branch_length: branch_length,
+        cumulative_distance: next_cumulative,
         lineage: node
       }
 
@@ -191,9 +222,22 @@ defmodule Arkea.Views.Phylogeny do
   defp avg([]), do: 0.0
   defp avg(list), do: Enum.sum(list) / length(list)
 
+  # The lineage stored on the layout record is an `%Arkea.Ecology.Lineage{}`
+  # struct; we fall back to its sibling map shape for tests/extinct
+  # node injection. p-distance returns 0.0 if either genome is nil
+  # (delta-encoded descendants).
+  defp branch_length_for(nil, _child), do: 0.0
+
+  defp branch_length_for(parent, child) do
+    PDistance.distance(genome_of(parent), genome_of(child))
+  end
+
+  defp genome_of(%Lineage{genome: g}), do: g
+  defp genome_of(_), do: nil
+
   # Enrich layout records with phenotype/abundance metadata; drops the
   # raw lineage struct so the result is JSON-encodable.
-  defp enrich_node(%{lineage: %Lineage{} = lineage} = record, alive_lineages) do
+  defp enrich_node(%{lineage: %Lineage{} = lineage} = record, alive_lineages, children_by_parent) do
     alive_set = MapSet.new(alive_lineages, & &1.id)
 
     abundance =
@@ -220,6 +264,9 @@ defmodule Arkea.Views.Phylogeny do
       depth: record.depth,
       x: record.x,
       y: record.y,
+      branch_length: Map.get(record, :branch_length, 0.0),
+      cumulative_distance: Map.get(record, :cumulative_distance, 0.0),
+      leaf?: Map.get(children_by_parent, record.id, []) == [],
       abundance: abundance,
       extinct?: not MapSet.member?(alive_set, lineage.id),
       gene_count: gene_count(lineage),

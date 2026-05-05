@@ -30,11 +30,9 @@
   stroke-width: 1.2;
 }
 
-.arkea-phylogeny__edge-label {
-  fill: rgba(226, 232, 240, 0.75);
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.65rem;
-  pointer-events: none;
+.arkea-phylogeny__edge--extinct {
+  stroke: rgba(148, 163, 184, 0.32);
+  stroke-dasharray: 3 3;
 }
 
 .arkea-phylogeny__node-label {
@@ -42,6 +40,10 @@
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.7rem;
   pointer-events: none;
+}
+
+.arkea-phylogeny__node--internal .arkea-phylogeny__node-label {
+  display: none;
 }
 
 .arkea-phylogeny__node--extinct .arkea-phylogeny__node-label {

@@ -1,12 +1,21 @@
 defmodule ArkeaWeb.Components.Phylogeny do
   @moduledoc """
-  Phoenix function component that renders the lineage phylogeny built
+  Phoenix function component that renders the lineage dendrogram built
   by `Arkea.Views.Phylogeny.build/3`.
 
-  Pure SVG, no JS chart library. Nodes are circles colour-coded by
-  current abundance (extinct = grey + dashed outline). Edges carry a
-  short label with the most-impactful phenotype delta when present
-  (UI Phase D).
+  Pure SVG, no JS chart library. The layout is a top-down dendrogram:
+
+  - Each lineage is a node positioned at its **cumulative p-distance**
+    from the root (vertical axis).
+  - Sibling spread runs along the horizontal axis.
+  - Edges are right-angle L-shapes (parent vertical drop → horizontal
+    span → child vertical drop) so divergence depth is read off the
+    y-coordinate of the horizontal segment.
+  - Leaves (lineages with no descendants in the input set) carry a
+    short-id label; internal nodes (lineages that branched) are
+    rendered as smaller anchor dots.
+  - Extinct lineages render in grey with a dashed outline regardless
+    of position.
   """
   use Phoenix.Component
 
@@ -23,7 +32,6 @@ defmodule ArkeaWeb.Components.Phylogeny do
     inner_w = max(model.width, 100.0)
     inner_h = max(model.height, 100.0)
 
-    # Translate to center the tree in the viewport.
     x_scale = fn x -> x * (assigns.width - 2 * @padding) / inner_w + @padding end
     y_scale = fn y -> y * (assigns.height - 2 * @padding) / inner_h + @padding end
 
@@ -49,9 +57,9 @@ defmodule ArkeaWeb.Components.Phylogeny do
             viewBox={"0 0 #{@width} #{@height}"}
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="Lineage phylogeny tree"
+            aria-label="Lineage phylogeny dendrogram"
           >
-            <%!-- Edges --%>
+            <%!-- Edges (right-angle L-shape: parent_y → child_y at parent_x, then horizontal to child_x) --%>
             <g class="arkea-phylogeny__edges">
               <%= for edge <- @model.edges do %>
                 <%= case {Map.get(@nodes_by_id, edge.from), Map.get(@nodes_by_id, edge.to)} do %>
@@ -62,23 +70,16 @@ defmodule ArkeaWeb.Components.Phylogeny do
                     <% py = @y_scale.(parent.y) %>
                     <% cx = @x_scale.(child.x) %>
                     <% cy = @y_scale.(child.y) %>
-                    <% mid_y = py + (cy - py) * 0.55 %>
                     <path
-                      d={"M#{fmt(px)} #{fmt(py)} L#{fmt(px)} #{fmt(mid_y)} L#{fmt(cx)} #{fmt(mid_y)} L#{fmt(cx)} #{fmt(cy)}"}
-                      class="arkea-phylogeny__edge"
+                      d={"M#{fmt(px)} #{fmt(py)} L#{fmt(cx)} #{fmt(py)} L#{fmt(cx)} #{fmt(cy)}"}
+                      class={[
+                        "arkea-phylogeny__edge",
+                        child.extinct? && "arkea-phylogeny__edge--extinct"
+                      ]}
                       fill="none"
-                    />
-                    <%= if edge.mutation_summary do %>
-                      <title>{summary_title(edge.mutation_summary)}</title>
-                      <text
-                        x={fmt((px + cx) / 2)}
-                        y={fmt(mid_y - 4)}
-                        text-anchor="middle"
-                        class="arkea-phylogeny__edge-label"
-                      >
-                        {summary_label(edge.mutation_summary)}
-                      </text>
-                    <% end %>
+                    >
+                      <title>{edge_title(child, edge)}</title>
+                    </path>
                 <% end %>
               <% end %>
             </g>
@@ -90,12 +91,14 @@ defmodule ArkeaWeb.Components.Phylogeny do
                 <% ny = @y_scale.(node.y) %>
                 <g class={[
                   "arkea-phylogeny__node",
+                  node.leaf? && "arkea-phylogeny__node--leaf",
+                  not node.leaf? && "arkea-phylogeny__node--internal",
                   node.extinct? && "arkea-phylogeny__node--extinct"
                 ]}>
                   <circle
                     cx={fmt(nx)}
                     cy={fmt(ny)}
-                    r={8}
+                    r={node_radius(node)}
                     fill={node_color(node)}
                     stroke={if node.extinct?, do: "rgba(148,163,184,0.6)", else: "rgba(15,23,42,0.6)"}
                     stroke-width="1.2"
@@ -104,8 +107,10 @@ defmodule ArkeaWeb.Components.Phylogeny do
                     <title>{node_title(node)}</title>
                   </circle>
                   <text
-                    x={fmt(nx + 8 + 4)}
-                    y={fmt(ny + 3)}
+                    :if={node.leaf?}
+                    x={fmt(nx)}
+                    y={fmt(ny + node_radius(node) + 11)}
+                    text-anchor="middle"
                     class="arkea-phylogeny__node-label"
                   >
                     {short_id(node.id)}
@@ -162,38 +167,42 @@ defmodule ArkeaWeb.Components.Phylogeny do
         true -> "N=#{node.abundance}"
       end
 
-    "Lineage #{short_id(node.id)} · depth #{node.depth} · #{abundance} · genes #{node.gene_count}"
+    role = if node.leaf?, do: "leaf", else: "internal"
+
+    "Lineage #{short_id(node.id)} · #{role} · depth #{node.depth} · " <>
+      "#{abundance} · genes #{node.gene_count}"
   end
 
-  defp summary_label(summary) do
-    headline =
-      cond do
-        is_number(summary["d_growth_rate"]) and abs(summary["d_growth_rate"]) >= 0.05 ->
-          "Δµ #{format_signed(summary["d_growth_rate"])}"
+  defp edge_title(child, edge) do
+    parts = [
+      "p-distance #{format_distance(child.branch_length)}",
+      "child #{short_id(child.id)}"
+    ]
 
-        is_number(summary["d_repair"]) and abs(summary["d_repair"]) >= 0.05 ->
-          "Δrepair #{format_signed(summary["d_repair"])}"
+    summary_part =
+      case edge.mutation_summary do
+        %{} = s ->
+          [
+            "Δµ #{format_signed(s["d_growth_rate"])}",
+            "Δrepair #{format_signed(s["d_repair"])}",
+            "ΔE #{format_signed(s["d_energy_cost"])}"
+          ]
 
-        is_number(summary["d_energy_cost"]) and abs(summary["d_energy_cost"]) >= 0.05 ->
-          "ΔE #{format_signed(summary["d_energy_cost"])}"
-
-        true ->
-          "Δ"
+        _ ->
+          []
       end
 
-    headline
+    Enum.join(parts ++ summary_part, " · ")
   end
 
-  defp summary_title(summary) do
-    [
-      "Δµ: #{format_signed(summary["d_growth_rate"])}",
-      "Δrepair: #{format_signed(summary["d_repair"])}",
-      "ΔE: #{format_signed(summary["d_energy_cost"])}",
-      "child_genes: #{summary["child_gene_count"]} (parent #{summary["parent_gene_count"]})"
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" · ")
+  defp node_radius(%{leaf?: true}), do: 6
+  defp node_radius(_), do: 3
+
+  defp format_distance(d) when is_number(d) do
+    :erlang.float_to_binary(d * 1.0, decimals: 4)
   end
+
+  defp format_distance(_), do: "—"
 
   defp format_signed(nil), do: "—"
   defp format_signed(n) when is_integer(n), do: format_signed(n * 1.0)

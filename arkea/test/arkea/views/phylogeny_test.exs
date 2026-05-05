@@ -2,6 +2,9 @@ defmodule Arkea.Views.PhylogenyTest do
   use ExUnit.Case, async: true
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Genome
+  alias Arkea.Genome.Domain
+  alias Arkea.Genome.Gene
   alias Arkea.Persistence.AuditLog
   alias Arkea.Views.Phylogeny
 
@@ -98,5 +101,46 @@ defmodule Arkea.Views.PhylogenyTest do
       biomass: %{wall: 1.0, membrane: 1.0, dna: 1.0},
       dna_damage: 0.0
     }
+  end
+
+  describe "p-distance branch lengths" do
+    test "branch_length on a child edge equals PDistance(parent.genome, child.genome)" do
+      parent_genome =
+        Genome.new([Gene.from_domains([Domain.new([0, 0, 0], List.duplicate(5, 20))])])
+
+      child_genome =
+        Genome.new([Gene.from_domains([Domain.new([0, 0, 0], [9 | List.duplicate(5, 19)])])])
+
+      parent = %{lineage("parent", nil) | genome: parent_genome}
+      child = %{lineage("child", "parent") | genome: child_genome}
+
+      model = Phylogeny.build([parent, child], [])
+
+      child_node = Enum.find(model.nodes, &(&1.id == "child"))
+      parent_node = Enum.find(model.nodes, &(&1.id == "parent"))
+
+      expected = Arkea.Genome.PDistance.distance(parent_genome, child_genome)
+
+      assert child_node.branch_length > 0.0
+      assert_in_delta child_node.branch_length, expected, 1.0e-9
+
+      # The cumulative distance is monotone: the child sits further
+      # from the root than the parent by at least the (px-scaled)
+      # branch length.
+      assert child_node.cumulative_distance > parent_node.cumulative_distance
+    end
+
+    test "the leaf? flag distinguishes terminal from internal lineages" do
+      a = lineage("a", nil)
+      b = lineage("b", "a")
+      c = lineage("c", "a")
+
+      model = Phylogeny.build([a, b, c], [])
+
+      by_id = Map.new(model.nodes, &{&1.id, &1})
+      refute by_id["a"].leaf?
+      assert by_id["b"].leaf?
+      assert by_id["c"].leaf?
+    end
   end
 end
