@@ -137,6 +137,17 @@
   letter-spacing: 0.04em;
 }
 
+/* Live lineage count rendered inside the node core. Tabular-nums so
+   single- and triple-digit values stay centred. */
+.arkea-world__node-count {
+  fill: var(--arkea-fg);
+  font-size: 2.4px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .arkea-world__node:hover .arkea-world__node-halo,
 .arkea-world__node:focus-visible .arkea-world__node-halo {
   opacity: 0.32;

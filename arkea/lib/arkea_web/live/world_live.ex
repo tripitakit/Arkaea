@@ -152,6 +152,13 @@ defmodule ArkeaWeb.WorldLive do
                   >
                     <circle r={node_radius(b)} class="arkea-world__node-halo" />
                     <circle r={node_radius(b) * 0.55} class="arkea-world__node-core" />
+                    <text
+                      class="arkea-world__node-count"
+                      text-anchor="middle"
+                      dominant-baseline="central"
+                    >
+                      {b.lineage_count}
+                    </text>
                     <text class="arkea-world__node-label" y={node_radius(b) + 2.5}>
                       {archetype_label(b.archetype)}
                     </text>

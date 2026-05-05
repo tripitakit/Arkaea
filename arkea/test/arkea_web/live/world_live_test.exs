@@ -72,5 +72,8 @@ defmodule ArkeaWeb.WorldLiveTest do
     assert html =~ "arkea-world__archetype-bar"
     # The breakdown surfaces the canonical archetype label.
     assert html =~ "Eutrophic Pond"
+    # Each visible biotope marker carries its live lineage count
+    # rendered inside the core circle.
+    assert html =~ "arkea-world__node-count"
   end
 end
