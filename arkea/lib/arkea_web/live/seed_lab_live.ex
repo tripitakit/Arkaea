@@ -32,6 +32,8 @@ defmodule ArkeaWeb.SeedLabLive do
        gene_draft: empty_gene_draft(),
        gene_editor_error: nil,
        gene_draft_scope: :chromosome,
+       community_mode?: false,
+       community_specs: [],
        selected_replicon_id: "chromosome",
        selected_gene_index: 1,
        inspector_expanded: false,
@@ -330,6 +332,94 @@ defmodule ArkeaWeb.SeedLabLive do
     {:noreply, assign(socket, inspector_expanded: not socket.assigns.inspector_expanded)}
   end
 
+  def handle_event("toggle_community_mode", _params, socket) do
+    if socket.assigns.seed_locked? or socket.assigns[:recolonize_mode?] do
+      {:noreply, socket}
+    else
+      next = not socket.assigns.community_mode?
+
+      community_specs =
+        if next do
+          socket.assigns.community_specs
+        else
+          # Leaving community mode resets the secondary slots so the
+          # next provision call doesn't ship phantom founders.
+          []
+        end
+
+      {:noreply,
+       assign(socket,
+         community_mode?: next,
+         community_specs: community_specs,
+         errors: %{}
+       )}
+    end
+  end
+
+  def handle_event("add_community_slot", _params, socket) do
+    cond do
+      not socket.assigns.community_mode? ->
+        {:noreply, socket}
+
+      length(socket.assigns.community_specs) >= 2 ->
+        {:noreply, socket}
+
+      true ->
+        # The new slot copies the primary archetype + sensible
+        # defaults — community founders share the biotope, so the
+        # archetype must match anyway. We auto-name the slot so a
+        # bare community-mode submit doesn't fail validation on an
+        # empty seed_name; the player is free to overwrite.
+        primary = socket.assigns.seed_params
+        slot_index = length(socket.assigns.community_specs) + 2
+
+        new_slot =
+          blank_secondary_slot(primary)
+          |> Map.put("seed_name", "Founder #{slot_index}")
+
+        {:noreply, assign(socket, community_specs: socket.assigns.community_specs ++ [new_slot])}
+    end
+  end
+
+  def handle_event("remove_community_slot", %{"index" => raw_index}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(raw_index)
+      next = List.delete_at(socket.assigns.community_specs, idx)
+      {:noreply, assign(socket, community_specs: next)}
+    end
+  end
+
+  def handle_event(
+        "update_community_slot",
+        %{"index" => raw_index, "slot" => slot_params},
+        socket
+      ) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(raw_index)
+
+      next =
+        case Enum.at(socket.assigns.community_specs, idx) do
+          nil ->
+            socket.assigns.community_specs
+
+          existing ->
+            merged =
+              existing
+              |> Map.merge(slot_params)
+              # Force shared archetype with the primary spec.
+              |> Map.put("starter_archetype", socket.assigns.seed_params["starter_archetype"])
+
+            List.replace_at(socket.assigns.community_specs, idx, merged)
+        end
+
+      {:noreply, assign(socket, community_specs: next)}
+    end
+  end
+
   def handle_event("provision_seed", %{"seed" => params}, socket) do
     cond do
       socket.assigns.seed_locked? ->
@@ -363,6 +453,29 @@ defmodule ArkeaWeb.SeedLabLive do
             {:noreply,
              socket
              |> assign(errors: %{starter_archetype: recolonize_error(reason)})
+             |> apply_form(params)}
+        end
+
+      socket.assigns.community_mode? ->
+        secondary =
+          Enum.map(socket.assigns.community_specs, fn slot ->
+            slot
+            |> Map.put("starter_archetype", params["starter_archetype"])
+          end)
+
+        case SeedLab.provision_community(socket.assigns.player, [params | secondary]) do
+          {:ok, biotope_id} ->
+            {:noreply, push_navigate(socket, to: ~p"/biotopes/#{biotope_id}")}
+
+          {:error, errors} when is_map(errors) ->
+            {:noreply, socket |> assign(errors: errors) |> apply_form(params)}
+
+          {:error, reason} ->
+            {:noreply,
+             socket
+             |> assign(
+               errors: %{starter_archetype: "Community provision failed: #{inspect(reason)}"}
+             )
              |> apply_form(params)}
         end
 
@@ -520,6 +633,107 @@ defmodule ArkeaWeb.SeedLabLive do
                 Click a scenario to pre-fill the form. You can still tweak any field
                 before colonising.
               </p>
+            </div>
+
+            <div
+              :if={not @seed_locked? and not @recolonize_mode?}
+              class="arkea-seed-community"
+              role="region"
+              aria-label="Community mode toggle"
+            >
+              <label class="arkea-seed-community__toggle">
+                <input
+                  type="checkbox"
+                  phx-click="toggle_community_mode"
+                  checked={@community_mode?}
+                />
+                <span class="arkea-seed-community__title">Community mode</span>
+                <span class="arkea-seed-community__hint">
+                  Co-inoculate up to 3 distinct Arkeon seeds in the same biotope.
+                  Cross-feeding (catabolite → metabolite) emerges naturally as the
+                  founders' substrate cassettes overlap with the by-product flux.
+                </span>
+              </label>
+
+              <div :if={@community_mode?} class="arkea-seed-community__slots">
+                <div
+                  :for={{slot, index} <- Enum.with_index(@community_specs)}
+                  class="arkea-seed-community__slot"
+                >
+                  <div class="arkea-seed-community__slot-header">
+                    <span class="arkea-card__eyebrow">Founder {index + 2}</span>
+                    <button
+                      type="button"
+                      class="arkea-seed-custom-gene__remove"
+                      phx-click="remove_community_slot"
+                      phx-value-index={index}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <form
+                    phx-change="update_community_slot"
+                    phx-value-index={index}
+                    class="arkea-seed-community__slot-form"
+                  >
+                    <div class="arkea-seed-field">
+                      <label class="arkea-seed-field__label">Seed name</label>
+                      <input
+                        type="text"
+                        name="slot[seed_name]"
+                        value={Map.get(slot, "seed_name", "")}
+                        class="arkea-seed-input"
+                        maxlength="40"
+                      />
+                    </div>
+
+                    <div class="arkea-seed-config-grid">
+                      <.option_select
+                        field="metabolism_profile"
+                        id={"slot-#{index}-metabolism_profile"}
+                        label="Metabolic cassette"
+                        value={Map.get(slot, "metabolism_profile", "balanced")}
+                        options={@metabolism_profiles}
+                        name="slot[metabolism_profile]"
+                      />
+                      <.option_select
+                        field="membrane_profile"
+                        id={"slot-#{index}-membrane_profile"}
+                        label="Envelope profile"
+                        value={Map.get(slot, "membrane_profile", "porous")}
+                        options={@membrane_profiles}
+                        name="slot[membrane_profile]"
+                      />
+                      <.option_select
+                        field="regulation_profile"
+                        id={"slot-#{index}-regulation_profile"}
+                        label="Regulation mode"
+                        value={Map.get(slot, "regulation_profile", "responsive")}
+                        options={@regulation_profiles}
+                        name="slot[regulation_profile]"
+                      />
+                      <.option_select
+                        field="mobile_module"
+                        id={"slot-#{index}-mobile_module"}
+                        label="Mobile module"
+                        value={Map.get(slot, "mobile_module", "none")}
+                        options={@mobile_modules}
+                        name="slot[mobile_module]"
+                      />
+                    </div>
+                  </form>
+                </div>
+
+                <button
+                  :if={length(@community_specs) < 2}
+                  type="button"
+                  phx-click="add_community_slot"
+                  class="arkea-action-button"
+                >
+                  + Add founder ({length(@community_specs) + 1}/2 secondary slots)
+                </button>
+              </div>
             </div>
 
             <form phx-change="change_seed" phx-submit="provision_seed" class="arkea-seed-form">
@@ -866,12 +1080,19 @@ defmodule ArkeaWeb.SeedLabLive do
   attr(:label, :string, required: true)
   attr(:value, :string, required: true)
   attr(:options, :list, required: true)
+  attr(:name, :string, default: nil, doc: "form field name (defaults to seed[field])")
+  attr(:id, :string, default: nil, doc: "DOM id (defaults to field)")
 
   defp option_select(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:resolved_name, fn -> assigns.name || "seed[#{assigns.field}]" end)
+      |> assign_new(:resolved_id, fn -> assigns.id || assigns.field end)
+
     ~H"""
     <div class="arkea-seed-field">
-      <label class="arkea-seed-field__label" for={@field}>{@label}</label>
-      <select id={@field} name={"seed[#{@field}]"} class="arkea-seed-input">
+      <label class="arkea-seed-field__label" for={@resolved_id}>{@label}</label>
+      <select id={@resolved_id} name={@resolved_name} class="arkea-seed-input">
         <option :for={option <- @options} value={option.id} selected={@value == option.id}>
           {option.label}
         </option>
@@ -1602,6 +1823,23 @@ defmodule ArkeaWeb.SeedLabLive do
 
   defp empty_gene_draft do
     %{domains: [], intergenic: empty_intergenic_blocks()}
+  end
+
+  # Default seed-spec map for a secondary community founder. Inherits
+  # the primary's archetype so the form locks them together; profile
+  # fields default to "balanced + porous + responsive + none" — the
+  # safest cross-feeding partner. The player tweaks them in the UI.
+  defp blank_secondary_slot(primary) do
+    %{
+      "seed_name" => "",
+      "starter_archetype" => Map.get(primary, "starter_archetype", ""),
+      "metabolism_profile" => "balanced",
+      "membrane_profile" => "porous",
+      "regulation_profile" => "responsive",
+      "mobile_module" => "none",
+      "custom_gene_payload" => "[]",
+      "custom_plasmid_payload" => "[]"
+    }
   end
 
   defp empty_intergenic_blocks do

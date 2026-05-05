@@ -213,6 +213,15 @@ defmodule Arkea.Game.PlayerAssets do
     |> Repo.transaction()
   end
 
+  @doc """
+  Public alias for the internal blueprint serializer. Used by
+  `Arkea.Game.SeedLab.provision_community/2` to persist auxiliary
+  founders without going through `register_home/4` (which is
+  single-blueprint).
+  """
+  @spec public_blueprint_spec(map()) :: map()
+  def public_blueprint_spec(spec), do: blueprint_spec(spec)
+
   defp blueprint_spec(spec) do
     %{
       "seed_name" => spec.seed_name,

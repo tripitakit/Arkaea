@@ -23,6 +23,7 @@ defmodule Arkea.Game.SeedLab do
   alias Arkea.Persistence.ArkeonBlueprint
   alias Arkea.Persistence.PlayerBiotope
   alias Arkea.Persistence.Store
+  alias Arkea.Repo
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
   alias Arkea.Sim.BiotopeState
@@ -665,6 +666,178 @@ defmodule Arkea.Game.SeedLab do
       _ ->
         {:error, :no_home}
     end
+  end
+
+  @doc """
+  Provision a single biotope colonised simultaneously by 1-3 distinct
+  Arkeon seeds (community mode).
+
+  All founders share the same `starter_archetype` (they're inhabiting
+  the same biotope). The first spec is the **primary**: its blueprint
+  is the one bound to the `player_biotope` row and surfaced in the
+  Seed Lab when the player re-opens the home. The 2nd and 3rd specs
+  are persisted as auxiliary `arkeon_blueprints` rows (no
+  `player_biotope` link) — they remain recoverable via the
+  `:community_provisioned` audit event payload.
+
+  Cross-feeding emerges naturally from `Metabolism.compute_byproducts`:
+  each consumed substrate releases stoichiometric by-products into the
+  shared `phase.metabolite_pool`, so a community whose seed cassettes
+  bind complementary substrates forms a chemo-trophic network without
+  any extra wiring.
+
+  Returns `{:ok, biotope_id}` or `{:error, %{atom => String.t()}}` /
+  atom on validation / persistence failure.
+  """
+  @spec provision_community(map() | binary(), [map()]) ::
+          {:ok, binary()} | {:error, term()}
+  def provision_community(player_or_id, params_list) when is_list(params_list) do
+    player_profile = normalize_player_profile(player_or_id)
+    specs = Enum.map(params_list, &normalize_params/1)
+
+    cond do
+      specs == [] ->
+        {:error, %{starter_archetype: "Provide at least one founder seed."}}
+
+      length(specs) > 3 ->
+        {:error, %{starter_archetype: "Community mode allows at most 3 founder seeds."}}
+
+      not all_valid?(specs) ->
+        {:error, validate_first_invalid(specs)}
+
+      not same_archetype?(specs) ->
+        {:error,
+         %{
+           starter_archetype: "All community founders must share the same biotope archetype."
+         }}
+
+      true ->
+        with :ok <- ensure_home_slot_available(player_profile.id) do
+          do_provision_community(player_profile, specs)
+        end
+    end
+  end
+
+  defp all_valid?(specs), do: Enum.all?(specs, &(validate(&1) == :ok))
+
+  defp validate_first_invalid(specs) do
+    case Enum.find(specs, fn s -> match?({:error, _}, validate(s)) end) do
+      nil -> %{}
+      bad -> elem(validate(bad), 1)
+    end
+  end
+
+  defp same_archetype?([]), do: true
+
+  defp same_archetype?([first | rest]) do
+    Enum.all?(rest, &(&1.starter_archetype == first.starter_archetype))
+  end
+
+  defp do_provision_community(player_profile, specs) do
+    [primary_spec | _] = specs
+    ecotype = starter_ecotype(primary_spec.starter_archetype)
+    {x, y} = World.spawn_coords(primary_spec.starter_archetype)
+    neighbors = candidate_neighbors(primary_spec.starter_archetype, {x, y})
+    phases = build_seed_phases(primary_spec.starter_archetype)
+
+    # Each founder gets its own genome and its own lineage tagged with
+    # an `original_seed_id` so audit / cladistic tooling can later
+    # tell the founders apart even after speciation.
+    founders =
+      Enum.map(specs, fn spec ->
+        seed_id = Arkea.UUID.v4()
+        genome = build_genome(spec)
+        lineage = build_seed_lineage(genome, phases)
+        lineage = %{lineage | original_seed_id: seed_id}
+        %{spec: spec, genome: genome, lineage: lineage, seed_id: seed_id}
+      end)
+
+    state =
+      BiotopeState.new_from_opts(
+        id: Arkea.UUID.v4(),
+        archetype: primary_spec.starter_archetype,
+        x: x,
+        y: y,
+        zone: ecotype.zone,
+        owner_player_id: player_profile.id,
+        neighbor_ids: Enum.map(neighbors, & &1.id),
+        phases: phases,
+        dilution_rate: mean_dilution(phases),
+        lineages: Enum.map(founders, & &1.lineage),
+        metabolite_inflow: inflow_profile(primary_spec.starter_archetype)
+      )
+
+    primary = hd(founders)
+
+    with {:ok, _pid} <- BiotopeSupervisor.start_biotope(state),
+         {:ok, _changes} <-
+           PlayerAssets.register_home(
+             player_profile,
+             primary.spec,
+             primary.genome,
+             state
+           ),
+         :ok <- persist_auxiliary_founders(player_profile, founders, state) do
+      _ = persist_community_transition(state, founders, player_profile)
+      Phoenix.PubSub.broadcast(Arkea.PubSub, "world:registry", {:world_changed, state.id})
+      {:ok, state.id}
+    else
+      {:error, operation, reason, _changes} ->
+        stop_started_biotope(state.id)
+        {:error, home_registration_error(operation, reason)}
+
+      {:error, reason} ->
+        stop_started_biotope(state.id)
+
+        {:error,
+         %{starter_archetype: "Could not provision community biotope: #{inspect(reason)}"}}
+    end
+  end
+
+  # Each non-primary founder lands as a standalone ArkeonBlueprint row
+  # (player_id set, no PlayerBiotope link). Failure of any insert
+  # rolls back the whole community via {:error, _}.
+  defp persist_auxiliary_founders(player_profile, [_primary | rest], _state) do
+    Enum.reduce_while(rest, :ok, fn founder, :ok ->
+      attrs = %{
+        player_id: player_profile.id,
+        name: founder.spec.seed_name,
+        starter_archetype: Atom.to_string(founder.spec.starter_archetype),
+        phenotype_spec: PlayerAssets.public_blueprint_spec(founder.spec),
+        genome_binary: ArkeonBlueprint.dump_genome!(founder.genome)
+      }
+
+      case Repo.insert(ArkeonBlueprint.changeset(%ArkeonBlueprint{}, attrs)) do
+        {:ok, _} -> {:cont, :ok}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp persist_auxiliary_founders(_player_profile, [], _state), do: :ok
+
+  defp persist_community_transition(state, founders, player_profile) do
+    seed_ids = Enum.map(founders, & &1.seed_id)
+    seed_names = Enum.map(founders, & &1.spec.seed_name)
+    founder_lineage_ids = Enum.map(founders, & &1.lineage.id)
+
+    payload = %{
+      seed_ids: seed_ids,
+      seed_names: seed_names,
+      founder_lineage_ids: founder_lineage_ids,
+      phase_name: state.phases |> hd() |> Map.get(:name) |> Atom.to_string(),
+      biotope_id: state.id,
+      tick: state.tick_count,
+      actor_player_id: player_profile.id,
+      actor: player_profile.display_name,
+      kind: "community_provisioned"
+    }
+
+    Store.persist_transition(
+      state,
+      [%{type: :community_provisioned, payload: payload}],
+      :seed
+    )
   end
 
   defp do_provision(player_profile, spec) do

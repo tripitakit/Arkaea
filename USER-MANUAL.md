@@ -172,6 +172,25 @@ Dopo il click puoi comunque modificare ogni campo: il preset è un punto di part
 
 > **Nota di calibrazione (2026-05-05)**: archetipi estremi come `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment` e il `marine_layer` del `saline_estuary` sono **nicchie chemiolitotrofiche reali** dove il founder default — la cui cassette `balanced/thrifty/bloom` lega solo glucosio — non riesce a sopravvivere lungo termine. Sono comunque selezionabili dal form principale: per portare un seed alla maturità in queste niche serve costruire **gene custom** che leghino i substrati locali (Fe²⁺, H₂, H₂S, SO₄²⁻) via il gene designer. Il `regulation_profile = mutator` resta disponibile ma non figura nei preset perché in oligotrofi precipita in error catastrophe prima che la founder si stabilizzi: per esibirlo, accoppia con `bloom` cassette in eutrofici. Il piano `BIOLOGICAL-MODEL-REVIEW.md` Phase 14-15 aggiungerà profili metabolici chemiolitotrofici nativi.
 
+#### Modalità community (multi-founder)
+
+Sopra il form principale c'è una checkbox **Community mode**. Spuntandola, il Seed Lab abilita la co-inoculazione di **fino a 3 seed Arkeon distinti nello stesso biotopo**: il founder primario è quello del form principale, e con il pulsante **+ Add founder** si aggiungono fino a 2 slot secondari, ognuno con i propri profili (metabolismo / membrana / regolazione / mobile module). Lo `starter_archetype` è condiviso (tutti i founder vivono lo stesso biotopo, quindi le stesse fasi).
+
+Al submit, il backend (`SeedLab.provision_community/2`):
+
+- Valida ogni spec come per `provision_home/2` (nome non vuoto, archetype scelto).
+- Verifica che tutti i founder abbiano lo stesso archetipo.
+- Costruisce N genomi distinti, ognuno taggato con un proprio `original_seed_id` che fluisce in `Lineage.original_seed_id` di ogni discendente — così l'audit log e il `Phylogeny tab` distinguono i clade founder anche dopo la speciazione.
+- Avvia un singolo `Biotope.Server` con N founder lineage all'tick 0.
+- Persiste 1 `ArkeonBlueprint` primario + N-1 `ArkeonBlueprint` ausiliari (player_id valorizzato, nessun `PlayerBiotope` link — sono recuperabili dal payload dell'evento `community_provisioned` in audit_log).
+- Emette un evento `:community_provisioned` con `seed_ids`, `seed_names`, `founder_lineage_ids` per le query forensiche e il listing della pagina `/community`.
+
+**Cross-feeding emergente**: ogni unità di substrato consumata rilascia stoichiometricamente i sub-prodotti nello stesso `phase.metabolite_pool` (vedi `Metabolism.compute_byproducts/1`, Block 18). Una community con cassette substrate-binding complementari (es. founder A consuma glucosio → produce lattato/acetato; founder B lega lattato; founder C lega acetato) forma una **rete chemo-trofica** spontaneamente: niente wiring extra, solo allineamento degli affinity profiles. La heatmap della tab Chemistry mostra lo shift reciproco delle concentrazioni che identifica la chiusura del ciclo.
+
+**Use case**: studiare la coexistence di 3 strategie nello stesso ambiente, l'arms race fra plasmidi conjugativi se ≥2 founder li portano, la diversità di nicchia che emerge in 500 tick.
+
+> Limite: una community count come **un solo home slot** (vedi §3 — cap 3 home per player). Si possono comunque cumulare fino a 3 community = 9 founder totali.
+
 #### Nome del seed
 
 Identificativo umano del blueprint nel sistema di provisioning. Visibile in Audit per `colonization` events. Massimo 40 caratteri.

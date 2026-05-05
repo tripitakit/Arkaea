@@ -461,3 +461,62 @@
   font-size: 0.78rem;
   margin: 0;
 }
+
+/* Community mode toggle + secondary founder slots. */
+.arkea-seed-community {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.85rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-radius: 0.45rem;
+}
+
+.arkea-seed-community__toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.6rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.arkea-seed-community__toggle input[type="checkbox"] {
+  grid-row: span 2;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.arkea-seed-community__title {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.arkea-seed-community__hint {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.7);
+  line-height: 1.4;
+}
+
+.arkea-seed-community__slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-left: 1.7rem;
+}
+
+.arkea-seed-community__slot {
+  border: 1px solid rgba(244, 114, 182, 0.22);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.arkea-seed-community__slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}

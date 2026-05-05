@@ -16,6 +16,47 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     {:ok, conn: log_in_prototype_player(conn)}
   end
 
+  test "community mode toggle adds founder slots and provisions a multi-seed biotope", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, ~p"/seed-lab")
+
+    # Toggle community mode + add one secondary founder slot.
+    view
+    |> element(~s|input[phx-click="toggle_community_mode"]|)
+    |> render_click()
+
+    view
+    |> element(~s|button[phx-click="add_community_slot"]|)
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "Community mode"
+    assert html =~ "Founder 2"
+
+    # Submit a primary form with secondary slot inheriting the
+    # archetype.
+    view
+    |> form("form.arkea-seed-form", %{
+      "seed" => %{
+        "starter_archetype" => "eutrophic_pond",
+        "metabolism_profile" => "bloom",
+        "membrane_profile" => "porous",
+        "regulation_profile" => "responsive",
+        "mobile_module" => "conjugative_plasmid",
+        "seed_name" => "Primary Founder"
+      }
+    })
+    |> render_submit()
+
+    {path, _flash} = assert_redirect(view)
+    assert path =~ "/biotopes/"
+
+    # Two blueprints persisted (primary + 1 community founder), both
+    # owned by the prototype player.
+    assert Arkea.Repo.aggregate(Arkea.Persistence.ArkeonBlueprint, :count) == 2
+  end
+
   test "scenario chip pre-fills the seed form with the preset's params", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/seed-lab")
 
