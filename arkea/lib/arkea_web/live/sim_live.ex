@@ -25,7 +25,6 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
   alias Arkea.Views.BiotopeScene, as: SceneLayout
-  alias ArkeaWeb.Components.BiotopeScene
   alias ArkeaWeb.Components.Chart
   alias ArkeaWeb.Components.Panel
   alias ArkeaWeb.Components.Phylogeny
@@ -327,24 +326,17 @@ defmodule ArkeaWeb.SimLive do
               biotope_id={@biotope_id}
             />
 
-            <div class="arkea-biotope__main">
-              <BiotopeScene.biotope_scene
-                layout={@scene_layout}
-                class="arkea-biotope__scene"
+            <aside
+              :if={@selected_lineage}
+              class="arkea-drawer arkea-drawer--right"
+              aria-label="Lineage detail"
+            >
+              <.lineage_drawer
+                lineage={@selected_lineage}
+                phenotype_cache={@phenotype_cache}
+                biotope_id={@biotope_id}
               />
-
-              <aside
-                :if={@selected_lineage}
-                class="arkea-drawer arkea-drawer--right"
-                aria-label="Lineage detail"
-              >
-                <.lineage_drawer
-                  lineage={@selected_lineage}
-                  phenotype_cache={@phenotype_cache}
-                  biotope_id={@biotope_id}
-                />
-              </aside>
-            </div>
+            </aside>
 
             <section class="arkea-biotope__bottom" aria-label="Auxiliary panel">
               <div class="arkea-tabs" role="tablist">
@@ -721,7 +713,7 @@ defmodule ArkeaWeb.SimLive do
             <span class="arkea-mini-stat__value">{@richness}</span>
           </div>
           <div class="arkea-mini-stat">
-            <span class="arkea-mini-stat__label">H′ (Shannon)</span>
+            <span class="arkea-mini-stat__label">Shannon H′</span>
             <span class="arkea-mini-stat__value">{@shannon}</span>
           </div>
           <div class="arkea-mini-stat">
@@ -733,8 +725,11 @@ defmodule ArkeaWeb.SimLive do
         <div class="arkea-phase-environment">
           <.env_reading label="T (°C)" value={format_float(@phase.temperature, 1)} />
           <.env_reading label="pH" value={format_float(@phase.ph, 1)} />
-          <.env_reading label="Osm (mOsm/L)" value={format_float(@phase.osmolarity, 0)} />
-          <.env_reading label="D (%/tick)" value={format_float(@phase.dilution_rate * 100.0, 1)} />
+          <.env_reading label="Osmolarity" value={format_float(@phase.osmolarity, 0)} />
+          <.env_reading
+            label="Dilution"
+            value={"#{format_float(@phase.dilution_rate * 100.0, 1)}%/tick"}
+          />
         </div>
       <% else %>
         <div class="arkea-card__header">

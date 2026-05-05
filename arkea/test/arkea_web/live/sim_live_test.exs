@@ -14,7 +14,7 @@ defmodule ArkeaWeb.SimLiveTest do
     {:ok, conn: log_in_prototype_player(conn), biotope_id: biotope_id}
   end
 
-  test "renders the new biotope shell with sidebar, scene, bottom tabs", %{
+  test "renders the biotope shell with sidebar and bottom tabs", %{
     conn: conn,
     biotope_id: id
   } do
@@ -23,10 +23,12 @@ defmodule ArkeaWeb.SimLiveTest do
     html = render(view)
     assert html =~ "arkea-shell"
     assert html =~ "arkea-biotope__sidebar"
-    assert html =~ "arkea-biotope__scene"
     assert html =~ "arkea-biotope__bottom"
-    # Scene SVG (replaces the old Pixi canvas)
-    assert html =~ ~s|class="arkea-scene__svg"|
+    # The scene preview was retired; the bottom panel is now the
+    # entire main area. Phase / lineage data lives in the sidebar
+    # KPIs and the Trends + Lineages tabs.
+    refute html =~ "arkea-biotope__scene"
+    refute html =~ ~s|class="arkea-scene__svg"|
     # Phase inspector still in sidebar
     assert has_element?(view, "#phase-inspector-title")
     # Global nav present in shell

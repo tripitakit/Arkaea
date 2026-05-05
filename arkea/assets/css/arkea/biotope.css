@@ -7,28 +7,18 @@
  */
 
 .arkea-biotope {
-  display: grid;
-  /* Scene gets `minmax(0, 1.4fr)` and the bottom panel `minmax(280px, 1fr)`.
-     The bottom row now holds enough vertical space for the Phylogeny / Trends
-     SVGs (was a fixed 220px which left those tabs cramped). The minmax floor
-     keeps the scene readable on tall viewports while letting the bottom row
-     expand when there's room. */
-  grid-template-rows: minmax(0, 1.4fr) minmax(280px, 1fr);
+  /* Single-row layout: the bottom panel (Events / Lineages / Trends /
+     Phylogeny / Chemistry / Interventions) gets the entire main area
+     below the recolonize banner. The procedural scene preview that
+     used to sit on top was mostly aesthetic — phase-by-phase abundance
+     is already surfaced numerically in the sidebar and as
+     time-series in the Trends tab. */
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   position: relative;
   overflow: hidden;
-}
-
-.arkea-biotope__main {
-  position: relative;
-  min-height: 0;
-  display: flex;
-}
-
-.arkea-biotope__scene {
-  flex: 1;
-  min-width: 0;
 }
 
 /* ─── Header chips & buttons ────────────────────────────────────────────── */
@@ -89,6 +79,35 @@
   padding: var(--arkea-space-4) var(--arkea-space-3);
   min-height: 0;
   overflow-y: auto;
+}
+
+/* The sidebar's narrow column makes the global 4-up phase-kpis grid
+   collide with the longer labels (Richness / H′ / Osmolarity). Drop
+   to 2 columns and let the labels wrap naturally; the phase-environment
+   group keeps its 2-column layout. */
+.arkea-biotope__sidebar .arkea-phase-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.arkea-biotope__sidebar .arkea-mini-stat,
+.arkea-biotope__sidebar .arkea-env-reading {
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.65rem;
+}
+
+.arkea-biotope__sidebar .arkea-mini-stat__label,
+.arkea-biotope__sidebar .arkea-env-reading__label {
+  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.arkea-biotope__sidebar .arkea-mini-stat__value,
+.arkea-biotope__sidebar .arkea-env-reading__value {
+  font-size: 0.92rem;
+  margin-top: 0.3rem;
 }
 
 .arkea-biotope__sidebar-section {
@@ -207,6 +226,7 @@
 /* ─── Bottom tabbed panel ───────────────────────────────────────────────── */
 
 .arkea-biotope__bottom {
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;

@@ -158,8 +158,9 @@ defmodule ArkeaWeb.SeedLabLiveTest do
     assert player_biotope.source_blueprint_id == blueprint.id
 
     {:ok, biotope_view, _html} = live(conn, path)
-    # Biotope view shell post-U4: SVG scene + arkea-biotope layout, archetype chip
-    assert render(biotope_view) =~ "arkea-biotope__scene"
+    # Biotope view: bottom-panel layout (the ornamental scene was retired)
+    # plus the archetype chip in the header.
+    assert render(biotope_view) =~ "arkea-biotope__bottom"
     assert render(biotope_view) =~ "Mesophilic Soil"
   end
 
