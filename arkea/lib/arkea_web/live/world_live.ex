@@ -270,7 +270,7 @@ defmodule ArkeaWeb.WorldLive do
   attr :breakdown, :list, required: true
 
   defp archetype_panel(assigns) do
-    total = Enum.reduce(assigns.breakdown, 0, fn {_arch, n}, acc -> acc + n end)
+    total = Enum.reduce(assigns.breakdown, 0, fn entry, acc -> acc + entry.count end)
     assigns = assign(assigns, total: total)
 
     ~H"""
@@ -279,21 +279,21 @@ defmodule ArkeaWeb.WorldLive do
       <:body>
         <div class="arkea-world__archetype-bar">
           <div
-            :for={{arch, count} <- @breakdown}
+            :for={entry <- @breakdown}
             class="arkea-world__archetype-segment"
-            style={"flex: #{count}; background: #{archetype_color(arch)};"}
-            title={"#{archetype_label(arch)}: #{count}"}
+            style={"flex: #{entry.count}; background: #{archetype_color(entry.archetype)};"}
+            title={"#{archetype_label(entry.archetype)}: #{entry.count}"}
           />
         </div>
         <ul class="arkea-world__archetype-list">
-          <li :for={{arch, count} <- @breakdown} class="arkea-world__archetype-item">
+          <li :for={entry <- @breakdown} class="arkea-world__archetype-item">
             <span
               class="arkea-world__archetype-swatch"
-              style={"background: #{archetype_color(arch)};"}
+              style={"background: #{archetype_color(entry.archetype)};"}
               aria-hidden="true"
             />
-            <span class="arkea-world__archetype-name">{archetype_label(arch)}</span>
-            <span class="arkea-world__archetype-count">{count}</span>
+            <span class="arkea-world__archetype-name">{archetype_label(entry.archetype)}</span>
+            <span class="arkea-world__archetype-count">{entry.count}</span>
           </li>
         </ul>
       </:body>

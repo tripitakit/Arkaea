@@ -42,4 +42,35 @@ defmodule ArkeaWeb.WorldLiveTest do
     {:ok, view, _html} = conn |> log_in_prototype_player() |> live(~p"/world")
     assert render(view) =~ "Nothing selected"
   end
+
+  test "archetype panel renders the breakdown when biotopes are alive", %{conn: conn} do
+    # Provision a home so World.overview returns a non-empty
+    # archetype_breakdown — the bug we are guarding against was a
+    # FunctionClauseError on the {arch, count} pattern that surfaced
+    # only when the breakdown list was non-empty.
+    cleanup = fn ->
+      Arkea.Repo.delete_all(Arkea.Persistence.PlayerBiotope)
+      Arkea.Repo.delete_all(Arkea.Persistence.ArkeonBlueprint)
+    end
+
+    cleanup.()
+    on_exit(cleanup)
+
+    {:ok, _id} =
+      Arkea.Game.SeedLab.provision_home(%{
+        "seed_name" => "World Probe",
+        "starter_archetype" => "eutrophic_pond",
+        "metabolism_profile" => "balanced",
+        "membrane_profile" => "porous",
+        "regulation_profile" => "responsive",
+        "mobile_module" => "none"
+      })
+
+    {:ok, _view, html} = conn |> log_in_prototype_player() |> live(~p"/world")
+
+    assert html =~ "Archetypes"
+    assert html =~ "arkea-world__archetype-bar"
+    # The breakdown surfaces the canonical archetype label.
+    assert html =~ "Eutrophic Pond"
+  end
 end
