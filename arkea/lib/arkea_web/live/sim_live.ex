@@ -325,7 +325,7 @@ defmodule ArkeaWeb.SimLive do
             </aside>
 
             <section class="arkea-biotope__bottom" aria-label="Auxiliary panel">
-              <div class="arkea-tabs" role="tablist">
+              <div class="arkea-tablist" role="tablist">
                 <button
                   :for={{id, label} <- bottom_tabs()}
                   role="tab"
@@ -333,7 +333,7 @@ defmodule ArkeaWeb.SimLive do
                   phx-click="switch_tab"
                   phx-value-tab={Atom.to_string(id)}
                   aria-selected={@bottom_tab == id}
-                  class={["arkea-tabs__tab", @bottom_tab == id && "arkea-tabs__tab--active"]}
+                  class="arkea-tab"
                 >
                   {label}
                 </button>
@@ -495,20 +495,22 @@ defmodule ArkeaWeb.SimLive do
         </p>
       </div>
       <div class="arkea-recolonize-banner__actions">
-        <button
-          type="button"
+        <.arkea_button
+          variant="secondary"
           phx-click="recolonize_home"
           phx-confirm="Re-inoculate the home biotope with a fresh founder colony from the locked seed?"
-          class="arkea-button arkea-button--secondary arkea-recolonize-banner__cta"
+          disable_with="Re-inoculating…"
+          class="arkea-recolonize-banner__cta"
         >
           Re-inoculate as-is
-        </button>
-        <.link
+        </.arkea_button>
+        <.arkea_button
+          variant="primary"
           navigate={~p"/seed-lab?recolonize=#{@biotope_id}"}
-          class="arkea-button arkea-button--primary arkea-recolonize-banner__cta"
+          class="arkea-recolonize-banner__cta"
         >
-          Edit seed and recolonize →
-        </.link>
+          Edit seed and recolonize
+        </.arkea_button>
       </div>
     </div>
     """
@@ -573,27 +575,25 @@ defmodule ArkeaWeb.SimLive do
         </div>
       </:body>
       <:footer>
-        <button
-          type="button"
-          phx-click="close_drawer"
-          class="arkea-button arkea-button--secondary"
-        >
+        <.arkea_button variant="ghost" size="sm" phx-click="close_drawer">
           Close
-        </button>
-        <.link
+        </.arkea_button>
+        <.arkea_button
+          variant="secondary"
+          size="sm"
           navigate={~p"/audit"}
-          class="arkea-button arkea-button--secondary"
           title="Open the audit log to inspect lineage events"
         >
-          Audit log →
-        </.link>
-        <.link
+          Audit log
+        </.arkea_button>
+        <.arkea_button
+          variant="secondary"
+          size="sm"
           navigate={~p"/biotopes/#{@biotope_id}/hgt-ledger"}
-          class="arkea-button arkea-button--secondary"
           title="Open the HGT provenance ledger for this biotope"
         >
-          HGT ledger →
-        </.link>
+          HGT ledger
+        </.arkea_button>
       </:footer>
     </Panel.panel>
     """
@@ -619,12 +619,12 @@ defmodule ArkeaWeb.SimLive do
         No active `Biotope.Server` is registered for {@biotope_id || "this route"}.
       </p>
       <div class="arkea-cta-stack">
-        <.link href={~p"/world"} class="arkea-action-button arkea-action-button--wide">
+        <.arkea_button variant="primary" href={~p"/world"} class="arkea-action-button--wide">
           Return to world overview
-        </.link>
-        <.link href={~p"/seed-lab"} class="arkea-action-button arkea-action-button--wide">
+        </.arkea_button>
+        <.arkea_button variant="secondary" href={~p"/seed-lab"} class="arkea-action-button--wide">
           Open seed lab
-        </.link>
+        </.arkea_button>
       </div>
     </div>
     """
@@ -732,13 +732,17 @@ defmodule ArkeaWeb.SimLive do
          inert. The metadata shown here is per-biotope immutable
          (id, zone, coords, owner, neighbour ids) so freezing the
          content after first mount is safe. --%>
-    <dialog id="topology-modal" class="modal" phx-update="ignore">
-      <div
-        class="modal-box arkea-modal-box"
-        style="background: var(--sim-panel); border: 1px solid var(--sim-panel-border);"
-      >
-        <form method="dialog">
-          <button class="arkea-modal__close" aria-label="Close">✕</button>
+    <dialog id="topology-modal" class="arkea-modal" phx-update="ignore">
+      <div class="arkea-modal__box arkea-modal-box">
+        <form method="dialog" class="arkea-modal__close-form">
+          <button
+            type="submit"
+            class="arkea-button arkea-button--ghost arkea-button--sm arkea-button--icon-only arkea-modal__close"
+            aria-label="Close"
+          >
+            <span class="arkea-button__icon hero-x-mark" aria-hidden="true"></span>
+            <span class="arkea-button__label arkea-sr-only">Close</span>
+          </button>
         </form>
         <div class="arkea-card__eyebrow mb-1">Topology</div>
         <h3 class="arkea-card__title mb-4">Network-facing metadata</h3>
@@ -766,7 +770,6 @@ defmodule ArkeaWeb.SimLive do
           <% end %>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
     """
   end
@@ -802,37 +805,38 @@ defmodule ArkeaWeb.SimLive do
       </div>
 
       <div class="arkea-action-grid">
-        <button
-          type="button"
-          class="arkea-action-button"
+        <.arkea_button
+          variant="primary"
           phx-click="apply_intervention"
           phx-value-kind="nutrient_pulse"
           disabled={@phase_actions_disabled}
           phx-confirm={"Pulse nutrients into #{phase_label(@selected_phase_name)}?"}
+          disable_with="Applying…"
         >
           Pulse nutrients
-        </button>
-        <button
-          type="button"
-          class="arkea-action-button"
+        </.arkea_button>
+        <.arkea_button
+          variant="primary"
           phx-click="apply_intervention"
           phx-value-kind="plasmid_inoculation"
           disabled={@phase_actions_disabled}
           phx-confirm={"Inoculate plasmid into #{phase_label(@selected_phase_name)}?"}
+          disable_with="Applying…"
         >
           Inoculate plasmid
-        </button>
-        <button
-          type="button"
-          class="arkea-action-button arkea-action-button--wide"
+        </.arkea_button>
+        <.arkea_button
+          variant="primary"
           phx-click="apply_intervention"
           phx-value-kind="mixing_event"
           phx-value-scope="biotope"
           disabled={@biotope_actions_disabled}
           phx-confirm="Trigger mixing event for the whole biotope?"
+          disable_with="Applying…"
+          class="arkea-action-button--wide"
         >
           Trigger mixing event
-        </button>
+        </.arkea_button>
       </div>
 
       <%= if @operator_error do %>
@@ -926,24 +930,48 @@ defmodule ArkeaWeb.SimLive do
               <th>Cluster</th>
               <th>Phase</th>
               <th>
-                <button type="button" phx-click="sort_lineages" phx-value-by="abundance">
+                <.arkea_button
+                  variant="ghost"
+                  size="sm"
+                  phx-click="sort_lineages"
+                  phx-value-by="abundance"
+                  aria-pressed={@lineage_sort == :abundance}
+                >
                   N {if @lineage_sort == :abundance, do: "↓"}
-                </button>
+                </.arkea_button>
               </th>
               <th>
-                <button type="button" phx-click="sort_lineages" phx-value-by="growth">
+                <.arkea_button
+                  variant="ghost"
+                  size="sm"
+                  phx-click="sort_lineages"
+                  phx-value-by="growth"
+                  aria-pressed={@lineage_sort == :growth}
+                >
                   µ (h⁻¹) {if @lineage_sort == :growth, do: "↓"}
-                </button>
+                </.arkea_button>
               </th>
               <th>
-                <button type="button" phx-click="sort_lineages" phx-value-by="repair">
+                <.arkea_button
+                  variant="ghost"
+                  size="sm"
+                  phx-click="sort_lineages"
+                  phx-value-by="repair"
+                  aria-pressed={@lineage_sort == :repair}
+                >
                   ε {if @lineage_sort == :repair, do: "↓"}
-                </button>
+                </.arkea_button>
               </th>
               <th>
-                <button type="button" phx-click="sort_lineages" phx-value-by="born">
+                <.arkea_button
+                  variant="ghost"
+                  size="sm"
+                  phx-click="sort_lineages"
+                  phx-value-by="born"
+                  aria-pressed={@lineage_sort == :born}
+                >
                   Born {if @lineage_sort == :born, do: "↑"}
-                </button>
+                </.arkea_button>
               </th>
             </tr>
           </thead>

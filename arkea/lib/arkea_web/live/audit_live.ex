@@ -64,14 +64,17 @@ defmodule ArkeaWeb.AuditLive do
         <Shell.shell_brand>Arkea</Shell.shell_brand>
         <Shell.shell_nav items={nav_items()} />
         <div class="arkea-shell__spacer"></div>
-        <button
-          type="button"
+        <.arkea_button
+          variant="ghost"
+          size="sm"
+          icon="arrow-path"
+          icon_only
           phx-click="refresh"
-          class="arkea-biotope__header-btn"
+          disable_with="Refreshing…"
           title="Refresh"
         >
-          ↻
-        </button>
+          Refresh
+        </.arkea_button>
         <Shell.shell_user name={@current_player.display_name} logout_href={~p"/players/log-out"} />
       </:header>
 
@@ -88,7 +91,7 @@ defmodule ArkeaWeb.AuditLive do
         </header>
 
         <div class="arkea-audit__toolbar">
-          <div class="arkea-world__filters" role="tablist" aria-label="Audit filter">
+          <div class="arkea-tablist" role="tablist" aria-label="Audit filter">
             <button
               :for={f <- filter_options()}
               type="button"
@@ -96,10 +99,7 @@ defmodule ArkeaWeb.AuditLive do
               phx-click="filter"
               phx-value-to={Atom.to_string(f)}
               aria-selected={@filter == f}
-              class={[
-                "arkea-world__filter",
-                @filter == f && "arkea-world__filter--active"
-              ]}
+              class="arkea-tab"
             >
               {filter_label(f)}
             </button>
@@ -109,26 +109,30 @@ defmodule ArkeaWeb.AuditLive do
             <span class="arkea-audit__pager-info">
               {pager_label(@page, @total)}
             </span>
-            <button
-              type="button"
+            <.arkea_button
+              variant="secondary"
+              size="sm"
+              icon="chevron-left"
+              icon_only
               phx-click="page"
               phx-value-to="prev"
               disabled={@page == 0}
-              class="arkea-button arkea-button--secondary arkea-audit__pager-btn"
               aria-label="Previous page"
             >
-              ←
-            </button>
-            <button
-              type="button"
+              Previous page
+            </.arkea_button>
+            <.arkea_button
+              variant="secondary"
+              size="sm"
+              icon="chevron-right"
+              icon_only
               phx-click="page"
               phx-value-to="next"
               disabled={(@page + 1) * @page_size >= @total}
-              class="arkea-button arkea-button--secondary arkea-audit__pager-btn"
               aria-label="Next page"
             >
-              →
-            </button>
+              Next page
+            </.arkea_button>
           </div>
         </div>
 

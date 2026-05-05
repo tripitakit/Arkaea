@@ -75,7 +75,7 @@ defmodule ArkeaWeb.WorldLive do
       <div class="arkea-world">
         <section class="arkea-world__graph">
           <header class="arkea-world__toolbar">
-            <div class="arkea-world__filters" role="tablist" aria-label="World filter">
+            <div class="arkea-tablist" role="tablist" aria-label="World filter">
               <button
                 :for={f <- @filters}
                 type="button"
@@ -83,10 +83,7 @@ defmodule ArkeaWeb.WorldLive do
                 phx-click="filter"
                 phx-value-to={Atom.to_string(f)}
                 aria-selected={@filter == f}
-                class={[
-                  "arkea-world__filter",
-                  @filter == f && "arkea-world__filter--active"
-                ]}
+                class="arkea-tab"
               >
                 {filter_label(f)}
               </button>
@@ -205,17 +202,17 @@ defmodule ArkeaWeb.WorldLive do
         }
       />
       <:body>
-        <.link navigate={~p"/seed-lab"} class="arkea-button arkea-button--primary">
+        <.arkea_button variant="primary" navigate={~p"/seed-lab"}>
           {if @overview.owned_count > 0, do: "Open Seed Lab", else: "Provision starter home"}
-        </.link>
+        </.arkea_button>
 
-        <.link
+        <.arkea_button
           :if={@overview.focus_biotope_id}
+          variant="secondary"
           navigate={~p"/biotopes/#{@overview.focus_biotope_id}"}
-          class="arkea-button arkea-button--secondary"
         >
           Inspect demo biotope
-        </.link>
+        </.arkea_button>
       </:body>
     </Panel.panel>
     """
@@ -258,12 +255,9 @@ defmodule ArkeaWeb.WorldLive do
             />
           </Metric.metric_strip>
 
-          <.link
-            navigate={~p"/biotopes/#{@selected.id}"}
-            class="arkea-button arkea-button--primary"
-          >
-            Open biotope →
-          </.link>
+          <.arkea_button variant="primary" navigate={~p"/biotopes/#{@selected.id}"}>
+            Open biotope
+          </.arkea_button>
         <% else %>
           <Panel.empty_state>
             Click a node on the graph to inspect it.

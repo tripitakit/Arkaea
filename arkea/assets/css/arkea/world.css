@@ -84,10 +84,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 25% 30%, oklch(20% 0.02 235 / 30%), transparent 60%),
-    radial-gradient(circle at 75% 70%, oklch(20% 0.02 145 / 25%), transparent 55%),
-    var(--arkea-bg);
+  background: var(--arkea-bg);
 }
 
 .arkea-world__svg {

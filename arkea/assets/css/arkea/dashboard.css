@@ -21,9 +21,8 @@
 
 .arkea-dashboard__eyebrow {
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--arkea-fg-faint);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
 }
 
 .arkea-dashboard__title {
@@ -81,12 +80,12 @@
   display: block;
   height: 100%;
   border-radius: var(--arkea-radius-md);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.arkea-dashboard__card-link:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+.arkea-dashboard__card-link:hover .arkea-panel {
+  border-color: var(--arkea-border-strong);
+  background: var(--arkea-surface-2);
 }
 
 .arkea-dashboard__card-link:focus-visible {

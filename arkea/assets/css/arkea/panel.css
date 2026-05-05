@@ -37,9 +37,8 @@
 
 .arkea-panel__eyebrow {
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--arkea-fg-faint);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
 }
 
 .arkea-panel__title {

@@ -1,0 +1,91 @@
+/*
+ * Arkea Table system (UI restyle — 2026-05).
+ *
+ * Unified rules for `.arkea-table` (inline lineage / interventions tables)
+ * and `.arkea-audit__table` (audit log, HGT ledger). Sticky header, hover
+ * row, token-based padding, lowercase column titles, opt-in numeric
+ * columns with monospace + tabular figures.
+ *
+ * Loaded after inner.css and audit.css so this is the source of truth; the
+ * older legacy declarations remain only until §7 (cleanup) removes them.
+ */
+
+.arkea-table,
+.arkea-audit__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--arkea-font-sans);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg);
+}
+
+.arkea-table thead th,
+.arkea-audit__table thead th {
+  text-align: left;
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  font-size: var(--arkea-text-xs);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
+  background: var(--arkea-surface-2);
+  border-bottom: 1px solid var(--arkea-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* Lowercase, regular letter-spacing — labels read like labels. */
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.arkea-table tbody td,
+.arkea-audit__table tbody td {
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  border-bottom: 1px solid var(--arkea-border);
+  color: var(--arkea-fg);
+  vertical-align: top;
+}
+
+.arkea-table tbody tr,
+.arkea-audit__table tbody tr {
+  transition: background-color 100ms ease;
+}
+
+.arkea-table tbody tr:hover,
+.arkea-audit__table tbody tr:hover {
+  background: var(--arkea-surface-2);
+}
+
+.arkea-table tbody tr[aria-selected="true"],
+.arkea-audit__table tbody tr[aria-selected="true"] {
+  background: var(--arkea-surface-3);
+  box-shadow: inset 2px 0 0 var(--arkea-accent-teal);
+}
+
+.arkea-table__empty {
+  text-align: center;
+  color: var(--arkea-fg-muted);
+  padding: var(--arkea-space-4) var(--arkea-space-3);
+}
+
+/* Numeric / tabular columns — opt-in via class. */
+.arkea-table__num,
+.arkea-table td.num,
+.arkea-table th.num,
+.arkea-audit__table td.num,
+.arkea-audit__table th.num {
+  text-align: right;
+  font-family: var(--arkea-font-mono);
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+}
+
+/* Monospace ID / hash columns. */
+.arkea-table__id,
+.arkea-table td.id,
+.arkea-table th.id,
+.arkea-audit__table td.id,
+.arkea-audit__table th.id {
+  font-family: var(--arkea-font-mono);
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+  white-space: nowrap;
+}

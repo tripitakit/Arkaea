@@ -579,13 +579,13 @@ defmodule ArkeaWeb.SeedLabLive do
                     </div>
                   </div>
 
-                  <.link
+                  <.arkea_button
                     :if={@home_biotope_id}
+                    variant="primary"
                     href={~p"/biotopes/#{@home_biotope_id}"}
-                    class="arkea-action-button"
                   >
                     Open home viewport
-                  </.link>
+                  </.arkea_button>
                 </div>
               <% @recolonize_mode? -> %>
                 <div class="arkea-seed-lock-banner arkea-seed-lock-banner--recolonize">
@@ -599,13 +599,13 @@ defmodule ArkeaWeb.SeedLabLive do
                     </div>
                   </div>
 
-                  <.link
+                  <.arkea_button
                     :if={@home_biotope_id}
+                    variant="secondary"
                     href={~p"/biotopes/#{@home_biotope_id}"}
-                    class="arkea-action-button"
                   >
                     Back to home viewport
-                  </.link>
+                  </.arkea_button>
                 </div>
               <% true -> %>
             <% end %>
@@ -662,14 +662,14 @@ defmodule ArkeaWeb.SeedLabLive do
                 >
                   <div class="arkea-seed-community__slot-header">
                     <span class="arkea-card__eyebrow">Founder {index + 2}</span>
-                    <button
-                      type="button"
-                      class="arkea-seed-custom-gene__remove"
+                    <.arkea_button
+                      variant="ghost"
+                      size="sm"
                       phx-click="remove_community_slot"
                       phx-value-index={index}
                     >
                       Remove
-                    </button>
+                    </.arkea_button>
                   </div>
 
                   <form
@@ -725,14 +725,14 @@ defmodule ArkeaWeb.SeedLabLive do
                   </form>
                 </div>
 
-                <button
+                <.arkea_button
                   :if={length(@community_specs) < 2}
-                  type="button"
+                  variant="secondary"
+                  icon="plus"
                   phx-click="add_community_slot"
-                  class="arkea-action-button"
                 >
-                  + Add founder ({length(@community_specs) + 1}/2 secondary slots)
-                </button>
+                  Add founder ({length(@community_specs) + 1}/2 secondary slots)
+                </.arkea_button>
               </div>
             </div>
 
@@ -825,10 +825,12 @@ defmodule ArkeaWeb.SeedLabLive do
               </fieldset>
 
               <div class="arkea-seed-submit-row">
-                <button
+                <.arkea_button
                   type="submit"
-                  class="arkea-action-button arkea-seed-submit"
+                  variant="primary"
                   disabled={!@seed_ready?}
+                  disable_with="Colonising…"
+                  class="arkea-seed-submit"
                 >
                   <%= cond do %>
                     <% @recolonize_mode? -> %>
@@ -836,7 +838,7 @@ defmodule ArkeaWeb.SeedLabLive do
                     <% true -> %>
                       Colonize selected biotope
                   <% end %>
-                </button>
+                </.arkea_button>
                 <p class="arkea-muted">
                   <%= cond do %>
                     <% @seed_locked? -> %>
@@ -950,14 +952,15 @@ defmodule ArkeaWeb.SeedLabLive do
               />
 
               <div>
-                <button
-                  type="button"
-                  class="arkea-card__eyebrow mb-2"
+                <.arkea_button
+                  variant="ghost"
+                  size="sm"
                   phx-click="toggle_inspector"
-                  style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; color: #67e8f9;"
+                  aria-expanded={@inspector_expanded}
+                  class="mb-2"
                 >
-                  Gene inspector <span>{if @inspector_expanded, do: "−", else: "+"}</span>
-                </button>
+                  Gene inspector {if @inspector_expanded, do: "−", else: "+"}
+                </.arkea_button>
 
                 <%= if @inspector_expanded do %>
                   <.gene_inspector
@@ -1195,13 +1198,10 @@ defmodule ArkeaWeb.SeedLabLive do
               "Compose a chromosome gene from the functional domains implemented in the simulation. Intergenic blocks now feed runtime expression control, transfer bias, and duplication hotspots."}
         </p>
 
-        <div class="arkea-seed-editor__scope" role="tablist" aria-label="Custom gene scope">
+        <div class="arkea-tablist" role="tablist" aria-label="Custom gene scope">
           <button
             type="button"
-            class={[
-              "arkea-seed-editor__scope-tab",
-              @gene_draft_scope == :chromosome && "arkea-seed-editor__scope-tab--active"
-            ]}
+            class="arkea-tab"
             phx-click="set_gene_draft_scope"
             phx-value-scope="chromosome"
             disabled={@seed_locked?}
@@ -1212,10 +1212,7 @@ defmodule ArkeaWeb.SeedLabLive do
           </button>
           <button
             type="button"
-            class={[
-              "arkea-seed-editor__scope-tab",
-              @gene_draft_scope == :plasmid && "arkea-seed-editor__scope-tab--active"
-            ]}
+            class="arkea-tab"
             phx-click="set_gene_draft_scope"
             phx-value-scope="plasmid"
             disabled={@seed_locked?}
@@ -1381,30 +1378,30 @@ defmodule ArkeaWeb.SeedLabLive do
         </div>
 
         <div class="arkea-seed-editor__actions">
-          <button
-            type="button"
-            class="arkea-action-button"
+          <.arkea_button
+            variant="ghost"
+            size="sm"
             phx-click="undo_gene_domain"
             disabled={@seed_locked? or @draft_domains == []}
           >
             Undo domain
-          </button>
-          <button
-            type="button"
-            class="arkea-action-button"
+          </.arkea_button>
+          <.arkea_button
+            variant="ghost"
+            size="sm"
             phx-click="clear_gene_draft"
             disabled={@seed_locked? or (@draft_domains == [] and @draft_intergenic_count == 0)}
           >
             Clear draft
-          </button>
-          <button
-            type="button"
-            class="arkea-action-button"
+          </.arkea_button>
+          <.arkea_button
+            variant="primary"
+            size="sm"
             phx-click="commit_custom_gene"
             disabled={@seed_locked?}
           >
             Commit chromosome gene
-          </button>
+          </.arkea_button>
         </div>
       </div>
 
@@ -1421,15 +1418,15 @@ defmodule ArkeaWeb.SeedLabLive do
           >
             <div class="arkea-seed-custom-gene__header">
               <span class="arkea-seed-custom-gene__title">Custom gene {index}</span>
-              <button
+              <.arkea_button
                 :if={!@seed_locked?}
-                type="button"
-                class="arkea-seed-custom-gene__remove"
+                variant="ghost"
+                size="sm"
                 phx-click="remove_custom_gene"
                 phx-value-index={index - 1}
               >
                 Remove
-              </button>
+              </.arkea_button>
             </div>
             <div class="arkea-seed-gene__bar">
               <span
@@ -1474,15 +1471,15 @@ defmodule ArkeaWeb.SeedLabLive do
           >
             <div class="arkea-seed-custom-gene__header">
               <span class="arkea-seed-custom-gene__title">Plasmid gene {index}</span>
-              <button
+              <.arkea_button
                 :if={!@seed_locked?}
-                type="button"
-                class="arkea-seed-custom-gene__remove"
+                variant="ghost"
+                size="sm"
                 phx-click="remove_custom_plasmid_gene"
                 phx-value-index={index - 1}
               >
                 Remove
-              </button>
+              </.arkea_button>
             </div>
             <div class="arkea-seed-gene__bar">
               <span

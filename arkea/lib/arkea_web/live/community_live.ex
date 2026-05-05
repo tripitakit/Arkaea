@@ -35,14 +35,17 @@ defmodule ArkeaWeb.CommunityLive do
         <Shell.shell_brand>Arkea</Shell.shell_brand>
         <Shell.shell_nav items={nav_items()} />
         <div class="arkea-shell__spacer"></div>
-        <button
-          type="button"
+        <.arkea_button
+          variant="ghost"
+          size="sm"
+          icon="arrow-path"
+          icon_only
           phx-click="refresh"
-          class="arkea-biotope__header-btn"
+          disable_with="Refreshing…"
           title="Refresh"
         >
-          ↻
-        </button>
+          Refresh
+        </.arkea_button>
         <Shell.shell_user name={@current_player.display_name} logout_href={~p"/players/log-out"} />
       </:header>
 
@@ -85,12 +88,14 @@ defmodule ArkeaWeb.CommunityLive do
                     <span class="arkea-community-list__metric">
                       lineages {entry.lineage_count}
                     </span>
-                    <.link
+                    <.arkea_button
+                      variant="secondary"
+                      size="sm"
                       navigate={~p"/biotopes/#{entry.biotope_id}"}
-                      class="arkea-button arkea-button--secondary arkea-community-list__link"
+                      class="arkea-community-list__link"
                     >
-                      Open →
-                    </.link>
+                      Open
+                    </.arkea_button>
                   </div>
                 </li>
               </ul>

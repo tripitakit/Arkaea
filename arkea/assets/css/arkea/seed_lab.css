@@ -33,9 +33,8 @@
 
 .arkea-seed-lab__eyebrow {
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--arkea-fg-faint);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
 }
 
 .arkea-seed-lab__title {
@@ -298,9 +297,7 @@
 .arkea-genome-canvas__replicon-label {
   fill: var(--arkea-fg-faint);
   font-size: 11px;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--arkea-font-mono);
 }
 
 /* The gene <g> is the click target. Its visual content is the side-by-side
@@ -490,10 +487,9 @@
 }
 
 .arkea-draft-domain__param-label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.68rem;
-  color: var(--arkea-fg-faint);
+  font-size: var(--arkea-text-xs);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
 }
 
 .arkea-draft-domain__param-select {

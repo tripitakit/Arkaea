@@ -81,6 +81,7 @@ defmodule ArkeaWeb do
       import Phoenix.HTML
       # Core UI components
       import ArkeaWeb.CoreComponents
+      import ArkeaWeb.Components.Button
 
       # Common modules used in templates
       alias ArkeaWeb.Layouts

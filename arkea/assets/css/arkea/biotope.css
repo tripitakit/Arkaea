@@ -39,7 +39,7 @@
 .arkea-biotope__title-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--arkea-radius-pill);
 }
 
 .arkea-biotope__header-btn {
@@ -49,8 +49,6 @@
   color: var(--arkea-fg-muted);
   font-family: inherit;
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   padding: 4px var(--arkea-space-3);
   border-radius: var(--arkea-radius-sm);
   cursor: pointer;
@@ -118,9 +116,8 @@
 
 .arkea-biotope__sidebar-eyebrow {
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--arkea-fg-faint);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
 }
 
 .arkea-biotope__sidebar-stats {
@@ -194,7 +191,7 @@
 .arkea-phase-list__swatch {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--arkea-radius-pill);
   flex-shrink: 0;
 }
 
@@ -296,9 +293,7 @@
 .arkea-recolonize-banner__title {
   display: block;
   font-size: var(--arkea-text-sm);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: var(--arkea-fw-semi);
   color: var(--arkea-accent-stress);
   margin-bottom: 2px;
 }
@@ -446,8 +441,7 @@
 
 .arkea-drawer__section-title {
   font-size: var(--arkea-text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--arkea-fg-faint);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
   margin-bottom: var(--arkea-space-2);
 }

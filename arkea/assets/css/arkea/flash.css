@@ -1,0 +1,118 @@
+/*
+ * Arkea Flash / toast system (UI restyle — 2026-05).
+ *
+ * Replaces the daisyUI `.toast` + `.alert` chrome with token-based
+ * arkea-* surfaces. No blur, no dramatic shadow, single-pixel border
+ * with a 3px coloured left edge keyed to the flash variant.
+ */
+
+.arkea-flash-region {
+  position: fixed;
+  top: var(--arkea-space-3);
+  right: var(--arkea-space-3);
+  z-index: var(--arkea-z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+  pointer-events: none;
+  width: min(360px, calc(100vw - 2 * var(--arkea-space-3)));
+}
+
+.arkea-flash {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--arkea-space-2);
+  padding: var(--arkea-space-3);
+  background: var(--arkea-surface);
+  color: var(--arkea-fg);
+  font-family: var(--arkea-font-sans);
+  font-size: var(--arkea-text-sm);
+  border: 1px solid var(--arkea-border);
+  border-left-width: 3px;
+  border-radius: var(--arkea-radius-sm);
+  cursor: pointer;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.arkea-flash[hidden] {
+  display: none;
+}
+
+.arkea-flash--info {
+  border-left-color: var(--arkea-accent-sky);
+}
+.arkea-flash--success {
+  border-left-color: var(--arkea-accent-growth);
+}
+.arkea-flash--warning {
+  border-left-color: var(--arkea-accent-gold);
+}
+.arkea-flash--error {
+  border-left-color: var(--arkea-accent-stress);
+}
+
+.arkea-flash__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.arkea-flash--info .arkea-flash__icon {
+  color: var(--arkea-accent-sky);
+}
+.arkea-flash--success .arkea-flash__icon {
+  color: var(--arkea-accent-growth);
+}
+.arkea-flash--warning .arkea-flash__icon {
+  color: var(--arkea-accent-gold);
+}
+.arkea-flash--error .arkea-flash__icon {
+  color: var(--arkea-accent-stress);
+}
+
+.arkea-flash__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-flash__title {
+  margin: 0;
+  font-weight: var(--arkea-fw-semi);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg);
+}
+
+.arkea-flash__message {
+  margin: 0;
+  font-weight: var(--arkea-fw-regular);
+  color: var(--arkea-fg);
+  word-wrap: break-word;
+}
+
+.arkea-flash__close {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .arkea-flash {
+    animation: arkea-flash-in 200ms ease-out;
+  }
+}
+
+@keyframes arkea-flash-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

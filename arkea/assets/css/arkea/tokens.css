@@ -1,10 +1,9 @@
 /*
- * Arkea design tokens (UI rewrite — phase U0)
+ * Arkea design tokens (UI restyle — 2026-05).
  *
- * Aliases the existing --sim-* / --bio-* tokens under a stable --arkea-* namespace
- * and introduces a few new tokens (shell heights, scrollbar, surface tones) that
- * the rewrite needs. New components must read --arkea-* tokens only; legacy
- * --sim-* are kept untouched while migration is in flight.
+ * Single source of truth for color, typography, spacing, radius, z-index.
+ * Legacy --sim-* / --bio-* tokens are still aliased for back-compat during
+ * the inner.css migration; new components MUST read --arkea-* only.
  */
 
 :root {
@@ -40,19 +39,30 @@
   --arkea-space-5: var(--space-5);
   --arkea-space-6: var(--space-6);
 
-  /* Typography */
-  --arkea-text-xs: var(--text-xs);
-  --arkea-text-sm: var(--text-sm);
-  --arkea-text-base: var(--text-base);
-  --arkea-text-md: var(--text-md);
-  --arkea-text-lg: var(--text-lg);
+  /* Typography — sans-serif default, monospace reserved for tabular data / IDs / code. */
+  --arkea-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --arkea-font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --arkea-text-xs: 11px;
+  --arkea-text-sm: 12px;
+  --arkea-text-base: 13px;
+  --arkea-text-md: 14px;
+  --arkea-text-lg: 16px;
+  --arkea-text-xl: 18px;
+
+  --arkea-fw-regular: 400;
+  --arkea-fw-medium: 500;
+  --arkea-fw-semi: 600;
+
+  /* Radius — minimal, rectilinear scale. 999px is reserved for status dots only. */
+  --arkea-radius-xs: 2px;
+  --arkea-radius-sm: 4px;
+  --arkea-radius-md: 6px;
+  --arkea-radius-pill: 999px;
 
   /* Layout */
   --arkea-shell-header-height: 48px;
   --arkea-shell-sidebar-width: 320px;
-  --arkea-radius-sm: 6px;
-  --arkea-radius-md: 10px;
-  --arkea-radius-lg: 14px;
 
   /* Z-index scale */
   --arkea-z-base: 0;
@@ -61,6 +71,32 @@
   --arkea-z-drawer: 50;
   --arkea-z-modal: 100;
   --arkea-z-toast: 200;
+}
+
+/* Global typographic baseline. */
+html {
+  font-family: var(--arkea-font-sans);
+  font-size: var(--arkea-text-base);
+  font-weight: var(--arkea-fw-regular);
+  line-height: 1.45;
+  color: var(--arkea-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font: inherit;
+  color: inherit;
+}
+
+/* Tabular numerals / monospace utility for IDs, counters, code, metric values. */
+.arkea-mono,
+code,
+samp,
+kbd {
+  font-family: var(--arkea-font-mono);
+  font-feature-settings: "tnum";
 }
 
 /* Custom scrollbars on opt-in containers (no global scrollbar). */
@@ -91,7 +127,7 @@
   height: 28px;
   border: 3px solid var(--arkea-border-strong);
   border-top-color: var(--arkea-accent-teal);
-  border-radius: 50%;
+  border-radius: var(--arkea-radius-pill);
   animation: arkea-spin 800ms linear infinite;
 }
 
@@ -110,7 +146,7 @@
   right: var(--arkea-space-2);
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--arkea-radius-pill);
   border: 1px solid transparent;
   background: transparent;
   color: var(--arkea-fg-muted);

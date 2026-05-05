@@ -1,0 +1,181 @@
+/*
+ * Arkea Form & Input system (UI restyle — 2026-05).
+ *
+ * Replaces the daisyUI `.input/.select/.textarea/.checkbox/.fieldset`
+ * chrome with token-based, focus-visible-friendly arkea-* surfaces.
+ * No glow, no oversized radius, no uppercase labels.
+ */
+
+.arkea-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+  margin-bottom: var(--arkea-space-3);
+}
+
+.arkea-form__label {
+  font-family: var(--arkea-font-sans);
+  font-size: var(--arkea-text-xs);
+  font-weight: var(--arkea-fw-medium);
+  color: var(--arkea-fg-muted);
+  /* Deliberately no uppercase, no wide letter-spacing — labels are labels. */
+}
+
+.arkea-input,
+.arkea-select,
+.arkea-textarea {
+  width: 100%;
+  margin: 0;
+  padding: var(--arkea-space-2) var(--arkea-space-3);
+  font-family: var(--arkea-font-sans);
+  font-size: var(--arkea-text-sm);
+  font-weight: var(--arkea-fw-regular);
+  line-height: 1.4;
+  color: var(--arkea-fg);
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.arkea-textarea {
+  min-height: 5rem;
+  resize: vertical;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-input::placeholder,
+.arkea-textarea::placeholder {
+  color: var(--arkea-fg-faint);
+}
+
+.arkea-input:hover:not(:disabled),
+.arkea-select:hover:not(:disabled),
+.arkea-textarea:hover:not(:disabled) {
+  border-color: var(--arkea-border-strong);
+}
+
+.arkea-input:focus-visible,
+.arkea-select:focus-visible,
+.arkea-textarea:focus-visible {
+  outline: 2px solid var(--arkea-accent-teal);
+  outline-offset: 1px;
+  border-color: var(--arkea-accent-teal);
+}
+
+.arkea-input:disabled,
+.arkea-select:disabled,
+.arkea-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.arkea-input.is-invalid,
+.arkea-select.is-invalid,
+.arkea-textarea.is-invalid {
+  border-color: var(--arkea-accent-stress);
+}
+
+.arkea-input.is-invalid:focus-visible,
+.arkea-select.is-invalid:focus-visible,
+.arkea-textarea.is-invalid:focus-visible {
+  outline-color: var(--arkea-accent-stress);
+  border-color: var(--arkea-accent-stress);
+}
+
+/* Native select arrow — minimal SVG (currentColor not supported on
+   background-image, so we hardcode the muted slate tone here). */
+.arkea-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='4,6 8,10 12,6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right var(--arkea-space-3) center;
+  background-size: 14px 14px;
+  padding-right: calc(var(--arkea-space-3) * 2 + 14px);
+}
+
+/* Checkbox — square 14×14 with custom check glyph. */
+.arkea-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border-strong);
+  border-radius: var(--arkea-radius-xs);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 120ms, border-color 120ms;
+}
+
+.arkea-checkbox:hover:not(:disabled) {
+  border-color: var(--arkea-fg-muted);
+}
+
+.arkea-checkbox:focus-visible {
+  outline: 2px solid var(--arkea-accent-teal);
+  outline-offset: 1px;
+}
+
+.arkea-checkbox:checked {
+  background-color: var(--arkea-accent-teal);
+  border-color: var(--arkea-accent-teal);
+}
+
+.arkea-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23061018' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='3,8 7,11 13,5'/></svg>")
+    no-repeat center;
+  background-size: 12px 12px;
+}
+
+.arkea-checkbox:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.arkea-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.arkea-checkbox-row__label {
+  font-weight: var(--arkea-fw-regular);
+}
+
+/* Error message under input. */
+.arkea-form__error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-1);
+  margin: 0;
+  font-size: var(--arkea-text-xs);
+  font-weight: var(--arkea-fw-regular);
+  color: var(--arkea-accent-stress);
+}
+
+.arkea-form__error .hero-exclamation-circle {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Fieldset reset — no visible chrome by default. */
+.arkea-form fieldset,
+fieldset.arkea-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}

@@ -1,0 +1,39 @@
+/*
+ * Arkea Modal / dialog chrome (UI restyle — 2026-05).
+ *
+ * Replaces daisyUI `.modal` / `.modal-box` / `.modal-backdrop` for the
+ * topology dialog and any future native <dialog> usage. Uses the HTML5
+ * dialog element + ::backdrop pseudo so positioning is browser-native.
+ */
+
+dialog.arkea-modal {
+  margin: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  max-width: min(640px, calc(100vw - 2 * var(--arkea-space-4)));
+  max-height: min(80vh, calc(100vh - 2 * var(--arkea-space-4)));
+  overflow: visible;
+}
+
+dialog.arkea-modal::backdrop {
+  background: oklch(8% 0.01 253 / 60%);
+}
+
+.arkea-modal__box {
+  position: relative;
+  background: var(--arkea-surface);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-md);
+  padding: var(--arkea-space-5);
+  max-height: calc(80vh - 2 * var(--arkea-space-4));
+  overflow: auto;
+}
+
+.arkea-modal__close-form {
+  position: absolute;
+  top: var(--arkea-space-2);
+  right: var(--arkea-space-2);
+  margin: 0;
+}

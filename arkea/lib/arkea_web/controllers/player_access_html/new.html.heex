@@ -84,7 +84,14 @@
             autocomplete="email"
             required
           />
-          <.button class="arkea-access-submit w-full">Create player and enter world</.button>
+          <.arkea_button
+            type="submit"
+            variant="primary"
+            class="arkea-access-submit w-full"
+            disable_with="Creating…"
+          >
+            Create player and enter world
+          </.arkea_button>
         </.form>
       </section>
 
@@ -116,12 +123,14 @@
               autocomplete="email"
               required
             />
-            <.button
+            <.arkea_button
+              type="submit"
+              variant="secondary"
               class="arkea-access-submit arkea-access-submit--outline w-full"
-              variant="primary"
+              disable_with="Resuming…"
             >
               Resume existing player
-            </.button>
+            </.arkea_button>
           </.form>
         </section>
 

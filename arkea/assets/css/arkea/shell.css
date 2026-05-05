@@ -42,10 +42,10 @@
 }
 
 .arkea-shell__brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--arkea-accent-teal), var(--arkea-accent-gold));
+  width: 8px;
+  height: 8px;
+  border-radius: var(--arkea-radius-pill);
+  background: var(--arkea-accent-teal);
 }
 
 .arkea-shell__nav {

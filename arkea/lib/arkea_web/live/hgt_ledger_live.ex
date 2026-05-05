@@ -93,13 +93,13 @@ defmodule ArkeaWeb.HGTLedgerLive do
           class="arkea-help__layout"
           style="grid-template-columns: 1fr; max-width: 72rem; margin: 0 auto;"
         >
-          <div class="arkea-world__filters" role="tablist" aria-label="Filter HGT events by kind">
+          <div class="arkea-tablist" role="tablist" aria-label="Filter HGT events by kind">
             <button
               type="button"
               phx-click="filter"
               phx-value-kind="all"
               aria-selected={is_nil(@kind)}
-              class={["arkea-world__filter", is_nil(@kind) && "arkea-world__filter--active"]}
+              class="arkea-tab"
             >
               All ({@ledger.total})
             </button>
@@ -109,7 +109,7 @@ defmodule ArkeaWeb.HGTLedgerLive do
               phx-click="filter"
               phx-value-kind={kind}
               aria-selected={@kind == kind}
-              class={["arkea-world__filter", @kind == kind && "arkea-world__filter--active"]}
+              class="arkea-tab"
             >
               {kind} ({Map.get(@ledger.kind_counts, kind, 0)})
             </button>
