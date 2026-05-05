@@ -396,15 +396,21 @@
 }
 
 .arkea-draft-domain {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: var(--arkea-space-2);
-  align-items: center;
-  padding: var(--arkea-space-1) var(--arkea-space-2);
+  padding: var(--arkea-space-2);
   background: var(--arkea-surface-2);
   border: 1px solid var(--arkea-border);
   border-radius: var(--arkea-radius-sm);
   font-size: var(--arkea-text-sm);
+}
+
+.arkea-draft-domain__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--arkea-space-2);
+  align-items: center;
 }
 
 .arkea-draft-domain--empty {
@@ -464,4 +470,89 @@
   background: color-mix(in oklch, var(--arkea-accent-stress) 18%, var(--arkea-surface-2));
   color: var(--arkea-accent-stress);
   border-color: color-mix(in oklch, var(--arkea-accent-stress) 50%, transparent);
+}
+
+/* Per-domain parameter editor (UI: domain param editing). Sits under
+   the draft-domain head row when the type exposes editable params. */
+.arkea-draft-domain__params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-3);
+  padding-left: 22px;
+}
+
+.arkea-draft-domain__param {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-draft-domain__param-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  color: var(--arkea-fg-faint);
+}
+
+.arkea-draft-domain__param-select {
+  background: var(--arkea-surface-3);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  padding: 2px 6px;
+  color: var(--arkea-fg);
+  font-family: inherit;
+  font-size: var(--arkea-text-sm);
+  min-width: 12rem;
+}
+
+.arkea-draft-domain__param-select:disabled {
+  opacity: 0.55;
+}
+
+/* Chromosome / Plasmid scope toggle. Sits between the panel header and
+   the draft list; toggles which replicon receives the next commit. */
+.arkea-seed-editor__scope {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--arkea-surface-2);
+  border: 1px solid var(--arkea-border);
+  border-radius: var(--arkea-radius-sm);
+  overflow: hidden;
+  margin: var(--arkea-space-2) 0 var(--arkea-space-3);
+}
+
+.arkea-seed-editor__scope-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--arkea-fg-muted);
+  padding: var(--arkea-space-1) var(--arkea-space-3);
+  font-family: inherit;
+  font-size: var(--arkea-text-sm);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.arkea-seed-editor__scope-tab:hover:not(:disabled) {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+}
+
+.arkea-seed-editor__scope-tab--active {
+  background: color-mix(in oklch, var(--arkea-accent-teal) 25%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+}
+
+.arkea-seed-editor__scope-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Plasmid commit row uses a slightly different accent so it's visually
+   distinguishable from chromosome cassettes in the same panel. */
+.arkea-seed-custom-gene--plasmid {
+  border-left: 3px solid color-mix(in oklch, var(--arkea-accent-teal) 50%, transparent);
+  padding-left: calc(var(--arkea-space-3) - 3px);
 }

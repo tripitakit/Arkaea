@@ -221,17 +221,30 @@ defmodule Arkea.Game.PlayerAssets do
       "membrane_profile" => spec.membrane_profile,
       "regulation_profile" => spec.regulation_profile,
       "mobile_module" => spec.mobile_module,
-      "custom_genes" =>
-        Enum.map(spec.custom_genes, fn gene ->
-          %{
-            "domains" => gene.domains,
-            "intergenic" => %{
-              "expression" => gene.intergenic.expression,
-              "transfer" => gene.intergenic.transfer,
-              "duplication" => gene.intergenic.duplication
-            }
-          }
-        end)
+      "custom_genes" => Enum.map(spec.custom_genes, &serialize_custom_gene/1),
+      "custom_plasmid_genes" =>
+        Enum.map(Map.get(spec, :custom_plasmid_genes, []), &serialize_custom_gene/1)
     }
   end
+
+  defp serialize_custom_gene(gene) do
+    %{
+      "domains" => Enum.map(gene.domains, &serialize_domain_entry/1),
+      "intergenic" => %{
+        "expression" => gene.intergenic.expression,
+        "transfer" => gene.intergenic.transfer,
+        "duplication" => gene.intergenic.duplication
+      }
+    }
+  end
+
+  # Domain entries leave SeedLab as `%{type: "...", params: %{...}}`
+  # (the new shape). For storage we keep them as that map: it
+  # round-trips faithfully through Jason and is backward compatible
+  # with the legacy bare-string form via `normalize_domain_entry/1`.
+  defp serialize_domain_entry(%{type: type, params: params}) do
+    %{"type" => type, "params" => params}
+  end
+
+  defp serialize_domain_entry(other), do: other
 end

@@ -31,6 +31,7 @@ defmodule ArkeaWeb.SeedLabLive do
        errors: %{},
        gene_draft: empty_gene_draft(),
        gene_editor_error: nil,
+       gene_draft_scope: :chromosome,
        selected_replicon_id: "chromosome",
        selected_gene_index: 1,
        inspector_expanded: false,
@@ -81,8 +82,42 @@ defmodule ArkeaWeb.SeedLabLive do
          )}
 
       true ->
-        draft = Map.put(draft, :domains, draft_domains ++ [type_id])
+        new_entry = %{type: type_id, params: %{}}
+        draft = Map.put(draft, :domains, draft_domains ++ [new_entry])
         {:noreply, assign(socket, gene_draft: draft, gene_editor_error: nil)}
+    end
+  end
+
+  def handle_event(
+        "update_domain_param",
+        %{"index" => raw_index, "key" => key, "value" => value},
+        socket
+      ) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(raw_index)
+      draft = socket.assigns.gene_draft
+      domains = Map.get(draft, :domains, [])
+
+      new_domains =
+        case Enum.at(domains, idx) do
+          nil ->
+            domains
+
+          %{type: type, params: params} = entry ->
+            sanitized =
+              type
+              |> Arkea.Game.SeedLab.DomainEditor.sanitize(Map.put(params, key, value))
+
+            List.replace_at(domains, idx, %{entry | params: sanitized})
+        end
+
+      {:noreply,
+       assign(socket,
+         gene_draft: Map.put(draft, :domains, new_domains),
+         gene_editor_error: nil
+       )}
     end
   end
 
@@ -134,6 +169,7 @@ defmodule ArkeaWeb.SeedLabLive do
       {:noreply, socket}
     else
       draft = socket.assigns.gene_draft
+      scope = Map.get(socket.assigns, :gene_draft_scope, :chromosome)
 
       case Map.get(draft, :domains, []) do
         [] ->
@@ -143,21 +179,58 @@ defmodule ArkeaWeb.SeedLabLive do
            )}
 
         domains ->
-          custom_genes =
-            socket.assigns.custom_gene_specs ++
-              [
-                %{
-                  domains: domains,
-                  intergenic: Map.get(draft, :intergenic, empty_intergenic_blocks())
-                }
-              ]
+          new_gene = %{
+            domains: domains,
+            intergenic: Map.get(draft, :intergenic, empty_intergenic_blocks())
+          }
 
-          {:noreply,
-           socket
-           |> assign(gene_draft: empty_gene_draft(), gene_editor_error: nil)
-           |> replace_custom_genes(custom_genes)
-           |> focus_chromosome_tail()}
+          case scope do
+            :plasmid ->
+              custom_plasmids = socket.assigns.custom_plasmid_specs ++ [new_gene]
+
+              {:noreply,
+               socket
+               |> assign(gene_draft: empty_gene_draft(), gene_editor_error: nil)
+               |> replace_custom_plasmid_genes(custom_plasmids)}
+
+            _ ->
+              custom_genes = socket.assigns.custom_gene_specs ++ [new_gene]
+
+              {:noreply,
+               socket
+               |> assign(gene_draft: empty_gene_draft(), gene_editor_error: nil)
+               |> replace_custom_genes(custom_genes)
+               |> focus_chromosome_tail()}
+          end
       end
+    end
+  end
+
+  def handle_event("set_gene_draft_scope", %{"scope" => scope}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      atom =
+        case scope do
+          "plasmid" -> :plasmid
+          _ -> :chromosome
+        end
+
+      {:noreply, assign(socket, gene_draft_scope: atom, gene_editor_error: nil)}
+    end
+  end
+
+  def handle_event("remove_custom_plasmid_gene", %{"index" => index}, socket) do
+    if socket.assigns.seed_locked? do
+      {:noreply, socket}
+    else
+      idx = parse_positive_index(index)
+      next = List.delete_at(socket.assigns.custom_plasmid_specs, idx)
+
+      {:noreply,
+       socket
+       |> assign(gene_editor_error: nil)
+       |> replace_custom_plasmid_genes(next)}
     end
   end
 
@@ -530,6 +603,11 @@ defmodule ArkeaWeb.SeedLabLive do
                   name="seed[custom_gene_payload]"
                   value={@seed_params["custom_gene_payload"]}
                 />
+                <input
+                  type="hidden"
+                  name="seed[custom_plasmid_payload]"
+                  value={@seed_params["custom_plasmid_payload"]}
+                />
               </fieldset>
 
               <div class="arkea-seed-submit-row">
@@ -643,7 +721,9 @@ defmodule ArkeaWeb.SeedLabLive do
                 domain_palette={@domain_palette}
                 intergenic_palette={@intergenic_palette}
                 gene_draft={@gene_draft}
+                gene_draft_scope={@gene_draft_scope}
                 custom_gene_specs={@custom_gene_specs}
+                custom_plasmid_specs={@custom_plasmid_specs}
                 seed_locked?={@seed_locked?}
                 gene_editor_error={@gene_editor_error}
                 preview={@preview}
@@ -835,7 +915,9 @@ defmodule ArkeaWeb.SeedLabLive do
   attr(:domain_palette, :list, required: true)
   attr(:intergenic_palette, :map, required: true)
   attr(:gene_draft, :map, required: true)
+  attr(:gene_draft_scope, :atom, required: true)
   attr(:custom_gene_specs, :list, required: true)
+  attr(:custom_plasmid_specs, :list, required: true)
   attr(:seed_locked?, :boolean, required: true)
   attr(:gene_editor_error, :string, default: nil)
 
@@ -879,67 +961,139 @@ defmodule ArkeaWeb.SeedLabLive do
       </div>
 
       <div class="arkea-seed-editor__panel">
-        <div class="arkea-card__eyebrow">Custom chromosome gene designer</div>
+        <div class="arkea-card__eyebrow">
+          {if @gene_draft_scope == :plasmid,
+            do: "Custom plasmid gene designer",
+            else: "Custom chromosome gene designer"}
+        </div>
         <p class="arkea-muted arkea-seed-editor__copy">
-          Compose a chromosome gene from the functional domains implemented in the simulation. Intergenic blocks now feed runtime expression control, transfer bias, and duplication hotspots.
+          {if @gene_draft_scope == :plasmid,
+            do:
+              "Compose a gene that lives on the seed's accessory plasmid. Plasmid genes ride along with conjugation events; oriT in the intergenic block makes the plasmid mobilizable.",
+            else:
+              "Compose a chromosome gene from the functional domains implemented in the simulation. Intergenic blocks now feed runtime expression control, transfer bias, and duplication hotspots."}
         </p>
+
+        <div class="arkea-seed-editor__scope" role="tablist" aria-label="Custom gene scope">
+          <button
+            type="button"
+            class={[
+              "arkea-seed-editor__scope-tab",
+              @gene_draft_scope == :chromosome && "arkea-seed-editor__scope-tab--active"
+            ]}
+            phx-click="set_gene_draft_scope"
+            phx-value-scope="chromosome"
+            disabled={@seed_locked?}
+            role="tab"
+            aria-selected={@gene_draft_scope == :chromosome}
+          >
+            Chromosome ({length(@custom_gene_specs)})
+          </button>
+          <button
+            type="button"
+            class={[
+              "arkea-seed-editor__scope-tab",
+              @gene_draft_scope == :plasmid && "arkea-seed-editor__scope-tab--active"
+            ]}
+            phx-click="set_gene_draft_scope"
+            phx-value-scope="plasmid"
+            disabled={@seed_locked?}
+            role="tab"
+            aria-selected={@gene_draft_scope == :plasmid}
+          >
+            Plasmid ({length(@custom_plasmid_specs)})
+          </button>
+        </div>
 
         <div class="arkea-seed-editor__draft">
           <div class="arkea-seed-editor__draft-title">Draft gene</div>
           <ul class="arkea-draft-domains" role="list">
             <li
-              :for={{domain_id, idx} <- Enum.with_index(@draft_domains)}
+              :for={{entry, idx} <- Enum.with_index(@draft_domains)}
               class={[
                 "arkea-draft-domain",
-                "arkea-draft-domain--#{domain_tone(domain_type_from_id(domain_id))}"
+                "arkea-draft-domain--#{domain_tone(domain_type_from_id(domain_entry_type(entry)))}"
               ]}
               data-draft-index={idx}
             >
-              <span
-                class="arkea-draft-domain__swatch"
-                style={"background: #{CanvasLayout.domain_color(domain_type_from_id(domain_id))}"}
-                aria-hidden="true"
-              />
-              <span class="arkea-draft-domain__label">
-                {domain_label(domain_type_from_id(domain_id))}
-              </span>
-              <span class="arkea-draft-domain__controls">
-                <button
-                  type="button"
-                  phx-click="move_draft_domain"
-                  phx-value-index={idx}
-                  phx-value-to="up"
-                  class="arkea-draft-domain__btn"
-                  disabled={@seed_locked? or idx == 0}
-                  aria-label="Move domain up"
-                  title="Move up"
+              <div class="arkea-draft-domain__head">
+                <span
+                  class="arkea-draft-domain__swatch"
+                  style={"background: #{CanvasLayout.domain_color(domain_type_from_id(domain_entry_type(entry)))}"}
+                  aria-hidden="true"
+                />
+                <span class="arkea-draft-domain__label">
+                  {domain_label(domain_type_from_id(domain_entry_type(entry)))}
+                </span>
+                <span class="arkea-draft-domain__controls">
+                  <button
+                    type="button"
+                    phx-click="move_draft_domain"
+                    phx-value-index={idx}
+                    phx-value-to="up"
+                    class="arkea-draft-domain__btn"
+                    disabled={@seed_locked? or idx == 0}
+                    aria-label="Move domain up"
+                    title="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="move_draft_domain"
+                    phx-value-index={idx}
+                    phx-value-to="down"
+                    class="arkea-draft-domain__btn"
+                    disabled={@seed_locked? or idx == length(@draft_domains) - 1}
+                    aria-label="Move domain down"
+                    title="Move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="remove_draft_domain"
+                    phx-value-index={idx}
+                    class="arkea-draft-domain__btn arkea-draft-domain__btn--danger"
+                    disabled={@seed_locked?}
+                    aria-label="Remove domain"
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+
+              <div
+                :if={Arkea.Game.SeedLab.DomainEditor.editable?(domain_entry_type(entry))}
+                class="arkea-draft-domain__params"
+              >
+                <label
+                  :for={
+                    param <- Arkea.Game.SeedLab.DomainEditor.editable_params(domain_entry_type(entry))
+                  }
+                  class="arkea-draft-domain__param"
                 >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  phx-click="move_draft_domain"
-                  phx-value-index={idx}
-                  phx-value-to="down"
-                  class="arkea-draft-domain__btn"
-                  disabled={@seed_locked? or idx == length(@draft_domains) - 1}
-                  aria-label="Move domain down"
-                  title="Move down"
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  phx-click="remove_draft_domain"
-                  phx-value-index={idx}
-                  class="arkea-draft-domain__btn arkea-draft-domain__btn--danger"
-                  disabled={@seed_locked?}
-                  aria-label="Remove domain"
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </span>
+                  <span class="arkea-draft-domain__param-label">{param.label}</span>
+                  <select
+                    class="arkea-draft-domain__param-select"
+                    phx-change="update_domain_param"
+                    phx-value-index={idx}
+                    phx-value-key={param.key}
+                    name="value"
+                    disabled={@seed_locked?}
+                  >
+                    <option value="">— default —</option>
+                    <option
+                      :for={{value, label} <- param.options}
+                      value={value}
+                      selected={domain_entry_param(entry, param.key) == value}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </label>
+              </div>
             </li>
             <li :if={@draft_domains == []} class="arkea-draft-domain arkea-draft-domain--empty">
               Add functional domains from the palette below.
@@ -1058,18 +1212,71 @@ defmodule ArkeaWeb.SeedLabLive do
             </div>
             <div class="arkea-seed-gene__bar">
               <span
-                :for={domain_id <- gene.domains}
+                :for={entry <- gene.domains}
                 class={[
                   "arkea-seed-domain",
-                  "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_id))}"
+                  "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_entry_type(entry)))}"
                 ]}
                 style="flex: 23;"
-                title={domain_label(domain_type_from_id(domain_id))}
+                title={domain_entry_full_label(entry)}
               >
               </span>
             </div>
             <div class="arkea-seed-custom-gene__meta">
-              {Enum.map_join(gene.domains, " · ", &domain_label(domain_type_from_id(&1)))}
+              {Enum.map_join(gene.domains, " · ", &domain_entry_full_label/1)}
+            </div>
+            <div class="arkea-seed-intergenic-summary">
+              <span
+                :for={entry <- intergenic_badges(gene.intergenic)}
+                class="arkea-seed-intergenic-chip"
+              >
+                {entry}
+              </span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="arkea-seed-custom-gene-list">
+        <div class="arkea-seed-editor__draft-title">Committed plasmid genes</div>
+        <%= if @custom_plasmid_specs == [] do %>
+          <p class="arkea-muted">
+            No custom plasmid genes committed yet. Plasmid genes ride alongside the
+            mobile-module preset; switching the editor scope to <em>Plasmid</em> lets
+            you append additional plasmid cassettes that conjugate when a recipient
+            picks the seed up.
+          </p>
+        <% else %>
+          <div
+            :for={{gene, index} <- Enum.with_index(@custom_plasmid_specs, 1)}
+            class="arkea-seed-custom-gene arkea-seed-custom-gene--plasmid"
+          >
+            <div class="arkea-seed-custom-gene__header">
+              <span class="arkea-seed-custom-gene__title">Plasmid gene {index}</span>
+              <button
+                :if={!@seed_locked?}
+                type="button"
+                class="arkea-seed-custom-gene__remove"
+                phx-click="remove_custom_plasmid_gene"
+                phx-value-index={index - 1}
+              >
+                Remove
+              </button>
+            </div>
+            <div class="arkea-seed-gene__bar">
+              <span
+                :for={entry <- gene.domains}
+                class={[
+                  "arkea-seed-domain",
+                  "arkea-seed-domain--#{domain_tone(domain_type_from_id(domain_entry_type(entry)))}"
+                ]}
+                style="flex: 23;"
+                title={domain_entry_full_label(entry)}
+              >
+              </span>
+            </div>
+            <div class="arkea-seed-custom-gene__meta">
+              {Enum.map_join(gene.domains, " · ", &domain_entry_full_label/1)}
             </div>
             <div class="arkea-seed-intergenic-summary">
               <span
@@ -1207,7 +1414,8 @@ defmodule ArkeaWeb.SeedLabLive do
               recolonize_mode?: true,
               home_biotope_id: biotope_id,
               seed_params: merged,
-              custom_gene_specs: preview.spec.custom_genes
+              custom_gene_specs: preview.spec.custom_genes,
+              custom_plasmid_specs: Map.get(preview.spec, :custom_plasmid_genes, [])
             )
             |> assign_editor_focus(preview)
 
@@ -1237,7 +1445,8 @@ defmodule ArkeaWeb.SeedLabLive do
                 recolonize_mode?: false,
                 home_biotope_id: biotope_id,
                 seed_params: locked_params,
-                custom_gene_specs: locked_preview.spec.custom_genes
+                custom_gene_specs: locked_preview.spec.custom_genes,
+                custom_plasmid_specs: Map.get(locked_preview.spec, :custom_plasmid_genes, [])
               )
               |> assign_editor_focus(locked_preview)
             end
@@ -1271,7 +1480,8 @@ defmodule ArkeaWeb.SeedLabLive do
       recolonize_mode?: false,
       home_biotope_id: nil,
       seed_params: merged,
-      custom_gene_specs: preview.spec.custom_genes
+      custom_gene_specs: preview.spec.custom_genes,
+      custom_plasmid_specs: Map.get(preview.spec, :custom_plasmid_genes, [])
     )
     |> assign_editor_focus(preview)
   end
@@ -1298,7 +1508,8 @@ defmodule ArkeaWeb.SeedLabLive do
       recolonize_mode?: true,
       home_biotope_id: biotope_id,
       seed_params: merged,
-      custom_gene_specs: preview.spec.custom_genes
+      custom_gene_specs: preview.spec.custom_genes,
+      custom_plasmid_specs: Map.get(preview.spec, :custom_plasmid_genes, [])
     )
     |> assign_editor_focus(preview)
   end
@@ -1328,6 +1539,14 @@ defmodule ArkeaWeb.SeedLabLive do
   defp assign_canvas_layout(socket) do
     layout = CanvasLayout.build(CanvasLayout.from_preview(socket.assigns.preview))
     assign(socket, canvas_layout: layout)
+  end
+
+  defp replace_custom_plasmid_genes(socket, plasmid_specs) do
+    params =
+      socket.assigns.seed_params
+      |> Map.put("custom_plasmid_payload", Jason.encode!(plasmid_specs))
+
+    apply_form(socket, params)
   end
 
   defp replace_custom_genes(socket, custom_gene_specs) do
@@ -1755,4 +1974,61 @@ defmodule ArkeaWeb.SeedLabLive do
   rescue
     ArgumentError -> :unknown
   end
+
+  # Custom-gene domains are now `%{type: "...", params: %{...}}`; the
+  # legacy bare string form is still accepted for backward compatibility.
+  defp domain_entry_type(%{type: t}) when is_binary(t), do: t
+  defp domain_entry_type(t) when is_binary(t), do: t
+  defp domain_entry_type(_), do: ""
+
+  defp domain_entry_param(%{params: %{} = params}, key) when is_binary(key) do
+    case Map.get(params, key) do
+      nil -> nil
+      value when is_binary(value) -> value
+      value -> to_string(value)
+    end
+  end
+
+  defp domain_entry_param(_, _), do: nil
+
+  # "Substrate binding" or "Substrate binding · target=glucose" when a
+  # param has been pinned. Used both in the bar tooltip and the meta row.
+  defp domain_entry_full_label(entry) do
+    type_id = domain_entry_type(entry)
+    type = domain_type_from_id(type_id)
+    base = domain_label(type)
+
+    case Arkea.Game.SeedLab.DomainEditor.editable_params(type_id) do
+      [] ->
+        base
+
+      params ->
+        suffixes =
+          for %{key: key, options: opts} <- params,
+              v = domain_entry_param(entry, key),
+              not is_nil(v) and v != "" do
+            label =
+              opts
+              |> Enum.find(fn {value, _} -> value == v end)
+              |> case do
+                {_value, label} -> label
+                _ -> v
+              end
+
+            "#{shorten_param_key(key)}=#{label}"
+          end
+
+        case suffixes do
+          [] -> base
+          list -> base <> " · " <> Enum.join(list, ", ")
+        end
+    end
+  end
+
+  defp shorten_param_key("target_metabolite_id"), do: "target"
+  defp shorten_param_key("sensed_metabolite_id"), do: "sensed"
+  defp shorten_param_key("reaction_class"), do: "reaction"
+  defp shorten_param_key("tag_class"), do: "tag"
+  defp shorten_param_key("repair_class"), do: "repair"
+  defp shorten_param_key(other), do: other
 end

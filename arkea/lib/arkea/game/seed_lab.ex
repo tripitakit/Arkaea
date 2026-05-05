@@ -285,7 +285,8 @@ defmodule Arkea.Game.SeedLab do
     "membrane_profile" => "porous",
     "regulation_profile" => "responsive",
     "mobile_module" => "none",
-    "custom_gene_payload" => "[]"
+    "custom_gene_payload" => "[]",
+    "custom_plasmid_payload" => "[]"
   }
 
   @type preview :: %{
@@ -902,7 +903,9 @@ defmodule Arkea.Game.SeedLab do
           genome
       end
 
-    append_custom_genes(genome, spec.custom_genes)
+    genome
+    |> append_custom_genes(spec.custom_genes)
+    |> append_custom_plasmid(Map.get(spec, :custom_plasmid_genes, []))
   end
 
   defp append_custom_genes(%Genome{} = genome, []), do: genome
@@ -914,6 +917,20 @@ defmodule Arkea.Game.SeedLab do
       plasmids: genome.plasmids,
       prophages: genome.prophages
     )
+  end
+
+  defp append_custom_plasmid(%Genome{} = genome, []), do: genome
+  defp append_custom_plasmid(%Genome{} = genome, nil), do: genome
+
+  defp append_custom_plasmid(%Genome{} = genome, custom_plasmid_genes)
+       when is_list(custom_plasmid_genes) do
+    plasmid_genes = Enum.map(custom_plasmid_genes, &build_custom_gene/1)
+
+    if plasmid_genes == [] do
+      genome
+    else
+      Genome.add_plasmid(genome, plasmid_genes)
+    end
   end
 
   defp build_custom_gene(spec) when is_map(spec) do
@@ -931,28 +948,57 @@ defmodule Arkea.Game.SeedLab do
     |> Map.put(:intergenic_blocks, intergenic_blocks)
   end
 
-  defp template_domain(type_id) do
+  # Two wire shapes are accepted for a custom-gene domain entry:
+  #
+  #   - bare string `"substrate_binding"` (legacy) — every codon
+  #     stays at the default template value;
+  #   - map `%{type: "substrate_binding", params: %{...}}` — the
+  #     `Arkea.Game.SeedLab.DomainEditor` overrides the relevant
+  #     codons so the user-selected param materialises in the
+  #     simulation (target_metabolite for substrate binding,
+  #     reaction_class for catalytic site, etc.).
+  defp template_domain(type_id) when is_binary(type_id) do
+    template_domain(%{type: type_id, params: %{}})
+  end
+
+  defp template_domain(%{type: type_id} = entry) when is_binary(type_id) do
     type = domain_type_from_id(type_id)
     index = Enum.find_index(DomainType.all(), &(&1 == type))
     type_tag = [0, 0, index]
 
+    default_codons = default_codons_for(type)
+    params = entry |> Map.get(:params, %{}) |> stringify_string_keys()
+
     parameter_codons =
-      case type do
-        :substrate_binding -> [0 | List.duplicate(4, 19)]
-        :catalytic_site -> List.duplicate(9, 20)
-        :transmembrane_anchor -> List.duplicate(7, 20)
-        :channel_pore -> List.duplicate(6, 20)
-        :energy_coupling -> List.duplicate(5, 20)
-        :dna_binding -> List.duplicate(10, 20)
-        :regulator_output -> List.duplicate(8, 20)
-        :ligand_sensor -> List.duplicate(11, 20)
-        :structural_fold -> List.duplicate(12, 20)
-        :surface_tag -> List.duplicate(13, 20)
-        :repair_fidelity -> List.duplicate(9, 20)
-      end
+      Arkea.Game.SeedLab.DomainEditor.override_codons(type_id, default_codons, params)
 
     Domain.new(type_tag, parameter_codons)
   end
+
+  defp default_codons_for(type) do
+    case type do
+      :substrate_binding -> [0 | List.duplicate(4, 19)]
+      :catalytic_site -> List.duplicate(9, 20)
+      :transmembrane_anchor -> List.duplicate(7, 20)
+      :channel_pore -> List.duplicate(6, 20)
+      :energy_coupling -> List.duplicate(5, 20)
+      :dna_binding -> List.duplicate(10, 20)
+      :regulator_output -> List.duplicate(8, 20)
+      :ligand_sensor -> List.duplicate(11, 20)
+      :structural_fold -> List.duplicate(12, 20)
+      :surface_tag -> List.duplicate(13, 20)
+      :repair_fidelity -> List.duplicate(9, 20)
+    end
+  end
+
+  defp stringify_string_keys(params) when is_map(params) do
+    Map.new(params, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
+      {k, v} -> {k, v}
+    end)
+  end
+
+  defp stringify_string_keys(_), do: %{}
 
   defp substrate_domain("thrifty"), do: Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
   defp substrate_domain("balanced"), do: Domain.new([0, 0, 0], [0 | List.duplicate(5, 19)])
@@ -1267,15 +1313,15 @@ defmodule Arkea.Game.SeedLab do
   end
 
   defp blueprint_params(%ArkeonBlueprint{} = blueprint) do
+    spec = blueprint.phenotype_spec || %{}
+
     form_defaults()
-    |> Map.merge(Map.new(blueprint.phenotype_spec || %{}))
+    |> Map.merge(Map.new(spec))
     |> Map.merge(%{
       "seed_name" => blueprint.name,
       "starter_archetype" => blueprint.starter_archetype,
-      "custom_gene_payload" =>
-        blueprint.phenotype_spec
-        |> Map.get("custom_genes", [])
-        |> Jason.encode!()
+      "custom_gene_payload" => spec |> Map.get("custom_genes", []) |> Jason.encode!(),
+      "custom_plasmid_payload" => spec |> Map.get("custom_plasmid_genes", []) |> Jason.encode!()
     })
   end
 
@@ -1300,8 +1346,8 @@ defmodule Arkea.Game.SeedLab do
       domains:
         spec
         |> Map.get("domains", Map.get(spec, :domains, []))
-        |> Enum.map(&to_string/1)
-        |> Enum.filter(&valid_domain_id?/1)
+        |> Enum.map(&normalize_domain_entry/1)
+        |> Enum.filter(&domain_entry_valid?/1)
         |> Enum.take(9),
       intergenic:
         spec
@@ -1312,6 +1358,38 @@ defmodule Arkea.Game.SeedLab do
 
   defp normalize_custom_gene_spec(_other),
     do: %{domains: [], intergenic: normalize_intergenic_blocks(%{})}
+
+  # Accept both wire shapes: bare string `"substrate_binding"` (legacy)
+  # and full map `%{"type" => "substrate_binding", "params" => %{...}}`.
+  defp normalize_domain_entry(entry) when is_binary(entry) do
+    %{type: entry, params: %{}}
+  end
+
+  defp normalize_domain_entry(entry) when is_atom(entry) do
+    %{type: Atom.to_string(entry), params: %{}}
+  end
+
+  defp normalize_domain_entry(%{} = entry) do
+    type =
+      entry
+      |> Map.get("type", Map.get(entry, :type))
+      |> to_string()
+
+    raw_params =
+      entry
+      |> Map.get("params", Map.get(entry, :params, %{}))
+      |> case do
+        %{} = p -> p
+        _ -> %{}
+      end
+
+    %{type: type, params: Arkea.Game.SeedLab.DomainEditor.sanitize(type, raw_params)}
+  end
+
+  defp normalize_domain_entry(_other), do: %{type: "", params: %{}}
+
+  defp domain_entry_valid?(%{type: type}), do: valid_domain_id?(type)
+  defp domain_entry_valid?(_), do: false
 
   defp normalize_intergenic_blocks(blocks) when is_map(blocks) do
     %{
@@ -1371,6 +1449,12 @@ defmodule Arkea.Game.SeedLab do
       |> decode_custom_gene_payload()
       |> Enum.reject(&(&1.domains == []))
 
+    custom_plasmid_genes =
+      merged
+      |> Map.get("custom_plasmid_payload", "[]")
+      |> decode_custom_gene_payload()
+      |> Enum.reject(&(&1.domains == []))
+
     %{
       seed_name: merged["seed_name"] |> to_string() |> String.trim(),
       starter_archetype: preview_starter |> starter_ecotype() |> Map.fetch!(:archetype),
@@ -1380,7 +1464,8 @@ defmodule Arkea.Game.SeedLab do
       membrane_profile: membrane,
       regulation_profile: regulation,
       mobile_module: mobile,
-      custom_genes: custom_genes
+      custom_genes: custom_genes,
+      custom_plasmid_genes: custom_plasmid_genes
     }
   end
 

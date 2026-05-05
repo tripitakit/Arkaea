@@ -140,7 +140,10 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
     assert blueprint.phenotype_spec["custom_genes"] == [
              %{
-               "domains" => ["substrate_binding", "dna_binding"],
+               "domains" => [
+                 %{"type" => "substrate_binding", "params" => %{}},
+                 %{"type" => "dna_binding", "params" => %{}}
+               ],
                "intergenic" => %{
                  "expression" => ["sigma_promoter"],
                  "transfer" => ["orit_site"],
