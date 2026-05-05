@@ -102,6 +102,39 @@ defmodule ArkeaWeb.SimLiveTest do
     refute html =~ "No lineages to plot"
   end
 
+  test "Phylogeny tab includes extinct lineages reconstructed from lineage_born audit", %{
+    conn: conn,
+    biotope_id: id
+  } do
+    # Insert a synthetic lineage_born entry for a lineage that no longer
+    # appears in sim_state.lineages — the dendrogram should still
+    # surface it as a ghost (grey + dashed) leaf.
+    extinct_id = Arkea.UUID.v4()
+
+    %Arkea.Persistence.AuditLog{}
+    |> Arkea.Persistence.AuditLog.changeset(%{
+      event_type: "lineage_born",
+      target_biotope_id: id,
+      target_lineage_id: extinct_id,
+      occurred_at_tick: 5,
+      occurred_at: DateTime.utc_now() |> DateTime.truncate(:microsecond),
+      payload: %{"lineage_id" => extinct_id, "parent_id" => nil}
+    })
+    |> Arkea.Repo.insert!()
+
+    {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+    view |> element(~s|.arkea-tabs__tab[phx-value-tab="phylogeny"]|) |> render_click()
+    html = render(view)
+
+    # The extinct lineage shell renders with the extinct modifier
+    # (grey + dashed) — the modifier class only appears when at
+    # least one node has extinct?=true.
+    assert html =~ "arkea-phylogeny__node--extinct"
+    # And its short_id label is in the markup.
+    assert html =~ String.slice(extinct_id, 0, 8)
+  end
+
   test "clicking a lineage row opens the right drawer; close dismisses it", %{
     conn: conn,
     biotope_id: id

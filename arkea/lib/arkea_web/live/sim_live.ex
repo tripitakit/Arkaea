@@ -1477,12 +1477,50 @@ defmodule ArkeaWeb.SimLive do
 
     audit = lineage_born_audit(biotope_id)
     lineages = if sim_state, do: sim_state.lineages, else: []
-    model = Arkea.Views.Phylogeny.build(lineages, audit)
+    extinct = extinct_lineage_shells(audit, lineages)
+
+    model = Arkea.Views.Phylogeny.build(lineages, audit, extinct_lineages: extinct)
 
     assign(socket, phylogeny_model: model)
   end
 
   defp maybe_load_phylogeny_data(socket, _other), do: socket
+
+  # Build placeholder `Lineage` structs for every lineage that ever
+  # existed in the biotope but has been pruned from `state.lineages`
+  # (extinct: total_abundance fell to 0). The audit log gives us the
+  # parent chain — that's enough to keep extinct branches visible in
+  # the dendrogram. Genome is `nil`, so p-distance from a parent to
+  # an extinct child collapses to the @min_branch_px floor instead
+  # of contributing real divergence: extinct stubs render at a
+  # constant short branch length.
+  defp extinct_lineage_shells(audit, alive_lineages) do
+    alive_ids = MapSet.new(alive_lineages, & &1.id)
+
+    audit
+    |> Enum.reject(fn entry ->
+      entry.target_lineage_id == nil or
+        MapSet.member?(alive_ids, entry.target_lineage_id)
+    end)
+    |> Enum.uniq_by(& &1.target_lineage_id)
+    |> Enum.map(fn entry ->
+      payload = entry.payload || %{}
+
+      %Arkea.Ecology.Lineage{
+        id: entry.target_lineage_id,
+        parent_id: payload["parent_id"],
+        clade_ref_id: payload["original_seed_id"] || entry.target_lineage_id,
+        original_seed_id: payload["original_seed_id"],
+        genome: nil,
+        delta: [],
+        abundance_by_phase: %{},
+        fitness_cache: nil,
+        created_at_tick: entry.occurred_at_tick || 0,
+        biomass: Arkea.Ecology.Lineage.full_biomass(),
+        dna_damage: 0.0
+      }
+    end)
+  end
 
   defp recent_audit(biotope_id) do
     import Ecto.Query
