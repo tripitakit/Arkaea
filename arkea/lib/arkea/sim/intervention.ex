@@ -140,19 +140,21 @@ defmodule Arkea.Sim.Intervention do
     %{state | phases: updated}
   end
 
+  # Find the dominant lineage in `phase_name` that can host an
+  # additional plasmid. Recipients are allowed to already carry
+  # plasmids — natural conjugation chains let cells accumulate
+  # multiple co-resident replicons; incompatibility-driven displacement
+  # is handled later by the HGT plasmid step (Phase 16-BIO), not gated
+  # here. The only requirement is "alive in the phase, has a genome".
   defp dominant_host(lineages, phase_name) do
     lineages
     |> Enum.filter(&(Lineage.abundance_in(&1, phase_name) > 0 and &1.genome != nil))
-    |> Enum.reject(&plasmid_bearing?/1)
     |> Enum.max_by(&Lineage.abundance_in(&1, phase_name), fn -> nil end)
     |> case do
       %Lineage{} = lineage -> {:ok, lineage}
       nil -> {:error, :no_lineage_host}
     end
   end
-
-  defp plasmid_bearing?(%Lineage{genome: nil}), do: false
-  defp plasmid_bearing?(%Lineage{genome: genome}), do: genome.plasmids != []
 
   defp build_plasmid_child(%BiotopeState{tick_count: tick}, host, phase_name) do
     plasmid_gene =

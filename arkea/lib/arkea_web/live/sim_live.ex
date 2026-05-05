@@ -1401,7 +1401,9 @@ defmodule ArkeaWeb.SimLive do
     do: "The selected phase is no longer available."
 
   defp intervention_error_message(:no_lineage_host),
-    do: "No suitable lineage host is present in the focused phase."
+    do:
+      "The focused phase has no live lineage that can host the inoculated plasmid. " <>
+        "Click a phase that contains at least one lineage (check the count chip in the sidebar) and retry."
 
   defp intervention_error_message(:persistence_failed),
     do: "The intervention executed, but its budget record could not be persisted."
