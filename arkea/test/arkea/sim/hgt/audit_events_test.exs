@@ -25,6 +25,8 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
   alias Arkea.Genome.Gene
   alias Arkea.Sim.HGT.Channel.Transformation
   alias Arkea.Sim.HGT.DnaFragment
+  alias Arkea.Sim.HGT.Phage
+  alias Arkea.Sim.HGT.Virion
   alias Arkea.Sim.Mutator
 
   # ---------------------------------------------------------------------------
@@ -37,6 +39,10 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
   defp transmembrane_domain, do: Domain.new([0, 0, 2], @param_codons)
   defp channel_domain, do: Domain.new([0, 0, 3], @param_codons)
   defp ligand_sensor_domain, do: Domain.new([0, 0, 7], @param_codons)
+  defp dna_binding_domain, do: Domain.new([0, 0, 5], @param_codons)
+  defp structural_domain, do: Domain.new([0, 0, 8], @param_codons)
+  # Phase 20: surface_tag(first_codon=10, rem(10,3)=1) → :phage_receptor.
+  defp surface_domain, do: Domain.new([0, 0, 9], @param_codons)
 
   defp competent_genome do
     Genome.new([
@@ -78,6 +84,145 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       origin_lineage_id: Keyword.get(opts, :origin_lineage_id, "donor-lineage"),
       created_at_tick: 0
     )
+  end
+
+  # ---------------------------------------------------------------------------
+  # Phage helpers (Sub-task 1.3).
+
+  defp prophage_cassette do
+    # A cassette with a structural_fold (capsid) + surface_tag (signature
+    # source). The cassette also encodes the prophage's repressor strength
+    # via dna_binding affinity.
+    [Gene.from_domains([structural_domain(), surface_domain()])]
+  end
+
+  # Recipient with a `:phage_receptor` surface_tag, no restriction enzymes.
+  # `surface_domain/0` has `tag_class: :phage_receptor`. Without a co-located
+  # `:dna_binding` partner the catalytic_site is not interpreted as a
+  # restriction enzyme, so `restriction_profile` is empty → R-M trivially
+  # passes.
+  defp receptor_only_genome do
+    Genome.new([
+      Gene.from_domains([catalytic_domain()]),
+      Gene.from_domains([surface_domain()])
+    ])
+  end
+
+  # Recipient with the same `:phage_receptor` AND a real restriction enzyme:
+  # a gene carrying co-located `:dna_binding` + `:catalytic_site(:hydrolysis)`
+  # domains. The catalytic_site `signal_key` ("10,10,10,10" with the default
+  # parameter codons) becomes a vulnerable restriction site whenever the
+  # virion's methylation_profile does NOT cover it.
+  defp restriction_enzyme_genome do
+    Genome.new([
+      Gene.from_domains([dna_binding_domain(), catalytic_domain()]),
+      Gene.from_domains([surface_domain()])
+    ])
+  end
+
+  defp phage_virion(opts) do
+    Virion.new(
+      id: Keyword.get(opts, :id, Arkea.UUID.v4()),
+      genes: Keyword.get(opts, :genes, hd(prophage_cassette()) |> List.wrap()),
+      abundance: Keyword.get(opts, :abundance, 5_000),
+      surface_signature: Keyword.get(opts, :surface_signature, "10,10,10,10"),
+      methylation_profile: Keyword.get(opts, :methylation_profile, []),
+      origin_lineage_id: Keyword.get(opts, :origin_lineage_id, "donor-lineage"),
+      created_at_tick: 0,
+      payload_kind: :phage
+    )
+  end
+
+  describe "phage_infection emission" do
+    test "successful infection emits :phage_infection event with mode" do
+      recipient = founder(receptor_only_genome(), 200)
+
+      virion =
+        phage_virion(
+          abundance: 5_000,
+          methylation_profile: [],
+          origin_lineage_id: "phage-donor-abc"
+        )
+
+      phase = Arkea.Ecology.Phase.add_virion(surface_phase(), virion)
+      rng = Mutator.init_seed("phage-infection-event-emission")
+      tick = 100
+
+      # Iterate until at least one infection fires. Phage.step/4 must
+      # return a 5-tuple with events in slot 4 (Sub-task 1.3).
+      {_ls, _ph, children, events, _rng_out} =
+        Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i,
+                                                                  {ls, ph, ch_acc, ev_acc,
+                                                                   acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
+            Phage.step(ls, ph, tick, acc_rng)
+
+          {ls_out, ph_out, ch_acc ++ new_children, ev_acc ++ new_events, rng_out}
+        end)
+
+      infections = Enum.filter(events, &(&1.type == :phage_infection))
+
+      # Sanity: at least one infection occurred (children list reflects
+      # lysogenic integrations; lytic infections do not produce children
+      # but DO emit events).
+      assert length(infections) >= 1,
+             "Expected at least one :phage_infection event over 50 ticks; got #{inspect(events)}"
+
+      assert Enum.all?(infections, fn e ->
+               e.mode in [:lytic, :lysogenic] and
+                 is_binary(e.recipient_lineage_id) and
+                 e.recipient_lineage_id == recipient.id and
+                 e.tick == tick and
+                 (Map.has_key?(e, :virion_id) or Map.has_key?(e, :origin_lineage_id))
+             end)
+
+      # Successful lysogenic integrations should match by count: every
+      # lysogenic event corresponds to exactly one new child lineage.
+      lysogenic_events = Enum.filter(infections, &(&1.mode == :lysogenic))
+      assert length(lysogenic_events) == length(children)
+    end
+  end
+
+  describe "rm_digestion emission" do
+    test "incompatible methylation triggers :rm_digestion event" do
+      recipient = founder(restriction_enzyme_genome(), 200)
+
+      # Virion with a methylation profile that does NOT cover the
+      # recipient's restriction site ("10,10,10,10"). R-M will roll
+      # digestion with @cleave_p = 0.95.
+      virion =
+        phage_virion(
+          abundance: 5_000,
+          methylation_profile: [],
+          origin_lineage_id: "phage-donor-rm"
+        )
+
+      phase = Arkea.Ecology.Phase.add_virion(surface_phase(), virion)
+      rng = Mutator.init_seed("phage-rm-digestion-event")
+      tick = 200
+
+      {_ls, _ph, _children, events, _rng_out} =
+        Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i,
+                                                                  {ls, ph, ch_acc, ev_acc,
+                                                                   acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
+            Phage.step(ls, ph, tick, acc_rng)
+
+          {ls_out, ph_out, ch_acc ++ new_children, ev_acc ++ new_events, rng_out}
+        end)
+
+      digestions = Enum.filter(events, &(&1.type == :rm_digestion))
+
+      assert length(digestions) >= 1,
+             "Expected at least one :rm_digestion event over 50 ticks; got #{inspect(events)}"
+
+      assert Enum.all?(digestions, fn e ->
+               is_binary(e.recipient_lineage_id) and
+                 e.recipient_lineage_id == recipient.id and
+                 e.tick == tick and
+                 (Map.has_key?(e, :virion_id) or Map.has_key?(e, :origin_lineage_id))
+             end)
+    end
   end
 
   describe "transformation_event emission" do

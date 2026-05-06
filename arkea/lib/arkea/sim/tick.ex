@@ -663,21 +663,31 @@ defmodule Arkea.Sim.Tick do
       ) do
     rng = get_rng(state)
 
-    {updated_lineages, updated_phases, all_children, rng_out} =
-      Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
-                                                      {acc_lineages, acc_phases, acc_children,
-                                                       acc_rng} ->
-        {ls_out, p_out, children, rng_out} =
+    # Sub-task 1.3: each per-phase `Phage.infection_step/4` call returns
+    # a 5-tuple including the audit events emitted by successful entries
+    # and R-M digestions during the sweep. We accumulate them across
+    # phases, then prepend onto `state.pending_events` (insertion-order
+    # preserving, prepend-then-reverse convention pinned in
+    # `BiotopeState`).
+    {updated_lineages, updated_phases, all_children, all_events, rng_out} =
+      Enum.reduce(phases, {lineages, [], [], [], rng}, fn phase,
+                                                          {acc_lineages, acc_phases, acc_children,
+                                                           acc_events, acc_rng} ->
+        {ls_out, p_out, children, events, rng_out} =
           Phage.infection_step(acc_lineages, phase, tick, acc_rng)
 
-        {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+        {ls_out, acc_phases ++ [p_out], acc_children ++ children, acc_events ++ events, rng_out}
       end)
+
+    pending_events_after_infection =
+      Enum.reduce(all_events, state.pending_events, fn ev, acc -> [ev | acc] end)
 
     %{
       state
       | lineages: updated_lineages ++ all_children,
         phases: updated_phases,
-        rng_seed: rng_out
+        rng_seed: rng_out,
+        pending_events: pending_events_after_infection
     }
   end
 
