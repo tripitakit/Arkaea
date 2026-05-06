@@ -114,6 +114,12 @@ defmodule Arkea.Sim.Tick do
   """
   @spec tick(BiotopeState.t()) :: {BiotopeState.t(), [event()]}
   def tick(%BiotopeState{} = state) do
+    # Sub-task 1.1: reset transient per-tick event buffer at the start of every
+    # tick. Sub-tasks 1.2–1.5 will populate this from HGT, transformation,
+    # phage, bacteriocin and error-catastrophe code paths; Sub-task 1.4 will
+    # wire it into the events output. For now we only reset.
+    state = %{state | pending_events: []}
+
     new_state =
       state
       |> step_metabolism()
