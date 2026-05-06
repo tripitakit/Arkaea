@@ -258,6 +258,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       donor = donor_with_conjugative()
       recipient = plain_recipient()
       lineages = [donor, recipient]
+      phase = surface_phase()
 
       rng = Mutator.init_seed("hgt-conjugation-event-emission")
 
@@ -267,7 +268,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       {events, _rng_out} =
         Enum.reduce(1..2_000, {[], rng}, fn tick, {acc_events, acc_rng} ->
           {_lineages_out, _phase_out, _children, events, rng_out} =
-            HGT.step(:surface, lineages, tick, acc_rng)
+            HGT.step(lineages, phase, tick, acc_rng)
 
           {acc_events ++ events, rng_out}
         end)
@@ -312,12 +313,13 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       recipient = Lineage.new_founder(recipient_genome, %{surface: 200}, 0)
 
       lineages = [donor, recipient]
+      phase = surface_phase()
       rng = Mutator.init_seed("hgt-inc-group-conflict")
 
       {events, _rng_out} =
         Enum.reduce(1..2_000, {[], rng}, fn tick, {acc_events, acc_rng} ->
           {_lineages_out, _phase_out, _children, events, rng_out} =
-            HGT.step(:surface, lineages, tick, acc_rng)
+            HGT.step(lineages, phase, tick, acc_rng)
 
           {acc_events ++ events, rng_out}
         end)

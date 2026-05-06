@@ -41,6 +41,8 @@ defmodule Arkea.Sim.HGT do
   On induction: the lineage loses `floor(abundance × 0.5)` units (lytic burst).
   """
 
+  @behaviour Arkea.Sim.HGT.Channel
+
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
   alias Arkea.Genome
@@ -57,6 +59,15 @@ defmodule Arkea.Sim.HGT do
 
   # ---------------------------------------------------------------------------
   # Public API
+
+  @doc """
+  Channel identifier — required by `Arkea.Sim.HGT.Channel`. Conjugation
+  is the legacy Phase-6 channel; this name is what audit-log writers and
+  per-channel tests expect to see in event maps.
+  """
+  @impl Arkea.Sim.HGT.Channel
+  @spec name() :: :conjugation
+  def name, do: :conjugation
 
   @doc """
   True if the plasmid is conjugative.
@@ -90,14 +101,13 @@ defmodule Arkea.Sim.HGT do
   and the recipient lacks it, compute the conjugation probability and
   stochastically transfer the plasmid.
 
-  Returns `{updated_lineages, phase_name, new_child_lineages, events, new_rng}`
-  — Sub-task 1.4 promotes the result tuple to the
-  `Arkea.Sim.HGT.Channel.result/0` 5-tuple shape so the caller
-  (`Tick.step_hgt/1`) can prepend `events` onto
-  `BiotopeState.pending_events`. The second element echoes back
-  `phase_name` for symmetry with the per-`Phase` channels (the legacy
-  per-atom calling convention is retained pending Sub-task 2.1, which
-  conforms `step/4` fully to `HGT.Channel`).
+  Returns `{updated_lineages, phase, new_child_lineages, events, new_rng}`
+  conforming to the `Arkea.Sim.HGT.Channel.result/0` 5-tuple shape so
+  the caller (`Tick.step_hgt/1`) can prepend `events` onto
+  `BiotopeState.pending_events`. Sub-task 2.1 (remediation) reordered
+  the arguments to `(lineages, phase, tick, rng)` and the second slot
+  of the result to the `Phase` struct itself: conjugation does not
+  modify phase chemistry, so the input phase is returned unchanged.
 
   ## Events
 
@@ -118,13 +128,15 @@ defmodule Arkea.Sim.HGT do
   - At most `div(length(lineages), 4)` new children per tick.
   - Lineages with `genome: nil` are skipped (no genome to transfer to/from).
   """
+  @impl Arkea.Sim.HGT.Channel
   @spec step(
-          phase_name :: atom(),
           lineages :: [Lineage.t()],
+          phase :: Phase.t(),
           tick :: non_neg_integer(),
           rng :: :rand.state()
-        ) :: {[Lineage.t()], atom(), [Lineage.t()], [map()], :rand.state()}
-  def step(phase_name, lineages, tick, rng) when is_atom(phase_name) and is_integer(tick) do
+        ) :: {[Lineage.t()], Phase.t(), [Lineage.t()], [map()], :rand.state()}
+  def step(lineages, %Phase{} = phase, tick, rng) when is_integer(tick) do
+    phase_name = phase.name
     max_children = max(div(length(lineages), 4), 1)
     n_total = total_abundance_in_phase(lineages, phase_name)
 
@@ -149,7 +161,8 @@ defmodule Arkea.Sim.HGT do
 
     updated = Enum.map(lineages, fn l -> Map.get(lineage_map_out, l.id, l) end)
     # Events were prepended (`[event | acc]`); reverse to recover insertion order.
-    {updated, phase_name, children, Enum.reverse(events), rng_out}
+    # Conjugation does not modify phase chemistry — return the input phase struct.
+    {updated, phase, children, Enum.reverse(events), rng_out}
   end
 
   @doc """
