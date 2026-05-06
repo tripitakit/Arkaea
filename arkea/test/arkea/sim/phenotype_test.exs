@@ -364,10 +364,20 @@ defmodule Arkea.Sim.PhenotypeTest do
 
     property "random genome without proxy → ribosome_like == 0.0; with proxy → > 0.0" do
       check all(g <- genome(), max_runs: 100) do
-        # The random genome generator very rarely synthesises both prongs in
-        # one gene; we don't assert on it directly. We instead pivot on a
-        # constructed augmentation: appending a guaranteed ribosome gene
-        # must drive ribosome_like > 0.0 regardless of the original genome.
+        # Negative direction: when the random genome contains no
+        # ribosome-shaped gene (a single gene that simultaneously carries an
+        # oligomeric `:structural_fold` and a `:ligation` `:catalytic_site`),
+        # the proxy must read 0.0. When such a gene is present (rare but
+        # possible), the proxy must read > 0.0.
+        if Enum.any?(g.chromosome, &ribosome_like_gene?/1) do
+          assert Phenotype.target_classes(g).ribosome_like > 0.0
+        else
+          assert Phenotype.target_classes(g).ribosome_like == 0.0
+        end
+
+        # Positive direction (augmentation): appending a guaranteed
+        # ribosome-shaped gene must drive ribosome_like > 0.0 regardless of
+        # the original genome.
         ribo_gene =
           Gene.from_domains([
             Domain.new([0, 0, 8], List.duplicate(5, 20)),
@@ -378,5 +388,22 @@ defmodule Arkea.Sim.PhenotypeTest do
         assert Phenotype.target_classes(augmented).ribosome_like > 0.0
       end
     end
+  end
+
+  # Mirror of the private `ribosome_like?/1` predicate in
+  # `Arkea.Sim.Phenotype` (lib/arkea/sim/phenotype.ex). Kept in sync so the
+  # property test can pivot on the same shape the production code uses.
+  defp ribosome_like_gene?(%Gene{domains: domains}) do
+    has_oligomeric_fold =
+      Enum.any?(domains, fn d ->
+        d.type == :structural_fold and (d.params[:multimerization_n] || 1) >= 4
+      end)
+
+    has_ligation_site =
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and d.params[:reaction_class] == :ligation
+      end)
+
+    has_oligomeric_fold and has_ligation_site
   end
 end
