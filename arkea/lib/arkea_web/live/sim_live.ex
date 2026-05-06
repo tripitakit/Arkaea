@@ -1353,6 +1353,19 @@ defmodule ArkeaWeb.SimLive do
     {"hero-arrows-right-left", "slate", "Inc-group conflict", short_id(id), tick}
   end
 
+  # Sub-task 1.7 follow-up: bacteriocin / error-catastrophe events are
+  # emitted with flat shapes (no `:payload` key) by `Arkea.Sim.Bacteriocin`
+  # and `Arkea.Sim.Tick` respectively. Without these clauses the default
+  # `format_event/1` head below raises FunctionClauseError when the event
+  # log receives them through `handle_info({:biotope_tick, ...})`.
+  defp format_event(%{type: :bacteriocin_kill, victim_lineage_id: id, tick: tick}) do
+    {"hero-shield-exclamation", "red", "Bacteriocin kill", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :error_catastrophe_death, lineage_id: id, tick: tick}) do
+    {"hero-no-symbol", "red", "Error catastrophe", short_id(id), tick}
+  end
+
   defp format_event(%{type: :intervention, payload: payload}) do
     kind = Map.get(payload, :kind) || Map.get(payload, "kind") || "intervention"
     lineage_id = Map.get(payload, :lineage_id) || Map.get(payload, "lineage_id") || ""

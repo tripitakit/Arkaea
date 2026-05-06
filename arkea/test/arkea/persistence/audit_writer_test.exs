@@ -136,8 +136,7 @@ defmodule Arkea.Persistence.AuditWriterTest do
 
       insert!(events, biotope_id, 15)
 
-      # Pre-existing handler maps :hgt_transfer to "hgt_event"; remediation
-      # promotes the new flat-shape handler to expose the actual type.
+      # Channel-direct handler emits "hgt_transfer" as the event_type.
       row = fetch_one!("hgt_transfer", biotope_id)
 
       assert row.target_lineage_id == recipient_id
