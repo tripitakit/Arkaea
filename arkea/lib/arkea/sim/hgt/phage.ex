@@ -96,7 +96,13 @@ defmodule Arkea.Sim.HGT.Phage do
   # Probability that a virion entry causes immediate lysis (lytic decision)
   # instead of lysogenic integration. The decision is biased by the cassette
   # `repressor_strength`: a strong repressor steers the cell toward lysogeny.
-  @lytic_decision_base 0.40
+  #
+  # Sub-task 4.1 (BIOLOGICAL-MODEL-REVIEW-2.md finding #2): raised from 0.40
+  # to 0.50 so `p_lytic` saturates at 1.0 when `repressor_strength = 0.0`,
+  # matching the docstring intent ("low repression → total lysis"). Combined
+  # with `derive_repressor_strength([]) = 0.0`, a cI-null cassette is now
+  # obligate lytic, reproducing the in vivo λ cI⁻ phenotype.
+  @lytic_decision_base 0.50
 
   @doc """
   Apply a lytic burst to a lineage's prophage cassette.
@@ -602,6 +608,27 @@ defmodule Arkea.Sim.HGT.Phage do
   defp payload_kind_label(:specialized_transduction), do: :specialized
   defp payload_kind_label(other), do: other
 
+  @doc """
+  Probability that a phage with the given `repressor_strength` enters the
+  lytic cycle (instead of lysogenic integration).
+
+  Saturating linear: `min(1.0, @lytic_decision_base × (1 - repressor) × 2.0)`,
+  clamped to `0.0..1.0`.
+
+  - `repressor = 0.0` (no CI-like repressor) → `p_lytic = 1.0` (obligate
+    lytic; reproduces the in vivo λ cI⁻ phenotype).
+  - `repressor = 1.0` (strong repressor) → `p_lytic = 0.0` (stable
+    lysogeny).
+
+  Sub-task 4.1 of the P0 remediation plan extracted this formula from the
+  inline `decide_lytic_or_lysogenic/5` calculation so tests can verify the
+  saturation, floor, and monotonicity directly.
+  """
+  @spec lytic_probability(float()) :: float()
+  def lytic_probability(repressor_strength) when is_number(repressor_strength) do
+    max(0.0, min(1.0, @lytic_decision_base * (1.0 - repressor_strength) * 2.0))
+  end
+
   defp decide_lytic_or_lysogenic(
          phage_id,
          virion,
@@ -610,8 +637,7 @@ defmodule Arkea.Sim.HGT.Phage do
          {ls, ph, children, events, rng}
        ) do
     cassette = build_cassette(virion)
-    repressor = cassette.repressor_strength
-    p_lytic = max(0.0, min(1.0, @lytic_decision_base * (1.0 - repressor) * 2.0))
+    p_lytic = lytic_probability(cassette.repressor_strength)
     {roll, rng1} = :rand.uniform_s(rng)
 
     if roll < p_lytic do
@@ -706,15 +732,31 @@ defmodule Arkea.Sim.HGT.Phage do
 
   # Phase 20 — Cassette repressor_strength is now derived from the
   # mean `binding_affinity` of `:dna_binding` domains in the cassette.
-  # A cassette without DNA-binding regulators defaults to `0.5`
-  # (Phase 12 baseline). High-binding-affinity repressors push the
-  # cassette toward stable lysogeny; low-affinity ones make it
-  # induction-prone — selection then sees the trade-off it should.
+  # High-binding-affinity repressors push the cassette toward stable
+  # lysogeny; low-affinity ones make it induction-prone — selection
+  # then sees the trade-off it should.
   defp build_cassette(%Virion{genes: genes}) do
     %{genes: genes, state: :lysogenic, repressor_strength: derive_repressor_strength(genes)}
   end
 
-  defp derive_repressor_strength(genes) do
+  @doc """
+  Derive a cassette's `repressor_strength` from the mean `:binding_affinity`
+  of every `:dna_binding` domain across `genes`.
+
+  A cassette **without any** `:dna_binding` domain returns `0.0` (no
+  CI-like repressor). Combined with `lytic_probability/1`, this drives
+  `p_lytic = 1.0` — i.e. the cassette is **obligate lytic**, reproducing
+  the in vivo λ cI⁻ phenotype.
+
+  Sub-task 4.1 (BIOLOGICAL-MODEL-REVIEW-2.md finding #2) flipped the empty
+  default from `0.5` (which yielded ~60% lysogenization for cI-null
+  cassettes — biologically incorrect) to `0.0`.
+
+  Public because the test suite verifies the empty/non-empty branches
+  directly without setting up a full infection scenario.
+  """
+  @spec derive_repressor_strength([Arkea.Genome.Gene.t()]) :: float()
+  def derive_repressor_strength(genes) when is_list(genes) do
     affinities =
       genes
       |> Enum.flat_map(fn gene -> gene.domains end)
@@ -722,7 +764,7 @@ defmodule Arkea.Sim.HGT.Phage do
       |> Enum.map(fn d -> d.params[:binding_affinity] || 0.0 end)
 
     case affinities do
-      [] -> 0.5
+      [] -> 0.0
       values -> Enum.sum(values) / length(values)
     end
   end
