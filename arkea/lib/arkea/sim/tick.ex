@@ -423,14 +423,26 @@ defmodule Arkea.Sim.Tick do
   Pure: no I/O, no message sends.
   """
   @spec step_bacteriocin(BiotopeState.t()) :: BiotopeState.t()
-  def step_bacteriocin(%BiotopeState{lineages: lineages, phases: phases} = state) do
-    {new_lineages, new_phases} =
-      Enum.reduce(phases, {lineages, []}, fn phase, {acc_lineages, acc_phases} ->
-        {ls_out, ph_out} = Bacteriocin.step(acc_lineages, phase)
-        {ls_out, acc_phases ++ [ph_out]}
+  def step_bacteriocin(
+        %BiotopeState{lineages: lineages, phases: phases, tick_count: tick} = state
+      ) do
+    # Sub-task 1.5: Bacteriocin.step_with_events/3 returns
+    # `:bacteriocin_kill` audit events for any lineage whose wall
+    # crossed the Phase 14 lysis threshold this tick. Buffer them onto
+    # `state.pending_events` via the prepend-then-reverse convention.
+    {new_lineages, new_phases, new_pending} =
+      Enum.reduce(phases, {lineages, [], state.pending_events}, fn phase,
+                                                                    {acc_lineages, acc_phases,
+                                                                     acc_events} ->
+        {ls_out, ph_out, ev_out} = Bacteriocin.step_with_events(acc_lineages, phase, tick)
+
+        next_events =
+          Enum.reduce(ev_out, acc_events, fn event, ev_acc -> [event | ev_acc] end)
+
+        {ls_out, acc_phases ++ [ph_out], next_events}
       end)
 
-    %{state | lineages: new_lineages, phases: new_phases}
+    %{state | lineages: new_lineages, phases: new_phases, pending_events: new_pending}
   end
 
   @doc """
@@ -550,11 +562,23 @@ defmodule Arkea.Sim.Tick do
 
     state_after_growth = %{state | lineages: grown}
 
-    # Stochastic fission: may produce new child lineages
+    # Stochastic fission: may produce new child lineages and emit
+    # :error_catastrophe_death audit events when offspring is non-viable
+    # under the Eigen quasispecies threshold (Sub-task 1.5).
     rng = get_rng(state_after_growth)
-    {updated_lineages, new_rng} = spawn_mutants(state_after_growth, rng)
+    {updated_lineages, new_rng, fission_events} = spawn_mutants(state_after_growth, rng)
 
-    %{state_after_growth | lineages: updated_lineages, rng_seed: new_rng}
+    new_pending =
+      Enum.reduce(fission_events, state_after_growth.pending_events, fn ev, acc ->
+        [ev | acc]
+      end)
+
+    %{
+      state_after_growth
+      | lineages: updated_lineages,
+        rng_seed: new_rng,
+        pending_events: new_pending
+    }
   end
 
   @doc """
@@ -1543,28 +1567,35 @@ defmodule Arkea.Sim.Tick do
   end
 
   # Stochastic fission: for each lineage with genome != nil, maybe produce a
-  # child mutant. Returns {updated_lineages, new_rng}.
+  # child mutant. Returns {updated_lineages, new_rng, events}, where `events`
+  # is the list of `:error_catastrophe_death` audit maps emitted this tick
+  # (Sub-task 1.5 — remediation P0).
   defp spawn_mutants(%BiotopeState{lineages: lineages, tick_count: tick} = state, rng) do
-    {updated_lineages, new_rng, new_children} =
-      Enum.reduce(lineages, {[], rng, []}, &reduce_spawn(&1, &2, state, tick))
+    {updated_lineages, new_rng, new_children, events} =
+      Enum.reduce(lineages, {[], rng, [], []}, &reduce_spawn(&1, &2, state, tick))
 
     final_lineages = Enum.reverse(updated_lineages) ++ Enum.reverse(new_children)
-    {final_lineages, new_rng}
+    {final_lineages, new_rng, Enum.reverse(events)}
   end
 
-  defp reduce_spawn(lineage, {acc_lineages, acc_rng, acc_children}, state, tick) do
+  defp reduce_spawn(lineage, {acc_lineages, acc_rng, acc_children, acc_events}, state, tick) do
     if lineage.genome == nil do
-      {[lineage | acc_lineages], acc_rng, acc_children}
+      {[lineage | acc_lineages], acc_rng, acc_children, acc_events}
     else
-      {lineage_out, acc_rng2, maybe_child} = maybe_spawn_child(lineage, state, acc_rng, tick)
+      {lineage_out, acc_rng2, maybe_child, maybe_event} =
+        maybe_spawn_child(lineage, state, acc_rng, tick)
+
       children = if maybe_child, do: [maybe_child | acc_children], else: acc_children
-      {[lineage_out | acc_lineages], acc_rng2, children}
+      events = if maybe_event, do: [maybe_event | acc_events], else: acc_events
+      {[lineage_out | acc_lineages], acc_rng2, children, events}
     end
   end
 
   # For one lineage: compute SOS-aware mutation probability, roll the
   # dice, and if successful generate and apply a mutation → child lineage.
-  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil}.
+  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil,
+  # event_or_nil}. The `event_or_nil` slot carries an
+  # `:error_catastrophe_death` audit map when the offspring is non-viable.
   defp maybe_spawn_child(parent, state, rng, tick) do
     phenotype = Phenotype.from_genome(parent.genome)
     abundance = Lineage.total_abundance(parent)
@@ -1577,7 +1608,7 @@ defmodule Arkea.Sim.Tick do
     if roll < prob do
       attempt_spawn(parent, phenotype, state, rng1, tick)
     else
-      {parent, rng1, nil}
+      {parent, rng1, nil, nil}
     end
   end
 
@@ -1585,16 +1616,17 @@ defmodule Arkea.Sim.Tick do
   # invalid mutation, applicator error) returns the parent unchanged. Phase 17
   # error-catastrophe gate: when the per-cell mutation rate × genome size
   # exceeds the Eigen threshold, the offspring carries one or more lethal
-  # mutations and never gets seeded — only the parent decrement happens.
+  # mutations and never gets seeded — only the parent decrement happens, plus
+  # an `:error_catastrophe_death` audit event surfaces the failed division.
   defp attempt_spawn(parent, phenotype, state, rng, tick) do
     case Mutator.generate(parent.genome, rng) do
       {:skip, rng1} ->
-        {parent, rng1, nil}
+        {parent, rng1, nil, nil}
 
       {:ok, mutation, rng1} ->
         case Applicator.apply(parent.genome, mutation) do
           {:error, _} ->
-            {parent, rng1, nil}
+            {parent, rng1, nil, nil}
 
           {:ok, child_genome} ->
             mu_per_cell =
@@ -1628,12 +1660,21 @@ defmodule Arkea.Sim.Tick do
               # Error-catastrophe: child is non-vital, parent still
               # invests the replication cost (5 cell-equivalents).
               updated_parent = decrement_abundance(parent, primary_phase, 5)
-              {updated_parent, rng2, nil}
+
+              event = %{
+                type: :error_catastrophe_death,
+                tick: tick,
+                lineage_id: parent.id,
+                mu: mu_per_cell,
+                genome_size: genome_size
+              }
+
+              {updated_parent, rng2, nil, event}
             else
               child_abundances = %{primary_phase => 5}
               child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
               updated_parent = decrement_abundance(parent, primary_phase, 5)
-              {updated_parent, rng2, child}
+              {updated_parent, rng2, child, nil}
             end
         end
     end

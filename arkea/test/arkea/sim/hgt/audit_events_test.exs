@@ -482,4 +482,138 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
              end)
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Sub-task 1.5 — cause-tagged death audit events.
+
+  # Bacteriocin helpers (adapted from arkea/test/arkea/sim/bacteriocin_test.exs).
+  # `[0, 0, 0]` first 3 codons → `rem(sum, 6) == 0` → `reaction_class: :hydrolysis`.
+  defp catalytic_hydrolysis_domain,
+    do: Domain.new([0, 0, 1], [0, 0, 0 | List.duplicate(10, 17)])
+
+  defp substrate_binding_domain, do: Domain.new([0, 0, 0], @param_codons)
+
+  defp toxin_gene do
+    Gene.from_domains([
+      substrate_binding_domain(),
+      transmembrane_domain(),
+      catalytic_hydrolysis_domain()
+    ])
+  end
+
+  # Producer carries the bacteriocin gene + a `:phage_receptor` (kin tag from
+  # `surface_domain/0`, first_codon=10, rem(10,3)=1) which doubles as
+  # the producer's self-immunity marker.
+  defp bacteriocin_producer_genome do
+    Genome.new([toxin_gene(), Gene.from_domains([surface_domain()])])
+  end
+
+  # Victim carries no surface_tag — fully susceptible to the producer's toxin.
+  defp bacteriocin_victim_genome do
+    Genome.new([Gene.from_domains([catalytic_domain()])])
+  end
+
+  describe "bacteriocin_kill emission" do
+    test "lethal bacteriocin damage emits :bacteriocin_kill event" do
+      # Producer + non-immune victim in the same phase. We pre-damage the
+      # victim's wall just *above* the lysis threshold (0.40) so a single
+      # tick of bacteriocin damage drops it past the threshold, qualifying
+      # as a "lethal" event for emission.
+      producer =
+        Lineage.new_founder(bacteriocin_producer_genome(), %{surface: 50_000}, 0)
+
+      victim_base = Lineage.new_founder(bacteriocin_victim_genome(), %{surface: 5_000}, 0)
+      victim = %{victim_base | biomass: %{victim_base.biomass | wall: 0.405}}
+
+      state =
+        BiotopeState.new_from_opts(
+          id: "bacteriocin-kill-event-emission",
+          archetype: :hot_spring,
+          phases: [surface_phase()],
+          dilution_rate: 0.0,
+          lineages: [producer, victim],
+          rng_seed: Mutator.init_seed("bacteriocin-kill-event-emission")
+        )
+
+      # Drive ticks until at least one :bacteriocin_kill event surfaces.
+      # The pre-damaged victim should cross the threshold within a handful
+      # of ticks at 50_000 producer abundance (toxin pool ≈ 5.0/tick).
+      {_final_state, all_events} =
+        Enum.reduce(1..50, {state, []}, fn _i, {acc_state, acc_events} ->
+          {next_state, events} = Tick.tick(acc_state)
+          {next_state, acc_events ++ events}
+        end)
+
+      kills = Enum.filter(all_events, &(&1.type == :bacteriocin_kill))
+
+      assert length(kills) >= 1,
+             "Expected at least one :bacteriocin_kill event over 50 ticks; got #{inspect(Enum.map(all_events, & &1.type))}"
+
+      assert Enum.all?(kills, fn e ->
+               is_binary(e.victim_lineage_id) and
+                 is_list(e.producer_lineage_ids) and
+                 e.producer_lineage_ids != [] and
+                 Enum.all?(e.producer_lineage_ids, &is_binary/1) and
+                 is_binary(e.surface_tag_target) and
+                 is_integer(e.tick)
+             end)
+
+      # The first emitted kill should target our seeded victim and credit
+      # the seeded producer.
+      first_kill = hd(kills)
+      assert first_kill.victim_lineage_id == victim.id
+      assert producer.id in first_kill.producer_lineage_ids
+    end
+  end
+
+  # Error-catastrophe helpers. Build a 200-gene genome so that under
+  # SOS-amplified mu the Eigen product mu * gene_count is comfortably
+  # above the critical threshold of 1.0 (no repair_fidelity domains
+  # means Phenotype.repair_efficiency falls back to its 0.5 default,
+  # giving mu_per_cell ≈ 0.02 with SOS active).
+  defp runaway_mutator_genome do
+    genes = for _ <- 1..200, do: Gene.from_domains([catalytic_domain()])
+    Genome.new(genes)
+  end
+
+  describe "error_catastrophe_death emission" do
+    test "lineage with mu * L >> 1 emits :error_catastrophe_death on division" do
+      # Phenotype.repair_efficiency defaults to 0.5 in the absence of
+      # `:repair_fidelity` domains. We seed dna_damage well above the
+      # SOS threshold (0.20) so the mutation rate is amplified ×4:
+      # mu_per_cell = 0.01 * (1 - 0.5) * 4.0 = 0.02. With gene_count =
+      # 200, mu * L = 4.0 — Eigen breach with p_lethal ≈ 0.95 per
+      # attempted division.
+      base = Lineage.new_founder(runaway_mutator_genome(), %{surface: 1_000}, 0)
+      lineage = %{base | dna_damage: 0.5}
+
+      state =
+        BiotopeState.new_from_opts(
+          id: "error-catastrophe-event-emission",
+          archetype: :hot_spring,
+          phases: [surface_phase()],
+          dilution_rate: 0.0,
+          lineages: [lineage],
+          rng_seed: Mutator.init_seed("error-catastrophe-event-emission")
+        )
+
+      {_final_state, all_events} =
+        Enum.reduce(1..200, {state, []}, fn _i, {acc_state, acc_events} ->
+          {next_state, events} = Tick.tick(acc_state)
+          {next_state, acc_events ++ events}
+        end)
+
+      catastrophes = Enum.filter(all_events, &(&1.type == :error_catastrophe_death))
+
+      assert length(catastrophes) >= 1,
+             "Expected at least one :error_catastrophe_death event over 200 ticks; got #{inspect(Enum.map(all_events, & &1.type))}"
+
+      assert Enum.all?(catastrophes, fn e ->
+               is_binary(e.lineage_id) and
+                 is_float(e.mu) and
+                 is_integer(e.genome_size) and e.genome_size > 0 and
+                 is_integer(e.tick)
+             end)
+    end
+  end
 end
