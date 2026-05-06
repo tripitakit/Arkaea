@@ -115,9 +115,9 @@ defmodule Arkea.Sim.Tick do
   @spec tick(BiotopeState.t()) :: {BiotopeState.t(), [event()]}
   def tick(%BiotopeState{} = state) do
     # Sub-task 1.1: reset transient per-tick event buffer at the start of every
-    # tick. Sub-tasks 1.2–1.5 will populate this from HGT, transformation,
-    # phage, bacteriocin and error-catastrophe code paths; Sub-task 1.4 will
-    # wire it into the events output. For now we only reset.
+    # tick. Sub-task 1.4 also clears `new_state.pending_events` *before
+    # returning* (events have already been promoted to the outward list and
+    # must not leak into the persisted snapshot).
     # Rebind is load-bearing: `derive_events/2` below uses this `state`
     # (post-reset) as its diff baseline against `new_state`.
     state = %{state | pending_events: []}
@@ -140,8 +140,14 @@ defmodule Arkea.Sim.Tick do
       |> step_pruning()
       |> increment_tick()
 
-    events = derive_events(state, new_state)
-    {new_state, events}
+    # Sub-task 1.4: outward events combine the per-step `pending_events`
+    # buffer (channel-direct emissions, in insertion order) with the
+    # state-diff `derive_events/2` output. The buffer is then cleared on
+    # the returned state so it does not bleed into the persisted snapshot.
+    derived = derive_events(state, new_state)
+    pending = Enum.reverse(new_state.pending_events)
+    events = pending ++ derived
+    {%{new_state | pending_events: []}, events}
   end
 
   @doc """
@@ -572,10 +578,18 @@ defmodule Arkea.Sim.Tick do
     rng = get_rng(state)
 
     # Step 4a: conjugation — run per phase, accumulate new child lineages
-    {conjugated_lineages, new_children, rng1} =
-      Enum.reduce(phases, {lineages, [], rng}, fn phase, {acc_lineages, acc_children, acc_rng} ->
-        {updated, children, next_rng} = HGT.step(phase.name, acc_lineages, tick, acc_rng)
-        {updated, acc_children ++ children, next_rng}
+    # and channel-direct audit events. Sub-task 1.4: HGT.step/4 now returns
+    # the 5-tuple {lineages, phase_name, children, events, rng}; the
+    # `:hgt_transfer` and `:plasmid_displaced` events are buffered onto
+    # `state.pending_events` (prepend-then-reverse convention).
+    {conjugated_lineages, new_children, conjugation_events, rng1} =
+      Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
+                                                      {acc_lineages, acc_children, acc_events,
+                                                       acc_rng} ->
+        {updated, _phase_name, children, events, next_rng} =
+          HGT.step(phase.name, acc_lineages, tick, acc_rng)
+
+        {updated, acc_children ++ children, acc_events ++ events, next_rng}
       end)
 
     all_lineages = conjugated_lineages ++ new_children
@@ -594,9 +608,14 @@ defmodule Arkea.Sim.Tick do
     # Buffer events using the prepend-then-reverse convention pinned in
     # BiotopeState.pending_events: prepend each event for O(1) cost; the
     # consumer in Tick.tick/1 will Enum.reverse/1 to recover insertion
-    # order.
+    # order. Conjugation events are appended *before* transformation events
+    # to preserve the per-tick step order (4a → 4b).
     pending_events_after_transformation =
-      Enum.reduce(transformation_events, state.pending_events, fn ev, acc -> [ev | acc] end)
+      Enum.reduce(
+        transformation_events,
+        Enum.reduce(conjugation_events, state.pending_events, fn ev, acc -> [ev | acc] end),
+        fn ev, acc -> [ev | acc] end
+      )
 
     # Step 4c: prophage induction — stress-triggered lytic burst that
     # produces free virions in `phase.phage_pool` and DNA fragments in
@@ -1026,10 +1045,11 @@ defmodule Arkea.Sim.Tick do
     - `:lineage_extinct` for every lineage id present in `old_state` but absent
       from `new_state`.
 
-  Phase 6 adds:
-
-    - `:hgt_transfer` for every new lineage whose parent carried fewer plasmids,
-      indicating a successful conjugation event (transconjugant detected).
+  Phase 6 / Sub-task 1.4 (remediation P0): the channel-direct
+  `:hgt_transfer` event is emitted from `Arkea.Sim.HGT.step/4` (with
+  `channel: :conjugation` and full donor/recipient/inc_group payload)
+  and arrives via the `BiotopeState.pending_events` buffer — no longer
+  re-derived here from a plasmid-count diff.
 
   UI Phase B (data pipeline backfill) adds events derivable from
   state-diff alone, without changing the per-step internal signatures:
@@ -1089,11 +1109,6 @@ defmodule Arkea.Sim.Tick do
         }
       end)
 
-    hgt_events =
-      Enum.flat_map(born_lineages, fn l ->
-        detect_hgt_transfer(l, old_by_id, new_state.tick_count)
-      end)
-
     notable_events =
       Enum.flat_map(born_lineages, fn l -> detect_mutation_notable(l, old_by_id, new_state) end)
 
@@ -1103,7 +1118,6 @@ defmodule Arkea.Sim.Tick do
 
     born_events ++
       extinct_events ++
-      hgt_events ++
       notable_events ++
       mass_lysis_events ++
       colonization_events ++
@@ -1112,38 +1126,6 @@ defmodule Arkea.Sim.Tick do
 
   # ---------------------------------------------------------------------------
   # Private helpers
-
-  # Emit a :hgt_transfer event if the new lineage gained plasmids vs its parent.
-  defp detect_hgt_transfer(%{parent_id: nil}, _old_by_id, _tick), do: []
-  defp detect_hgt_transfer(%{genome: nil}, _old_by_id, _tick), do: []
-
-  defp detect_hgt_transfer(new_l, old_by_id, tick) do
-    gain = plasmid_count_gain(new_l.genome, Map.get(old_by_id, new_l.parent_id))
-
-    if gain > 0 do
-      [
-        %{
-          type: :hgt_transfer,
-          payload: %{
-            lineage_id: new_l.id,
-            parent_id: new_l.parent_id,
-            original_seed_id: new_l.original_seed_id,
-            plasmids_gained: gain,
-            tick: tick
-          }
-        }
-      ]
-    else
-      []
-    end
-  end
-
-  defp plasmid_count_gain(_genome, nil), do: 0
-
-  defp plasmid_count_gain(new_genome, parent) do
-    parent_count = if parent.genome != nil, do: length(parent.genome.plasmids), else: 0
-    max(length(new_genome.plasmids) - parent_count, 0)
-  end
 
   # ---------------------------------------------------------------------------
   # UI Phase B — extra event detectors derived from old/new state diff

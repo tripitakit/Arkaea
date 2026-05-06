@@ -1328,6 +1328,35 @@ defmodule ArkeaWeb.SimLive do
     {"hero-arrows-right-left", "amber", "Horizontal transfer", short_id(id), tick}
   end
 
+  # Sub-task 1.4 (remediation P0): channel-direct flat-format events
+  # emitted from `Arkea.Sim.HGT.step/4` and the phage / transformation
+  # channels. They live alongside the legacy diff-derived `payload`-shaped
+  # events; map them to a UI label by `:type` without requiring a
+  # `:payload` key.
+  defp format_event(%{type: :hgt_transfer, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Conjugation", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :transformation_event, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Transformation", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :transduction_event, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Transduction", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :phage_infection, recipient_lineage_id: id, tick: tick}) do
+    {"hero-bug-ant", "purple", "Phage infection", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :rm_digestion, recipient_lineage_id: id, tick: tick}) do
+    {"hero-shield-check", "slate", "R-M digestion", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :plasmid_displaced, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "slate", "Inc-group conflict", short_id(id), tick}
+  end
+
   defp format_event(%{type: :intervention, payload: payload}) do
     kind = Map.get(payload, :kind) || Map.get(payload, "kind") || "intervention"
     lineage_id = Map.get(payload, :lineage_id) || Map.get(payload, "lineage_id") || ""

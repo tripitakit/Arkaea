@@ -254,6 +254,11 @@ defmodule Arkea.Sim.HGT.Phage do
     for every virion digested by the recipient's restriction-modification
     system (R-M check failed because the methylation profile did not
     cover one of the recipient's restriction sites).
+  - `%{type: :transduction_event, donor_lineage_id, recipient_lineage_id, payload_kind, tick}`
+    for every successful generalised- or specialised-transduction
+    integration (Sub-task 1.4 of remediation P0). `payload_kind` is
+    `:generalized | :specialized` — the audit-space label, mapped from
+    the virion's internal `payload_kind`.
 
   The caller (`Tick.step_phage_infection/1`) buffers these into
   `BiotopeState.pending_events` using the prepend-then-reverse convention.
@@ -542,6 +547,9 @@ defmodule Arkea.Sim.HGT.Phage do
          tick,
          {ls, ph, children, events, rng}
        ) do
+    # The virion struct is recovered from the phase pool so we can read
+    # its `payload_kind` and `origin_lineage_id` for the audit event.
+    virion = Map.get(ph.phage_pool, phage_id)
     chromosome = recipient.genome.chromosome
     n = length(chromosome)
 
@@ -567,9 +575,32 @@ defmodule Arkea.Sim.HGT.Phage do
       new_lineages = replace_lineage(ls, recipient.id, updated_recipient)
       new_phase = consume_one_virion(ph, phage_id)
 
-      {new_lineages, new_phase, [child | children], events, rng1}
+      event = build_transduction_event(virion, recipient, tick)
+
+      {new_lineages, new_phase, [child | children], [event | events], rng1}
     end
   end
+
+  # Sub-task 1.4 — transduction audit event.
+  #
+  # Maps the virion's internal `payload_kind` (`:generalized_transduction`
+  # | `:specialized_transduction`) onto the audit-log atom space
+  # (`:generalized | :specialized`). A `:phage` payload should never reach
+  # this builder because the routing in `run_rm_and_outcome/5` only calls
+  # `run_transducing_integration` for transducing virions.
+  defp build_transduction_event(%Virion{} = virion, %Lineage{} = recipient, tick) do
+    %{
+      type: :transduction_event,
+      donor_lineage_id: virion.origin_lineage_id,
+      recipient_lineage_id: recipient.id,
+      payload_kind: payload_kind_label(virion.payload_kind),
+      tick: tick
+    }
+  end
+
+  defp payload_kind_label(:generalized_transduction), do: :generalized
+  defp payload_kind_label(:specialized_transduction), do: :specialized
+  defp payload_kind_label(other), do: other
 
   defp decide_lytic_or_lysogenic(
          phage_id,

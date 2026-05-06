@@ -20,14 +20,18 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
   use ExUnit.Case, async: true
 
   alias Arkea.Ecology.Lineage
+  alias Arkea.Ecology.Phase
   alias Arkea.Genome
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.HGT
   alias Arkea.Sim.HGT.Channel.Transformation
   alias Arkea.Sim.HGT.DnaFragment
   alias Arkea.Sim.HGT.Phage
   alias Arkea.Sim.HGT.Virion
   alias Arkea.Sim.Mutator
+  alias Arkea.Sim.Tick
 
   # ---------------------------------------------------------------------------
   # Helpers (adapted from arkea/test/arkea/sim/hgt/transformation_test.exs;
@@ -222,6 +226,215 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
                  e.tick == tick and
                  (Map.has_key?(e, :virion_id) or Map.has_key?(e, :origin_lineage_id))
              end)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Sub-task 1.4 — HGT.step (conjugation) channel-aware events.
+
+  defp tm_domain, do: Domain.new([0, 0, 2], @param_codons)
+
+  defp conjugative_plasmid_genes do
+    # 3 transmembrane_anchor domains → conjugation_strength = 3
+    [Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])]
+  end
+
+  defp donor_with_conjugative do
+    plasmid = conjugative_plasmid_genes()
+    genome = Genome.new([Gene.from_domains([catalytic_domain()])], plasmids: [plasmid])
+    Lineage.new_founder(genome, %{surface: 200}, 0)
+  end
+
+  defp plain_recipient do
+    Lineage.new_founder(
+      Genome.new([Gene.from_domains([catalytic_domain()])]),
+      %{surface: 200},
+      0
+    )
+  end
+
+  describe "hgt_transfer event from conjugation" do
+    test "successful conjugation emits :hgt_transfer with channel: :conjugation" do
+      donor = donor_with_conjugative()
+      recipient = plain_recipient()
+      lineages = [donor, recipient]
+
+      rng = Mutator.init_seed("hgt-conjugation-event-emission")
+
+      # Run HGT.step many times to overcome the low per-call probability
+      # (~0.00375). Lineages are NOT mutated between calls so populations
+      # stay stable; we only need at least one event to fire.
+      {events, _rng_out} =
+        Enum.reduce(1..2_000, {[], rng}, fn tick, {acc_events, acc_rng} ->
+          {_lineages_out, _phase_out, _children, events, rng_out} =
+            HGT.step(:surface, lineages, tick, acc_rng)
+
+          {acc_events ++ events, rng_out}
+        end)
+
+      transfers = Enum.filter(events, &(&1.type == :hgt_transfer))
+
+      assert length(transfers) >= 1,
+             "Expected at least one :hgt_transfer event over 2000 HGT.step calls"
+
+      assert Enum.all?(transfers, fn e ->
+               e.channel == :conjugation and
+                 is_binary(e.donor_lineage_id) and
+                 is_binary(e.recipient_lineage_id) and
+                 is_integer(e.plasmid_inc_group) and
+                 is_integer(e.tick) and e.tick >= 1
+             end)
+
+      # The donor in this scenario is the conjugative-plasmid carrier.
+      assert Enum.all?(transfers, &(&1.donor_lineage_id == donor.id))
+      assert Enum.all?(transfers, &(&1.recipient_lineage_id == recipient.id))
+    end
+  end
+
+  describe "plasmid_displaced event from inc-group conflict" do
+    test "incompatible inc_group plasmid arrival emits :plasmid_displaced" do
+      # Build a recipient that already carries a plasmid with the SAME
+      # inc_group as the donor's. The current biology suppresses the
+      # transfer (recipient_has_plasmid?/2 short-circuit), but Sub-task 1.4
+      # surfaces the inc-group conflict as a :plasmid_displaced audit event
+      # so downstream consumers see the displacement attempt.
+      plasmid_genes = conjugative_plasmid_genes()
+      plasmid = Genome.normalize_plasmid(plasmid_genes)
+
+      donor_genome = Genome.new([Gene.from_domains([catalytic_domain()])], plasmids: [plasmid])
+      donor = Lineage.new_founder(donor_genome, %{surface: 200}, 0)
+
+      # Recipient has a plasmid with the SAME inc_group (we reuse the same
+      # genes so normalize_plasmid yields the same hash).
+      recipient_genome =
+        Genome.new([Gene.from_domains([catalytic_domain()])], plasmids: [plasmid])
+
+      recipient = Lineage.new_founder(recipient_genome, %{surface: 200}, 0)
+
+      lineages = [donor, recipient]
+      rng = Mutator.init_seed("hgt-inc-group-conflict")
+
+      {events, _rng_out} =
+        Enum.reduce(1..2_000, {[], rng}, fn tick, {acc_events, acc_rng} ->
+          {_lineages_out, _phase_out, _children, events, rng_out} =
+            HGT.step(:surface, lineages, tick, acc_rng)
+
+          {acc_events ++ events, rng_out}
+        end)
+
+      displacements = Enum.filter(events, &(&1.type == :plasmid_displaced))
+
+      assert length(displacements) >= 1,
+             "Expected at least one :plasmid_displaced event over 2000 HGT.step calls"
+
+      assert Enum.all?(displacements, fn e ->
+               is_binary(e.recipient_lineage_id) and
+                 is_binary(e.new_donor_lineage_id) and
+                 is_integer(e.displaced_inc_group) and
+                 is_integer(e.tick)
+             end)
+    end
+  end
+
+  describe "transduction_event from transducing virion integration" do
+    test "successful transducing virion integration emits :transduction_event" do
+      # Build a transducing virion directly and feed it to Phage.step/4.
+      # The recipient has a 1-gene chromosome and a :phage_receptor surface
+      # tag (surface_domain/0) so receptor matching passes; no restriction
+      # enzymes so R-M passes; high virion abundance to make the infection
+      # roll fire within a few iterations.
+      donor_gene = Gene.from_domains([structural_domain(), surface_domain()])
+
+      recipient =
+        founder(
+          Genome.new([
+            Gene.from_domains([catalytic_domain()]),
+            Gene.from_domains([surface_domain()])
+          ]),
+          200
+        )
+
+      transducing_virion =
+        Virion.new(
+          id: Arkea.UUID.v4(),
+          genes: [donor_gene],
+          abundance: 5_000,
+          surface_signature: nil,
+          methylation_profile: [],
+          origin_lineage_id: "transduction-donor-xyz",
+          created_at_tick: 0,
+          payload_kind: :generalized_transduction
+        )
+
+      phase = Phase.add_virion(surface_phase(), transducing_virion)
+      rng = Mutator.init_seed("phage-transduction-event-emission")
+      tick = 500
+
+      {_ls, _ph, _children, events, _rng_out} =
+        Enum.reduce(1..30, {[recipient], phase, [], [], rng}, fn _i,
+                                                                  {ls, ph, ch_acc, ev_acc,
+                                                                   acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
+            Phage.step(ls, ph, tick, acc_rng)
+
+          {ls_out, ph_out, ch_acc ++ new_children, ev_acc ++ new_events, rng_out}
+        end)
+
+      transductions = Enum.filter(events, &(&1.type == :transduction_event))
+
+      assert length(transductions) >= 1,
+             "Expected at least one :transduction_event over 30 Phage.step calls"
+
+      assert Enum.all?(transductions, fn e ->
+               e.payload_kind in [:generalized, :specialized] and
+                 is_binary(e.recipient_lineage_id) and
+                 e.recipient_lineage_id == recipient.id and
+                 e.donor_lineage_id == "transduction-donor-xyz" and
+                 e.tick == tick
+             end)
+    end
+  end
+
+  describe "Tick.tick/1 exposes pending_events in outward result" do
+    defp tick_state_with_active_hgt do
+      donor = donor_with_conjugative()
+      recipient = plain_recipient()
+
+      BiotopeState.new_from_opts(
+        id: "audit-events-tick-test",
+        archetype: :hot_spring,
+        phases: [surface_phase()],
+        dilution_rate: 0.0,
+        lineages: [donor, recipient],
+        rng_seed: Mutator.init_seed("audit-events-tick-test")
+      )
+    end
+
+    test "events accumulated by step_hgt and step_phage_infection appear in tick output" do
+      # Drive multiple ticks until at least one channel-emitted event surfaces
+      # in the tick's outward events list. Per-tick conjugation probability is
+      # ~0.00375, so we run a few hundred ticks.
+      state = tick_state_with_active_hgt()
+
+      {_final_state, all_events} =
+        Enum.reduce(1..500, {state, []}, fn _i, {acc_state, acc_events} ->
+          {new_state, events} = Tick.tick(acc_state)
+          {new_state, acc_events ++ events}
+        end)
+
+      channel_events =
+        Enum.filter(all_events, fn e ->
+          e.type in [:hgt_transfer, :transformation_event, :phage_infection, :rm_digestion]
+        end)
+
+      assert length(channel_events) >= 1,
+             "Expected at least one channel-emitted event in tick output over 500 ticks"
+    end
+
+    test "new_state.pending_events is cleared after tick" do
+      state = tick_state_with_active_hgt()
+      {new_state, _events} = Tick.tick(state)
+      assert new_state.pending_events == []
     end
   end
 

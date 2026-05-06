@@ -90,7 +90,27 @@ defmodule Arkea.Sim.HGT do
   and the recipient lacks it, compute the conjugation probability and
   stochastically transfer the plasmid.
 
-  Returns `{updated_lineages, new_child_lineages, new_rng}`.
+  Returns `{updated_lineages, phase_name, new_child_lineages, events, new_rng}`
+  — Sub-task 1.4 promotes the result tuple to the
+  `Arkea.Sim.HGT.Channel.result/0` 5-tuple shape so the caller
+  (`Tick.step_hgt/1`) can prepend `events` onto
+  `BiotopeState.pending_events`. The second element echoes back
+  `phase_name` for symmetry with the per-`Phase` channels (the legacy
+  per-atom calling convention is retained pending Sub-task 2.1, which
+  conforms `step/4` fully to `HGT.Channel`).
+
+  ## Events
+
+  - `%{type: :hgt_transfer, channel: :conjugation, donor_lineage_id,
+       recipient_lineage_id, plasmid_inc_group, tick}` — emitted on every
+    successful transfer that reaches `execute_transfer/8`.
+  - `%{type: :plasmid_displaced, recipient_lineage_id,
+       displaced_inc_group, new_donor_lineage_id, tick}` — emitted when
+    the recipient already carries a plasmid of the same `inc_group` as
+    the donor's; the conjugation is suppressed (current biology) but the
+    inc-group conflict is surfaced for the audit log so downstream
+    consumers can distinguish "no transfer happened" from "no transfer
+    attempted".
 
   ## Constraints
 
@@ -103,7 +123,7 @@ defmodule Arkea.Sim.HGT do
           lineages :: [Lineage.t()],
           tick :: non_neg_integer(),
           rng :: :rand.state()
-        ) :: {[Lineage.t()], [Lineage.t()], :rand.state()}
+        ) :: {[Lineage.t()], atom(), [Lineage.t()], [map()], :rand.state()}
   def step(phase_name, lineages, tick, rng) when is_atom(phase_name) and is_integer(tick) do
     max_children = max(div(length(lineages), 4), 1)
     n_total = total_abundance_in_phase(lineages, phase_name)
@@ -113,8 +133,8 @@ defmodule Arkea.Sim.HGT do
 
     lineage_map = Map.new(lineages, fn l -> {l.id, l} end)
 
-    {lineage_map_out, children, rng_out} =
-      Enum.reduce(donors, {lineage_map, [], rng}, fn {donor, plasmid}, acc ->
+    {lineage_map_out, children, events, rng_out} =
+      Enum.reduce(donors, {lineage_map, [], [], rng}, fn {donor, plasmid}, acc ->
         do_donor_transfers(
           donor,
           plasmid,
@@ -128,7 +148,8 @@ defmodule Arkea.Sim.HGT do
       end)
 
     updated = Enum.map(lineages, fn l -> Map.get(lineage_map_out, l.id, l) end)
-    {updated, children, rng_out}
+    # Events were prepended (`[event | acc]`); reverse to recover insertion order.
+    {updated, phase_name, children, Enum.reverse(events), rng_out}
   end
 
   @doc """
@@ -228,11 +249,11 @@ defmodule Arkea.Sim.HGT do
        ) do
     ctx = transfer_ctx(donor, plasmid, phase_name, n_total, tick)
 
-    Enum.reduce(recipients, acc, fn recipient, {lmap, children, rng} ->
+    Enum.reduce(recipients, acc, fn recipient, {lmap, children, events, rng} ->
       if length(children) >= max_children do
-        {lmap, children, rng}
+        {lmap, children, events, rng}
       else
-        attempt_transfer(ctx, recipient, lmap, children, rng)
+        attempt_transfer(ctx, recipient, lmap, children, events, rng)
       end
     end)
   end
@@ -240,15 +261,20 @@ defmodule Arkea.Sim.HGT do
   # Attempt a single plasmid transfer from donor to recipient.
   # Skips if donor == recipient, recipient already has the plasmid,
   # or the recipient is no longer in the map (was already updated).
-  defp attempt_transfer(ctx, recipient, lmap, children, rng) do
+  defp attempt_transfer(ctx, recipient, lmap, children, events, rng) do
     current_recipient = Map.get(lmap, recipient.id, recipient)
 
     cond do
       ctx.donor.id == recipient.id ->
-        {lmap, children, rng}
+        {lmap, children, events, rng}
 
       recipient_has_plasmid?(current_recipient, ctx.plasmid) ->
-        {lmap, children, rng}
+        # Sub-task 1.4: surface the inc-group conflict as an audit event.
+        # The transfer is suppressed (biology unchanged), but downstream
+        # consumers can distinguish "no transfer happened" (this branch)
+        # from "no transfer attempted" (the donor.id == recipient.id branch).
+        event = build_plasmid_displaced_event(ctx.donor, current_recipient, ctx.plasmid, ctx.tick)
+        {lmap, children, [event | events], rng}
 
       true ->
         {roll, rng1} = :rand.uniform_s(rng)
@@ -271,10 +297,11 @@ defmodule Arkea.Sim.HGT do
             ctx.tick,
             lmap,
             children,
+            events,
             rng1
           )
         else
-          {lmap, children, rng1}
+          {lmap, children, events, rng1}
         end
     end
   end
@@ -303,7 +330,7 @@ defmodule Arkea.Sim.HGT do
 
   # Execute a confirmed plasmid transfer: create a child lineage for the
   # recipient and decrement the recipient's abundance by 5.
-  defp execute_transfer(donor, recipient, plasmid, phase_name, tick, lmap, children, rng) do
+  defp execute_transfer(donor, recipient, plasmid, phase_name, tick, lmap, children, events, rng) do
     child_genome = Genome.add_plasmid(recipient.genome, plasmid)
 
     # child tick must be strictly greater than parent (recipient) created_at_tick
@@ -320,8 +347,36 @@ defmodule Arkea.Sim.HGT do
     lmap1 = Map.put(lmap, recipient.id, updated_recipient)
     lmap2 = Map.put(lmap1, donor.id, Map.get(lmap1, donor.id, donor))
 
-    {lmap2, [child | children], rng}
+    event = build_hgt_transfer_event(donor, recipient, plasmid, tick)
+
+    {lmap2, [child | children], [event | events], rng}
   end
+
+  # Sub-task 1.4 — channel-direct audit event constructors.
+
+  defp build_hgt_transfer_event(%Lineage{} = donor, %Lineage{} = recipient, plasmid, tick) do
+    %{
+      type: :hgt_transfer,
+      channel: :conjugation,
+      donor_lineage_id: donor.id,
+      recipient_lineage_id: recipient.id,
+      plasmid_inc_group: plasmid_inc_group(plasmid),
+      tick: tick
+    }
+  end
+
+  defp build_plasmid_displaced_event(%Lineage{} = donor, %Lineage{} = recipient, plasmid, tick) do
+    %{
+      type: :plasmid_displaced,
+      recipient_lineage_id: recipient.id,
+      displaced_inc_group: plasmid_inc_group(plasmid),
+      new_donor_lineage_id: donor.id,
+      tick: tick
+    }
+  end
+
+  defp plasmid_inc_group(%{inc_group: inc}), do: inc
+  defp plasmid_inc_group(_), do: nil
 
   # Decrement the abundance in `phase_name` by `amount`, clamped at 0.
   defp decrement_abundance(lineage, phase_name, amount) do
