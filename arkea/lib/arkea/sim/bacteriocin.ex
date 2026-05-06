@@ -175,8 +175,8 @@ defmodule Arkea.Sim.Bacteriocin do
      reduce `biomass.wall` by the cumulative damage of the
      non-self-tagged pools.
 
-  Backwards-compatible 2-tuple form. See `step/3` for the audit-aware
-  4-tuple variant used by `Tick.step_bacteriocin/1`.
+  Backwards-compatible 2-tuple form. See `step_with_events/3` for the
+  audit-aware 3-tuple variant used by `Tick.step_bacteriocin/1`.
   """
   @spec step([Lineage.t()], Phase.t()) :: {[Lineage.t()], Phase.t()}
   def step(lineages, %Phase{} = phase) do
@@ -328,6 +328,7 @@ defmodule Arkea.Sim.Bacteriocin do
     # event surfaces a concrete kin-recognition signature for downstream
     # audit consumers; multi-producer cases collapse to the lead
     # producer's tag, which is sufficient as a categorical pointer.
+    # Picks first chronological contributor's lead immunity tag (collapsing multi-producer kills to one tag for audit).
     surface_tag_target =
       contributors
       |> List.last()

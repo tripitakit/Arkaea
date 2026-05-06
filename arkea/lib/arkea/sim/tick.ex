@@ -1661,6 +1661,7 @@ defmodule Arkea.Sim.Tick do
               # invests the replication cost (5 cell-equivalents).
               updated_parent = decrement_abundance(parent, primary_phase, 5)
 
+              # lineage_id is the parent that lost an offspring (not a deceased lineage).
               event = %{
                 type: :error_catastrophe_death,
                 tick: tick,
