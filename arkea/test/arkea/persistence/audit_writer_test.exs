@@ -128,7 +128,8 @@ defmodule Arkea.Persistence.AuditWriterTest do
           channel: :conjugation,
           donor_lineage_id: donor_id,
           recipient_lineage_id: recipient_id,
-          plasmid_inc_group: :IncP,
+          # inc_group is non_neg_integer in production (see Arkea.Genome).
+          plasmid_inc_group: 3,
           tick: 15
         }
       ]
@@ -142,7 +143,7 @@ defmodule Arkea.Persistence.AuditWriterTest do
       assert row.target_lineage_id == recipient_id
       assert row.payload["channel"] == "conjugation"
       assert row.payload["donor_lineage_id"] == donor_id
-      assert row.payload["plasmid_inc_group"] == "IncP"
+      assert row.payload["plasmid_inc_group"] == 3
     end
 
     test ":plasmid_displaced persists with recipient as target" do
@@ -155,7 +156,8 @@ defmodule Arkea.Persistence.AuditWriterTest do
           type: :plasmid_displaced,
           tick: 20,
           recipient_lineage_id: recipient_id,
-          displaced_inc_group: :IncF,
+          # inc_group is non_neg_integer in production (see Arkea.Genome).
+          displaced_inc_group: 5,
           new_donor_lineage_id: new_donor_id
         }
       ]
@@ -164,7 +166,7 @@ defmodule Arkea.Persistence.AuditWriterTest do
       row = fetch_one!("plasmid_displaced", biotope_id)
 
       assert row.target_lineage_id == recipient_id
-      assert row.payload["displaced_inc_group"] == "IncF"
+      assert row.payload["displaced_inc_group"] == 5
       assert row.payload["new_donor_lineage_id"] == new_donor_id
     end
 

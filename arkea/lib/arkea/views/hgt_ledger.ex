@@ -17,8 +17,16 @@ defmodule Arkea.Views.HGTLedger do
 
   alias Arkea.Persistence.AuditLog
 
+  # Includes both legacy strings (`hgt_event`, `hgt_conjugation_attempt`,
+  # `hgt_transformation_event`, `hgt_transduction_event`, `phage_burst`)
+  # for back-compat with audit_log rows persisted before Sub-task 1.4
+  # promoted channel-direct shapes, and the post-1.6 strings emitted by
+  # `Arkea.Persistence.AuditWriter`: `hgt_transfer`, `transformation_event`,
+  # `transduction_event`, `phage_infection`, `rm_digestion`,
+  # `plasmid_displaced`.
   @hgt_types ~w(hgt_event hgt_transfer hgt_conjugation_attempt
                 hgt_transformation_event hgt_transduction_event
+                transformation_event transduction_event
                 rm_digestion plasmid_displaced phage_burst phage_infection)
 
   @type entry :: %{
@@ -75,11 +83,25 @@ defmodule Arkea.Views.HGTLedger do
       id: entry.id,
       tick: entry.occurred_at_tick,
       kind: entry.event_type,
-      donor_id: payload["parent_id"] || payload["donor_id"],
+      donor_id: extract_donor_id(payload),
       recipient_id: entry.target_lineage_id || payload["lineage_id"],
       payload: payload,
       occurred_at: entry.occurred_at
     }
+  end
+
+  # Channel-direct shapes (Sub-task 1.6) hoist the upstream lineage under
+  # type-specific keys: `donor_lineage_id` (hgt_transfer, transduction),
+  # `origin_lineage_id` (transformation, phage_infection, rm_digestion),
+  # `new_donor_lineage_id` (plasmid_displaced). Legacy diff-derived shapes
+  # used `parent_id` / `donor_id` inside `payload`. Pick the first key
+  # that resolves to a non-nil value.
+  defp extract_donor_id(payload) do
+    payload["donor_lineage_id"] ||
+      payload["origin_lineage_id"] ||
+      payload["new_donor_lineage_id"] ||
+      payload["parent_id"] ||
+      payload["donor_id"]
   end
 
   defp filter_by_kind(entries, nil), do: entries

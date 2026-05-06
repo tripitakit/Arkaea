@@ -65,16 +65,19 @@ defmodule Arkea.Persistence.AuditWriter do
   end
 
   defp event_attrs(%{type: :hgt_transfer} = e, biotope_id, tick_count, occurred_at) do
+    # `inc_group` is `non_neg_integer` (see `Arkea.Genome` plasmid type
+    # and `Arkea.Sim.HGT`); pass through as integer.
     base_attrs(biotope_id, tick_count, occurred_at, "hgt_transfer", e.recipient_lineage_id, %{
       "channel" => atom_to_string(e.channel),
       "donor_lineage_id" => e.donor_lineage_id,
-      "plasmid_inc_group" => atom_to_string(e.plasmid_inc_group)
+      "plasmid_inc_group" => e.plasmid_inc_group
     })
   end
 
   defp event_attrs(%{type: :plasmid_displaced} = e, biotope_id, tick_count, occurred_at) do
+    # `inc_group` is `non_neg_integer` (see `Arkea.Genome`); integer pass-through.
     base_attrs(biotope_id, tick_count, occurred_at, "plasmid_displaced", e.recipient_lineage_id, %{
-      "displaced_inc_group" => atom_to_string(e.displaced_inc_group),
+      "displaced_inc_group" => e.displaced_inc_group,
       "new_donor_lineage_id" => e.new_donor_lineage_id
     })
   end

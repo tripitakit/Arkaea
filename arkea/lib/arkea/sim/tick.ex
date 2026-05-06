@@ -20,10 +20,18 @@ defmodule Arkea.Sim.Tick do
 
   ## Event type
 
-  Events are `%{type: atom(), payload: map()}`. Phase 4 emits:
+  An audit event emitted during a tick. Two shapes coexist after the
+  Sub-task 1.4–1.6 remediation:
 
-    - `%{type: :lineage_born, payload: %{lineage_id: id, parent_id: pid, tick: n}}`
-    - `%{type: :lineage_extinct, payload: %{lineage_id: id, tick: n}}`
+    - **Diff-derived (legacy)**: `%{type: atom(), payload: map()}` —
+      produced by `derive_events/2` (e.g. `:lineage_born`, `:lineage_extinct`,
+      `:phage_burst`, `:mutation_notable`).
+    - **Channel-direct (post-1.4)**: flat shape with arbitrary keys, e.g.
+      `%{type: :transformation_event, tick: integer(),
+         recipient_lineage_id: binary(), origin_lineage_id: binary(),
+         gene_index: non_neg_integer()}`.
+
+  See `Arkea.Persistence.AuditWriter` for per-type field documentation.
 
   ## Growth model (Phase 3)
 
@@ -84,7 +92,18 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Sim.Signaling
   alias Arkea.Sim.Xenobiotic
 
-  @type event :: %{type: atom(), payload: map()}
+  @typedoc """
+  An audit event emitted during a tick. Two shapes coexist:
+
+    - Diff-derived (legacy): `%{type: atom(), payload: map()}` — produced
+      by `derive_events/2`.
+    - Channel-direct (post-Sub-task 1.4): flat shape with arbitrary keys,
+      e.g. `%{type: :transformation_event, tick: integer(),
+              recipient_lineage_id: binary(), ...}`.
+
+  See `Arkea.Persistence.AuditWriter` for per-type field documentation.
+  """
+  @type event :: map()
 
   @lineage_cap Application.compile_env(:arkea, :lineage_cap, 100)
 

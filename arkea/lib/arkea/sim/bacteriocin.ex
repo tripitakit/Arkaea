@@ -328,7 +328,6 @@ defmodule Arkea.Sim.Bacteriocin do
     # event surfaces a concrete kin-recognition signature for downstream
     # audit consumers; multi-producer cases collapse to the lead
     # producer's tag, which is sufficient as a categorical pointer.
-    # Picks first chronological contributor's lead immunity tag (collapsing multi-producer kills to one tag for audit).
     surface_tag_target =
       contributors
       |> List.last()

@@ -1324,15 +1324,11 @@ defmodule ArkeaWeb.SimLive do
     {"hero-minus-circle", "red", "Lineage extinct", short_id(id), tick}
   end
 
-  defp format_event(%{type: :hgt_transfer, payload: %{lineage_id: id, tick: tick}}) do
-    {"hero-arrows-right-left", "amber", "Horizontal transfer", short_id(id), tick}
-  end
-
   # Sub-task 1.4 (remediation P0): channel-direct flat-format events
   # emitted from `Arkea.Sim.HGT.step/4` and the phage / transformation
-  # channels. They live alongside the legacy diff-derived `payload`-shaped
-  # events; map them to a UI label by `:type` without requiring a
-  # `:payload` key.
+  # channels. The legacy diff-derived `:hgt_transfer` (payload-shape)
+  # was removed when `detect_hgt_transfer` was retired in Sub-task 1.4 —
+  # only the flat-shape clauses below remain.
   defp format_event(%{type: :hgt_transfer, recipient_lineage_id: id, tick: tick}) do
     {"hero-arrows-right-left", "amber", "Conjugation", short_id(id), tick}
   end
