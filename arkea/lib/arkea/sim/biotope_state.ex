@@ -51,6 +51,8 @@ defmodule Arkea.Sim.BiotopeState do
     tick. NOT persisted; see `Arkea.Persistence.AuditWriter` for the
     persistence path. Foundation for per-channel HGT, transformation, phage,
     bacteriocin and error-catastrophe events (Sub-tasks 1.2–1.5).
+    Convention: steps prepend events with `[event | state.pending_events]`
+    for O(1) cost; consumers must `Enum.reverse/1` to recover insertion order.
 
   ## Invariants
 

@@ -118,6 +118,8 @@ defmodule Arkea.Sim.Tick do
     # tick. Sub-tasks 1.2–1.5 will populate this from HGT, transformation,
     # phage, bacteriocin and error-catastrophe code paths; Sub-task 1.4 will
     # wire it into the events output. For now we only reset.
+    # Rebind is load-bearing: `derive_events/2` below uses this `state`
+    # (post-reset) as its diff baseline against `new_state`.
     state = %{state | pending_events: []}
 
     new_state =

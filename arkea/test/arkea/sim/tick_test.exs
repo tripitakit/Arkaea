@@ -449,12 +449,10 @@ defmodule Arkea.Sim.TickTest do
   # ---------------------------------------------------------------------------
   # pending_events transient buffer (Sub-task 1.1)
 
-  describe "tick/1" do
-    test "tick resets pending_events at start" do
-      state = %{simple_state() | pending_events: [%{type: :stale}]}
-      {new_state, _events} = Tick.tick(state)
-      refute Enum.any?(new_state.pending_events, &(&1.type == :stale))
-    end
+  test "resets pending_events at start of tick" do
+    state = %{simple_state() | pending_events: [%{type: :stale}]}
+    {new_state, _events} = Tick.tick(state)
+    assert new_state.pending_events == []
   end
 
   # ---------------------------------------------------------------------------
