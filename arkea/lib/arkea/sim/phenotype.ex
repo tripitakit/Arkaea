@@ -103,9 +103,13 @@ defmodule Arkea.Sim.Phenotype do
       - `:dna_polymerase_like` — gene with co-occurring `:dna_binding`
         + `:catalytic_site`. Drives susceptibility to
         polymerase-targeting drugs (rifampicin-class).
-      - `:ribosome_like` — every cell has ribosomes; pinned to `1.0`
-        as a baseline to model intrinsic susceptibility to
-        translation-targeting drugs (aminoglycosides, tetracyclines).
+      - `:ribosome_like` — derived from gene composition: a gene with
+        co-occurring `:structural_fold(multimerization_n >= 4)` and
+        `:catalytic_site(reaction_class: :ligation)` is a ribosome-like
+        macromolecular assembly. Drives susceptibility to translation-
+        targeting drugs (aminoglycosides, tetracyclines). Genomes that
+        lack the proxy composition are intrinsically resistant (no
+        ribosome → no target). See `ribosome_like?/1` private predicate.
       - `:membrane` — `n_transmembrane` indexed; drives
         membrane-disrupting drug susceptibility.
 
@@ -266,16 +270,20 @@ defmodule Arkea.Sim.Phenotype do
   Compute the per-target-class abundance index for the genome (Phase 15).
 
   Walks every gene, classifies it against the four xenobiotic target
-  archetypes, and returns a `%{atom() => float()}` map. Counts are
-  normalised by `0.2` so a single specialised gene contributes 0.2,
-  three contribute 0.6, five saturate at 1.0. Saturation matches the
-  biological observation that a handful of proteins is enough to be
-  fully susceptible — duplications do not deepen the susceptibility.
+  archetypes, and returns a `%{atom() => float()}` map. All four
+  classes are now derived generatively from gene composition: counts
+  are normalised by `0.2` so a single specialised gene contributes
+  0.2, three contribute 0.6, five saturate at 1.0. Saturation matches
+  the biological observation that a handful of proteins is enough to
+  be fully susceptible — duplications do not deepen the susceptibility.
 
-  `:ribosome_like` is pinned to `1.0` as a baseline: every cell has
-  ribosomes, regardless of explicit gene composition. This keeps
-  translation-targeting drugs from having a free pass on under-specified
-  genomes.
+  Lineages without a given target class are intrinsically resistant
+  to drugs that bind that class. In particular, a genome that lacks
+  the `:ribosome_like` proxy composition (`:structural_fold` with
+  `multimerization_n >= 4` co-occurring with `:catalytic_site` whose
+  `reaction_class` is `:ligation`) gets `ribosome_like = 0.0` —
+  biologically equivalent to "no ribosomes, no translation-targeting
+  drug effect".
   """
   @spec target_classes(Genome.t()) :: %{atom() => float()}
   def target_classes(%Genome{} = genome) do
@@ -283,12 +291,13 @@ defmodule Arkea.Sim.Phenotype do
 
     pbp = Enum.count(genes, &pbp_like?/1)
     pol = Enum.count(genes, &polymerase_like?/1)
+    ribo = Enum.count(genes, &ribosome_like?/1)
     membrane = count_domains_of_type(genome, :transmembrane_anchor)
 
     %{
       pbp_like: count_to_index(pbp),
       dna_polymerase_like: count_to_index(pol),
-      ribosome_like: 1.0,
+      ribosome_like: count_to_index(ribo),
       membrane: count_to_index(membrane)
     }
   end
@@ -334,6 +343,40 @@ defmodule Arkea.Sim.Phenotype do
 
   defp polymerase_like?(%Gene{domains: domains}) do
     has_type?(domains, :dna_binding) and has_type?(domains, :catalytic_site)
+  end
+
+  # A "ribosome-like" gene encodes the ribosome proxy composition (Block 5).
+  #
+  # Biological mapping:
+  #   - Ribosomes are large multi-subunit ribonucleoprotein assemblies
+  #     (~50 ribosomal proteins + 3 rRNAs in bacteria). The Arkea analogue
+  #     is a `:structural_fold` with high `multimerization_n` — Block 7's
+  #     mer-count proxy for oligomeric scaffolds.
+  #   - The peptidyl-transferase center catalyses peptide-bond formation,
+  #     a condensation/ligation reaction. In Arkea's six-class enum the
+  #     closest match is `reaction_class: :ligation`.
+  #
+  # Threshold: `multimerization_n >= 4` selects the upper half of the
+  # 1..8 mer range, distinguishing genuine oligomeric assemblies from
+  # ordinary dimer/trimer scaffolds.
+  #
+  # Consequence (Block 5 invariant): a genome lacking either prong gets
+  # `ribosome_like = 0.0` -> intrinsic resistance to translation-targeting
+  # drugs (aminoglycosides, tetracyclines). This is biologically equivalent
+  # to "no ribosomes" — a simplified model accepted under Arkea's
+  # generative-only philosophy.
+  defp ribosome_like?(%Gene{domains: domains}) do
+    has_oligomeric_fold =
+      Enum.any?(domains, fn d ->
+        d.type == :structural_fold and (d.params[:multimerization_n] || 1) >= 4
+      end)
+
+    has_ligation_site =
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and d.params[:reaction_class] == :ligation
+      end)
+
+    has_oligomeric_fold and has_ligation_site
   end
 
   defp hydrolase_like?(%Gene{domains: domains}) do

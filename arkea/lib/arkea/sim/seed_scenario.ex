@@ -166,8 +166,21 @@ defmodule Arkea.Sim.SeedScenario do
     # Break-even: atp_yield > atp_cost × 5.0 = 4.35; inflow gives atp_yield ≈ 20.
     energy = Domain.new([0, 1, 3], List.duplicate(5, 20))
 
-    gene = Gene.from_domains([substrate, catalytic, repair, energy])
-    Genome.new([gene])
+    metabolic_gene = Gene.from_domains([substrate, catalytic, repair, energy])
+
+    # Ribosome-like proxy gene (Block 5; required for translation-targeting
+    # drug susceptibility):
+    #   - structural_fold with multimerization_n >= 4 → high-oligomeric scaffold.
+    #     type_tag sum rem 11 == 8 → [0, 0, 8]; param all-5 codons →
+    #     last_3 sum = 15, rem(15, 8)+1 = 8 → multimerization_n = 8.
+    #   - catalytic_site with reaction_class: :ligation.
+    #     type_tag sum rem 11 == 1 → [0, 0, 1]; param first_3 [4, 0, 0] →
+    #     rem(4, 6) = 4 → @reaction_classes[4] = :ligation.
+    ribo_fold = Domain.new([0, 0, 8], List.duplicate(5, 20))
+    ribo_catalytic = Domain.new([0, 0, 1], [4, 0, 0 | List.duplicate(10, 17)])
+    ribosome_gene = Gene.from_domains([ribo_fold, ribo_catalytic])
+
+    Genome.new([metabolic_gene, ribosome_gene])
   end
 
   defp mean_dilution(phases) do

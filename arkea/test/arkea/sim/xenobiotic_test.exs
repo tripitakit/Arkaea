@@ -143,11 +143,28 @@ defmodule Arkea.Sim.XenobioticTest do
       assert phenotype.target_classes.pbp_like > 0.0
     end
 
-    test "ribosome_like is always 1.0 (intrinsic)" do
+    test "genome without ribosome proxy → ribosome_like == 0.0 (intrinsic resistance)" do
       genome = Genome.new([Gene.from_domains([Domain.new([0, 0, 0], @param_codons)])])
       phenotype = Phenotype.from_genome(genome)
 
-      assert phenotype.target_classes.ribosome_like == 1.0
+      assert phenotype.target_classes.ribosome_like == 0.0
+    end
+
+    test "genome with ribosome proxy composition → ribosome_like > 0.0" do
+      # structural_fold (type 8, [0,0,8]) with multimerization_n = 8:
+      # last_3 of all-5 codons sums to 15; rem(15, 8) + 1 = 8.
+      # catalytic_site (type 1, [0,0,1]) with reaction_class :ligation:
+      # first_3 of params = [4,0,0]; rem(4, 6) = 4 → @reaction_classes[4] = :ligation.
+      ribosome_gene =
+        Gene.from_domains([
+          Domain.new([0, 0, 8], List.duplicate(5, 20)),
+          Domain.new([0, 0, 1], [4, 0, 0 | List.duplicate(10, 17)])
+        ])
+
+      genome = Genome.new([ribosome_gene])
+      phenotype = Phenotype.from_genome(genome)
+
+      assert phenotype.target_classes.ribosome_like > 0.0
     end
 
     test "hydrolase-bearing genome yields capacity > 0" do
