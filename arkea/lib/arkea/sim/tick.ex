@@ -583,10 +583,20 @@ defmodule Arkea.Sim.Tick do
     # Step 4b: natural transformation (Phase 13) — competent recipients
     # take up DNA fragments from the phase dna_pool, gated by R-M, with
     # positional homologous recombination producing transformant children.
-    {transformed_lineages, phases_after_transformation, transformant_children, rng2} =
+    # Sub-task 1.2: each successful uptake also emits a
+    # :transformation_event that we prepend onto state.pending_events.
+    {transformed_lineages, phases_after_transformation, transformant_children,
+     transformation_events, rng2} =
       run_transformation(all_lineages, phases, tick, rng1)
 
     lineages_after_transformation = transformed_lineages ++ transformant_children
+
+    # Buffer events using the prepend-then-reverse convention pinned in
+    # BiotopeState.pending_events: prepend each event for O(1) cost; the
+    # consumer in Tick.tick/1 will Enum.reverse/1 to recover insertion
+    # order.
+    pending_events_after_transformation =
+      Enum.reduce(transformation_events, state.pending_events, fn ev, acc -> [ev | acc] end)
 
     # Step 4c: prophage induction — stress-triggered lytic burst that
     # produces free virions in `phase.phage_pool` and DNA fragments in
@@ -604,20 +614,32 @@ defmodule Arkea.Sim.Tick do
         rng2
       )
 
-    %{state | lineages: induced_lineages, phases: induced_phases, rng_seed: rng3}
+    %{
+      state
+      | lineages: induced_lineages,
+        phases: induced_phases,
+        rng_seed: rng3,
+        pending_events: pending_events_after_transformation
+    }
   end
 
   # Run natural transformation for every phase, threading lineages and
   # phases through the per-phase channel and returning the aggregate
-  # transformant children alongside the updated phase list.
+  # transformant children, transformation events and the updated phase
+  # list.
+  #
+  # Sub-task 1.2: each per-phase `Transformation.step/4` call now
+  # returns a 5-tuple including the events emitted by successful
+  # uptakes. We accumulate them across phases so the caller can buffer
+  # them onto BiotopeState.pending_events.
   defp run_transformation(lineages, phases, tick, rng) do
-    Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
-                                                    {acc_lineages, acc_phases, acc_children,
-                                                     acc_rng} ->
-      {ls_out, p_out, children, rng_out} =
+    Enum.reduce(phases, {lineages, [], [], [], rng}, fn phase,
+                                                        {acc_lineages, acc_phases, acc_children,
+                                                         acc_events, acc_rng} ->
+      {ls_out, p_out, children, events, rng_out} =
         Transformation.step(acc_lineages, phase, tick, acc_rng)
 
-      {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+      {ls_out, acc_phases ++ [p_out], acc_children ++ children, acc_events ++ events, rng_out}
     end)
   end
 

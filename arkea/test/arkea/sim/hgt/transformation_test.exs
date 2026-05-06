@@ -111,11 +111,12 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = surface_phase()
       rng = Mutator.init_seed("transformation-empty-pool")
 
-      {ls, p, children, _rng} = Transformation.step([lineage], phase, 1, rng)
+      {ls, p, children, events, _rng} = Transformation.step([lineage], phase, 1, rng)
 
       assert ls == [lineage]
       assert p == phase
       assert children == []
+      assert events == []
     end
 
     test "no-op when no recipient is competent" do
@@ -123,12 +124,13 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), dna_fragment(donor_chromosome()))
       rng = Mutator.init_seed("transformation-no-competence")
 
-      {ls, p, children, _rng} = Transformation.step([lineage], phase, 1, rng)
+      {ls, p, children, events, _rng} = Transformation.step([lineage], phase, 1, rng)
 
       assert ls == [lineage]
       # Pool was untouched because no competent recipient existed.
       assert p == phase
       assert children == []
+      assert events == []
     end
 
     test "at high uptake rate a competent recipient eventually transforms" do
@@ -137,13 +139,14 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), fragment)
       rng = Mutator.init_seed("transformation-uptake")
 
-      {_lineages_out, _phase_out, children, _rng_out} =
-        Enum.reduce(1..20, {[recipient], phase, [], rng}, fn _i,
-                                                             {ls, ph, acc_children, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+      {_lineages_out, _phase_out, children, _events, _rng_out} =
+        Enum.reduce(1..20, {[recipient], phase, [], [], rng}, fn _i,
+                                                                 {ls, ph, acc_children,
+                                                                  acc_events, acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
-          {ls_out, ph_out, acc_children ++ new_children, rng_out}
+          {ls_out, ph_out, acc_children ++ new_children, acc_events ++ new_events, rng_out}
         end)
 
       # With abundance 5000 × competence ~0.4 × p_uptake_base 0.0006 ≈ 1.2
@@ -158,12 +161,12 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), fragment)
       rng = Mutator.init_seed("transformation-conservation")
 
-      {_ls_out, phase_out, _children, _rng_out} =
-        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+      {_ls_out, phase_out, _children, _events, _rng_out} =
+        Enum.reduce(1..30, {[recipient], phase, [], [], rng}, fn _i, {ls, ph, ch, ev, acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
-          {ls_out, ph_out, ch ++ new_children, rng_out}
+          {ls_out, ph_out, ch ++ new_children, ev ++ new_events, rng_out}
         end)
 
       # Each call may consume up to 1 unit; 30 calls cannot exceed 30
@@ -185,12 +188,14 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), fragment)
       rng = Mutator.init_seed("transformation-self-uptake")
 
-      {ls, ph, children, _rng} =
-        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i, {ls_in, ph_in, ch_in, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+      {ls, ph, children, _events, _rng} =
+        Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i,
+                                                                 {ls_in, ph_in, ch_in, ev_in,
+                                                                  acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Transformation.step(ls_in, ph_in, 1, acc_rng)
 
-          {ls_out, ph_out, ch_in ++ new_children, rng_out}
+          {ls_out, ph_out, ch_in ++ new_children, ev_in ++ new_events, rng_out}
         end)
 
       assert children == []
@@ -216,12 +221,12 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), fragment)
       rng = Mutator.init_seed("transformation-allelic-swap")
 
-      {_ls_out, _ph_out, children, _rng_out} =
-        Enum.reduce(1..50, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+      {_ls_out, _ph_out, children, _events, _rng_out} =
+        Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i, {ls, ph, ch, ev, acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
-          {ls_out, ph_out, ch ++ new_children, rng_out}
+          {ls_out, ph_out, ch ++ new_children, ev ++ new_events, rng_out}
         end)
 
       assert length(children) > 0
@@ -265,12 +270,12 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       phase = seed_phase_with_fragment(surface_phase(), fragment)
       rng = Mutator.init_seed("transformation-rm-gate")
 
-      {_ls, _ph, children, _rng} =
-        Enum.reduce(1..30, {[recipient], phase, [], rng}, fn _i, {ls, ph, ch, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+      {_ls, _ph, children, _events, _rng} =
+        Enum.reduce(1..30, {[recipient], phase, [], [], rng}, fn _i, {ls, ph, ch, ev, acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Transformation.step(ls, ph, 1, acc_rng)
 
-          {ls_out, ph_out, ch ++ new_children, rng_out}
+          {ls_out, ph_out, ch ++ new_children, ev ++ new_events, rng_out}
         end)
 
       # The R-M gate runs every call; over 30 calls a few transformants
