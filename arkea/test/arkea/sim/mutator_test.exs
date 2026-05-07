@@ -226,7 +226,7 @@ defmodule Arkea.Sim.MutatorTest do
               genome_size <- StreamData.integer(10..200),
               mu_low <- StreamData.float(min: 0.0, max: 0.5),
               mu_high <- StreamData.float(min: 1.5, max: 5.0),
-              max_runs: 50
+              max_runs: 100
             ) do
         p_low = Mutator.error_catastrophe_lethality(mu_low, genome_size)
         p_high = Mutator.error_catastrophe_lethality(mu_high, genome_size)
