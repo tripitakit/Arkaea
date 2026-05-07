@@ -95,7 +95,7 @@ defmodule ArkeaWeb.SimLiveTest do
     assert has_element?(view, ~s|.arkea-tab--active|, "Phylogeny")
 
     html = render(view)
-    assert html =~ "Lineage genealogy"
+    assert html =~ "Canonical phylogeny"
     # Founder lineage is present so the SVG should render — not the
     # "no lineages" placeholder.
     assert html =~ "arkea-phylogeny__svg"

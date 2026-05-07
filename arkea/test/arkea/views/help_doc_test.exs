@@ -3,14 +3,26 @@ defmodule Arkea.Views.HelpDocTest do
 
   alias Arkea.Views.HelpDoc
 
-  test "list/0 returns the registered docs" do
+  test "list/0 surfaces only user-facing and scientific docs (no planning / review)" do
     docs = HelpDoc.list()
 
     slugs = Enum.map(docs, & &1.slug)
     assert "user-manual" in slugs
     assert "design" in slugs
+    assert "design-stress-test" in slugs
     assert "calibration" in slugs
-    assert "ui-optimization" in slugs
+    assert "comparative-analysis" in slugs
+
+    # Planning, refactoring and review documents are developer-only
+    # artefacts and must NOT appear in the in-app help.
+    refute "ui-optimization" in slugs
+    refute "ui-rewrite" in slugs
+    refute "ui-restyle" in slugs
+    refute "biological-model-review" in slugs
+    refute "biological-model-review-2" in slugs
+    refute "design-coherence-review" in slugs
+    refute "remediation-plan" in slugs
+    refute "implementation-plan" in slugs
   end
 
   test "find/1 returns nil for unknown slug" do

@@ -37,8 +37,8 @@ defmodule ArkeaWeb.Components.Help do
      %{
        summary:
          "Horizontal gene transfer: cell-to-cell DNA movement via conjugation, transformation, or transduction.",
-       doc: "biological-model-review",
-       section: "fase-12-difese-r-m-e-ciclo-fagico-chiuso-p0-prerequisito-bloccante"
+       doc: "design",
+       section: "blocco-5-meccanismi-del-motore-biologico"
      }},
     {"qs",
      %{
@@ -51,15 +51,15 @@ defmodule ArkeaWeb.Components.Help do
      %{
        summary:
          "SOS response: DNA-damage-triggered program raising mutation rate and inducing prophages.",
-       doc: "biological-model-review",
-       section: "fase-17-sos-error-catastrophe-operoni-bacteriocine-p1"
+       doc: "design",
+       section: "tasso-di-mutazione-modulabile-sos-like"
      }},
     {"r-m",
      %{
        summary:
          "Restriction-modification: paired enzymes that cleave foreign DNA but spare host DNA via methylation.",
-       doc: "biological-model-review",
-       section: "fase-12-difese-r-m-e-ciclo-fagico-chiuso-p0-prerequisito-bloccante"
+       doc: "design",
+       section: "blocco-5-meccanismi-del-motore-biologico"
      }},
     {"plasmid",
      %{
@@ -72,8 +72,8 @@ defmodule ArkeaWeb.Components.Help do
      %{
        summary:
          "Phage genome integrated lysogenically; can be induced under stress to enter the lytic cycle.",
-       doc: "biological-model-review",
-       section: "fase-12-difese-r-m-e-ciclo-fagico-chiuso-p0-prerequisito-bloccante"
+       doc: "design",
+       section: "blocco-5-meccanismi-del-motore-biologico"
      }},
     {"lineage",
      %{

@@ -21,6 +21,10 @@ defmodule Arkea.Views.HelpDoc do
 
   @doc_root Path.expand("../../../..", __DIR__)
 
+  # In-app help surfaces only user-facing and scientific reference docs.
+  # Planning, refactoring and review documents (UI-*-PLAN, REMEDIATION-PLAN,
+  # *-REVIEW*) live in `devel-docs/` and stay outside the help registry —
+  # they are developer artefacts, not material for end users.
   @docs [
     %{
       slug: "user-manual",
@@ -35,22 +39,23 @@ defmodule Arkea.Views.HelpDoc do
       summary: "Canonical reference for the biological model — 15 design blocks."
     },
     %{
+      slug: "design-stress-test",
+      title: "DESIGN stress-test — Chronicles of a contested estuary",
+      path: Path.join(@doc_root, "devel-docs/02-DESIGN_STRESS-TEST.md"),
+      summary:
+        "Worked use case threading every design block end-to-end on a single illustrative scenario."
+    },
+    %{
       slug: "calibration",
       title: "Calibration ranges",
       path: Path.join(@doc_root, "devel-docs/04-CALIBRATION.md"),
-      summary: "Parameter ranges with primary-literature provenance."
+      summary: "Parameter ranges with primary-literature provenance for every numeric constant."
     },
     %{
-      slug: "ui-optimization",
-      title: "UI optimisation plan",
-      path: Path.join(@doc_root, "devel-docs/07-UI-OPTIMIZATION-PLAN.md"),
-      summary: "Phased plan A–G to make the UI a scientific bench."
-    },
-    %{
-      slug: "biological-model-review",
-      title: "Biological model review",
-      path: Path.join(@doc_root, "devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md"),
-      summary: "Phase 12–18 plan to close the biological-model gaps."
+      slug: "comparative-analysis",
+      title: "Comparative analysis — vs SLiM / Bacmeta / SimBac",
+      path: Path.join(@doc_root, "devel-docs/12-COMPARATIVE-ANALYSIS.md"),
+      summary: "How Arkea positions itself against the established evolutionary simulators."
     }
   ]
 
