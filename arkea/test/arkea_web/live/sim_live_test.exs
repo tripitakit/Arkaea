@@ -60,14 +60,14 @@ defmodule ArkeaWeb.SimLiveTest do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Default tab is events
-    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Events")
+    assert has_element?(view, ~s|.arkea-tab--active|, "Events")
 
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="lineages"]|) |> render_click()
-    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Lineages")
+    view |> element(~s|.arkea-tab[phx-value-tab="lineages"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tab--active|, "Lineages")
     assert render(view) =~ "Population board"
 
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="chemistry"]|) |> render_click()
-    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Chemistry")
+    view |> element(~s|.arkea-tab[phx-value-tab="chemistry"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tab--active|, "Chemistry")
     assert render(view) =~ "Metabolite pools"
   end
 
@@ -75,8 +75,8 @@ defmodule ArkeaWeb.SimLiveTest do
        %{conn: conn, biotope_id: id} do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="trends"]|) |> render_click()
-    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Trends")
+    view |> element(~s|.arkea-tab[phx-value-tab="trends"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tab--active|, "Trends")
 
     html = render(view)
     assert html =~ "Population trajectory"
@@ -91,8 +91,8 @@ defmodule ArkeaWeb.SimLiveTest do
   } do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="phylogeny"]|) |> render_click()
-    assert has_element?(view, ~s|.arkea-tabs__tab--active|, "Phylogeny")
+    view |> element(~s|.arkea-tab[phx-value-tab="phylogeny"]|) |> render_click()
+    assert has_element?(view, ~s|.arkea-tab--active|, "Phylogeny")
 
     html = render(view)
     assert html =~ "Lineage genealogy"
@@ -126,7 +126,7 @@ defmodule ArkeaWeb.SimLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="phylogeny"]|) |> render_click()
+    view |> element(~s|.arkea-tab[phx-value-tab="phylogeny"]|) |> render_click()
     html = render(view)
 
     refute html =~ String.slice(extinct_id, 0, 8)
@@ -139,7 +139,7 @@ defmodule ArkeaWeb.SimLiveTest do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Switch to lineages tab so rows are visible
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="lineages"]|) |> render_click()
+    view |> element(~s|.arkea-tab[phx-value-tab="lineages"]|) |> render_click()
 
     view
     |> element("tr.arkea-lineage-row")
@@ -200,7 +200,7 @@ defmodule ArkeaWeb.SimLiveTest do
     {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
 
     # Open the interventions tab to expose the action buttons
-    view |> element(~s|.arkea-tabs__tab[phx-value-tab="interventions"]|) |> render_click()
+    view |> element(~s|.arkea-tab[phx-value-tab="interventions"]|) |> render_click()
 
     assert render(view) =~ "Slot open"
 

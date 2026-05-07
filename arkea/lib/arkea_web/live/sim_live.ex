@@ -333,7 +333,7 @@ defmodule ArkeaWeb.SimLive do
                   phx-click="switch_tab"
                   phx-value-tab={Atom.to_string(id)}
                   aria-selected={@bottom_tab == id}
-                  class="arkea-tab"
+                  class={["arkea-tab", @bottom_tab == id && "arkea-tab--active"]}
                 >
                   {label}
                 </button>

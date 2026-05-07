@@ -83,7 +83,7 @@ defmodule ArkeaWeb.WorldLive do
                 phx-click="filter"
                 phx-value-to={Atom.to_string(f)}
                 aria-selected={@filter == f}
-                class="arkea-tab"
+                class={["arkea-tab", @filter == f && "arkea-tab--active"]}
               >
                 {filter_label(f)}
               </button>
