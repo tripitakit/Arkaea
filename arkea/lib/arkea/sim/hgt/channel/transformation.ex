@@ -69,7 +69,11 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
   transconjugant child lineage with the donor gene swapped at its
   chromosomal locus.
 
-  Returns `{updated_lineages, updated_phase, new_children, rng_out}`.
+  Returns `{updated_lineages, updated_phase, new_children, events, rng_out}`,
+  where `events` is the list of `:transformation_event` maps emitted by
+  successful uptakes during the sweep, in insertion order. Sub-task 1.2:
+  events are buffered into `BiotopeState.pending_events` by the caller in
+  `Arkea.Sim.Tick.step_hgt/1` using the prepend-then-reverse convention.
 
   Pure.
   """
@@ -79,9 +83,9 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
           Phase.t(),
           non_neg_integer(),
           :rand.state()
-        ) :: {[Lineage.t()], Phase.t(), [Lineage.t()], :rand.state()}
+        ) :: {[Lineage.t()], Phase.t(), [Lineage.t()], [map()], :rand.state()}
   def step(lineages, %Phase{dna_pool: pool} = phase, _tick, rng) when map_size(pool) == 0,
-    do: {lineages, phase, [], rng}
+    do: {lineages, phase, [], [], rng}
 
   def step(lineages, %Phase{} = phase, tick, rng) do
     competent =
@@ -90,7 +94,7 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
       end)
 
     if competent == [] do
-      {lineages, phase, [], rng}
+      {lineages, phase, [], [], rng}
     else
       do_step(lineages, competent, phase, tick, rng)
     end
@@ -115,32 +119,38 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
   # Private
 
   defp do_step(lineages, competent, phase, tick, rng) do
-    Enum.reduce(competent, {lineages, phase, [], rng}, fn recipient, acc ->
-      Enum.reduce(acc |> elem(1) |> Map.fetch!(:dna_pool), acc, fn {fragment_id, fragment},
-                                                                   inner_acc ->
-        attempt_uptake(fragment_id, fragment, recipient, tick, inner_acc)
+    {ls, ph, children, events, rng_out} =
+      Enum.reduce(competent, {lineages, phase, [], [], rng}, fn recipient, acc ->
+        Enum.reduce(acc |> elem(1) |> Map.fetch!(:dna_pool), acc, fn {fragment_id, fragment},
+                                                                     inner_acc ->
+          attempt_uptake(fragment_id, fragment, recipient, tick, inner_acc)
+        end)
       end)
-    end)
+
+    # Children and events are accumulated in reverse insertion order
+    # (prepend-then-reverse). Reverse here so callers see them in the
+    # order successful uptakes actually fired during the sweep.
+    {ls, ph, Enum.reverse(children), Enum.reverse(events), rng_out}
   end
 
-  defp attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, rng}) do
+  defp attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, events, rng}) do
     cond do
       fragment.abundance == 0 ->
-        {ls, ph, children, rng}
+        {ls, ph, children, events, rng}
 
       fragment.origin_lineage_id == recipient.id ->
         # Skip self-uptake: it would not change the recipient's genome.
-        {ls, ph, children, rng}
+        {ls, ph, children, events, rng}
 
       not Map.has_key?(ph.dna_pool, fragment_id) ->
-        {ls, ph, children, rng}
+        {ls, ph, children, events, rng}
 
       true ->
-        do_attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, rng})
+        do_attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, events, rng})
     end
   end
 
-  defp do_attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, rng}) do
+  defp do_attempt_uptake(fragment_id, fragment, recipient, tick, {ls, ph, children, events, rng}) do
     current_recipient = find_lineage(ls, recipient.id) || recipient
     recipient_phenotype = Phenotype.from_genome(current_recipient.genome)
     p_uptake = compute_uptake_probability(recipient_phenotype, fragment)
@@ -148,7 +158,7 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
     {roll, rng1} = :rand.uniform_s(rng)
 
     if roll >= p_uptake do
-      {ls, ph, children, rng1}
+      {ls, ph, children, events, rng1}
     else
       run_rm_gate(
         fragment_id,
@@ -156,12 +166,19 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
         current_recipient,
         recipient_phenotype,
         tick,
-        {ls, ph, children, rng1}
+        {ls, ph, children, events, rng1}
       )
     end
   end
 
-  defp run_rm_gate(fragment_id, fragment, recipient, phenotype, tick, {ls, ph, children, rng}) do
+  defp run_rm_gate(
+         fragment_id,
+         fragment,
+         recipient,
+         phenotype,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     case Defense.restriction_check(
            phenotype.restriction_profile,
            fragment.methylation_profile,
@@ -170,20 +187,32 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
       {:digested, _sites, rng1} ->
         # The R-M system cleaved the incoming DNA. Consume one unit
         # (abundance conservation) and emit no transformant.
-        {ls, consume_one_fragment(ph, fragment_id), children, rng1}
+        {ls, consume_one_fragment(ph, fragment_id), children, events, rng1}
 
       {:passed, rng1} ->
-        attempt_recombination(fragment_id, fragment, recipient, tick, {ls, ph, children, rng1})
+        attempt_recombination(
+          fragment_id,
+          fragment,
+          recipient,
+          tick,
+          {ls, ph, children, events, rng1}
+        )
     end
   end
 
-  defp attempt_recombination(fragment_id, fragment, recipient, tick, {ls, ph, children, rng}) do
+  defp attempt_recombination(
+         fragment_id,
+         fragment,
+         recipient,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     case pick_homologous_pair(fragment.genes, recipient.genome.chromosome, rng) do
       {nil, _, rng1} ->
         # No homology found: rejection (Phase 13 simplified). Consume
         # one fragment unit so abundance still goes down on the gate
         # event itself.
-        {ls, consume_one_fragment(ph, fragment_id), children, rng1}
+        {ls, consume_one_fragment(ph, fragment_id), children, events, rng1}
 
       {donor_gene, index, rng1} ->
         finalise_transformation(
@@ -193,19 +222,19 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
           donor_gene,
           index,
           tick,
-          {ls, ph, children, rng1}
+          {ls, ph, children, events, rng1}
         )
     end
   end
 
   defp finalise_transformation(
          fragment_id,
-         _fragment,
+         fragment,
          recipient,
          donor_gene,
          index,
          tick,
-         {ls, ph, children, rng}
+         {ls, ph, children, events, rng}
        ) do
     new_chromosome = List.replace_at(recipient.genome.chromosome, index, donor_gene)
     new_genome = rebuild_genome_with_chromosome(recipient.genome, new_chromosome)
@@ -218,7 +247,16 @@ defmodule Arkea.Sim.HGT.Channel.Transformation do
     new_lineages = replace_lineage(ls, recipient.id, updated_recipient)
 
     new_phase = consume_one_fragment(ph, fragment_id)
-    {new_lineages, new_phase, [child | children], rng}
+
+    event = %{
+      type: :transformation_event,
+      tick: tick,
+      recipient_lineage_id: recipient.id,
+      origin_lineage_id: fragment.origin_lineage_id,
+      gene_index: index
+    }
+
+    {new_lineages, new_phase, [child | children], [event | events], rng}
   end
 
   defp pick_homologous_pair(donor_genes, recipient_chromosome, rng) do

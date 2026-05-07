@@ -29,11 +29,20 @@ defmodule Arkea.Sim.HGT.Channel do
   alias Arkea.Ecology.Lineage
   alias Arkea.Ecology.Phase
 
-  @typedoc "Canonical channel-step result tuple."
+  @typedoc """
+  Canonical channel-step result tuple.
+
+  Sub-task 1.2 (remediation): channels that conform to this behaviour
+  return an `events` list alongside the updated lineages, phase and
+  children. Each successful HGT event (uptake, integration, infection)
+  contributes a typed event map that the caller buffers into
+  `Arkea.Sim.BiotopeState.pending_events` for downstream audit/UI use.
+  """
   @type result :: {
           updated_lineages :: [Lineage.t()],
           updated_phase :: Phase.t(),
           new_children :: [Lineage.t()],
+          events :: [map()],
           rng :: :rand.state()
         }
 

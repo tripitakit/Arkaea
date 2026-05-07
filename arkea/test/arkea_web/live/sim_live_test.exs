@@ -214,6 +214,63 @@ defmodule ArkeaWeb.SimLiveTest do
     assert html =~ "Locked"
   end
 
+  describe "event log: format_event clauses for flat-shape events" do
+    test "renders :bacteriocin_kill events without crashing", %{conn: conn, biotope_id: id} do
+      {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+      sim_state = Arkea.Sim.Biotope.Server.get_state(id)
+
+      events = [
+        %{
+          type: :bacteriocin_kill,
+          tick: 42,
+          victim_lineage_id: "11111111-2222-3333-4444-555555555555",
+          producer_lineage_ids: ["66666666-7777-8888-9999-aaaaaaaaaaaa"],
+          surface_tag_target: "lps_o111"
+        }
+      ]
+
+      Phoenix.PubSub.broadcast(
+        Arkea.PubSub,
+        "biotope:#{id}",
+        {:biotope_tick, sim_state, events}
+      )
+
+      html = render(view)
+      assert html =~ "Bacteriocin kill"
+      assert html =~ "arkea-event-entry__icon--red"
+    end
+
+    test "renders :error_catastrophe_death events without crashing", %{
+      conn: conn,
+      biotope_id: id
+    } do
+      {:ok, view, _html} = live(conn, ~p"/biotopes/#{id}")
+
+      sim_state = Arkea.Sim.Biotope.Server.get_state(id)
+
+      events = [
+        %{
+          type: :error_catastrophe_death,
+          tick: 99,
+          lineage_id: "deadbeef-dead-beef-dead-beefdeadbeef",
+          mu: 1.0e-3,
+          genome_size: 4_500_000
+        }
+      ]
+
+      Phoenix.PubSub.broadcast(
+        Arkea.PubSub,
+        "biotope:#{id}",
+        {:biotope_tick, sim_state, events}
+      )
+
+      html = render(view)
+      assert html =~ "Error catastrophe"
+      assert html =~ "arkea-event-entry__icon--red"
+    end
+  end
+
   defp provision_test_biotope do
     SeedLab.provision_home(%{
       "seed_name" => "Sim Test Biotope",

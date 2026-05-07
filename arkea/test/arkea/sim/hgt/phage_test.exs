@@ -173,11 +173,13 @@ defmodule Arkea.Sim.HGT.PhageTest do
       phase = surface_phase()
       rng = Mutator.init_seed("phage-infection-empty")
 
-      {ls, p, children, _rng_out} = Phage.infection_step([lineage], phase, 1, rng)
+      {ls, p, children, events, _rng_out} = Phage.infection_step([lineage], phase, 1, rng)
 
       assert ls == [lineage]
       assert p == phase
       assert children == []
+      # Sub-task 1.3: empty phage_pool emits no audit events.
+      assert events == []
     end
 
     test "generalised transduction virions trigger allelic replacement" do
@@ -205,7 +207,7 @@ defmodule Arkea.Sim.HGT.PhageTest do
       {_lineages, _phase, children, _rng} =
         Enum.reduce(1..20, {[recipient], phase, [], rng}, fn _i,
                                                              {ls, ph, acc_children, acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+          {ls_out, ph_out, new_children, _events, rng_out} =
             Phage.infection_step(ls, ph, 1, acc_rng)
 
           {ls_out, ph_out, acc_children ++ new_children, rng_out}
@@ -247,7 +249,7 @@ defmodule Arkea.Sim.HGT.PhageTest do
                                                                              {ls, ph,
                                                                               acc_children,
                                                                               acc_rng} ->
-          {ls_out, ph_out, new_children, rng_out} =
+          {ls_out, ph_out, new_children, _events, rng_out} =
             Phage.infection_step(ls, ph, 1, acc_rng)
 
           {ls_out, ph_out, acc_children ++ new_children, rng_out}

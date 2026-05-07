@@ -1324,8 +1324,46 @@ defmodule ArkeaWeb.SimLive do
     {"hero-minus-circle", "red", "Lineage extinct", short_id(id), tick}
   end
 
-  defp format_event(%{type: :hgt_transfer, payload: %{lineage_id: id, tick: tick}}) do
-    {"hero-arrows-right-left", "amber", "Horizontal transfer", short_id(id), tick}
+  # Sub-task 1.4 (remediation P0): channel-direct flat-format events
+  # emitted from `Arkea.Sim.HGT.step/4` and the phage / transformation
+  # channels. The legacy diff-derived `:hgt_transfer` (payload-shape)
+  # was removed when `detect_hgt_transfer` was retired in Sub-task 1.4 —
+  # only the flat-shape clauses below remain.
+  defp format_event(%{type: :hgt_transfer, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Conjugation", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :transformation_event, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Transformation", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :transduction_event, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "amber", "Transduction", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :phage_infection, recipient_lineage_id: id, tick: tick}) do
+    {"hero-bug-ant", "purple", "Phage infection", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :rm_digestion, recipient_lineage_id: id, tick: tick}) do
+    {"hero-shield-check", "slate", "R-M digestion", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :plasmid_displaced, recipient_lineage_id: id, tick: tick}) do
+    {"hero-arrows-right-left", "slate", "Inc-group conflict", short_id(id), tick}
+  end
+
+  # Sub-task 1.7 follow-up: bacteriocin / error-catastrophe events are
+  # emitted with flat shapes (no `:payload` key) by `Arkea.Sim.Bacteriocin`
+  # and `Arkea.Sim.Tick` respectively. Without these clauses the default
+  # `format_event/1` head below raises FunctionClauseError when the event
+  # log receives them through `handle_info({:biotope_tick, ...})`.
+  defp format_event(%{type: :bacteriocin_kill, victim_lineage_id: id, tick: tick}) do
+    {"hero-shield-exclamation", "red", "Bacteriocin kill", short_id(id), tick}
+  end
+
+  defp format_event(%{type: :error_catastrophe_death, lineage_id: id, tick: tick}) do
+    {"hero-no-symbol", "red", "Error catastrophe", short_id(id), tick}
   end
 
   defp format_event(%{type: :intervention, payload: payload}) do

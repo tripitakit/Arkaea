@@ -20,10 +20,18 @@ defmodule Arkea.Sim.Tick do
 
   ## Event type
 
-  Events are `%{type: atom(), payload: map()}`. Phase 4 emits:
+  An audit event emitted during a tick. Two shapes coexist after the
+  Sub-task 1.4–1.6 remediation:
 
-    - `%{type: :lineage_born, payload: %{lineage_id: id, parent_id: pid, tick: n}}`
-    - `%{type: :lineage_extinct, payload: %{lineage_id: id, tick: n}}`
+    - **Diff-derived (legacy)**: `%{type: atom(), payload: map()}` —
+      produced by `derive_events/2` (e.g. `:lineage_born`, `:lineage_extinct`,
+      `:phage_burst`, `:mutation_notable`).
+    - **Channel-direct (post-1.4)**: flat shape with arbitrary keys, e.g.
+      `%{type: :transformation_event, tick: integer(),
+         recipient_lineage_id: binary(), origin_lineage_id: binary(),
+         gene_index: non_neg_integer()}`.
+
+  See `Arkea.Persistence.AuditWriter` for per-type field documentation.
 
   ## Growth model (Phase 3)
 
@@ -84,7 +92,18 @@ defmodule Arkea.Sim.Tick do
   alias Arkea.Sim.Signaling
   alias Arkea.Sim.Xenobiotic
 
-  @type event :: %{type: atom(), payload: map()}
+  @typedoc """
+  An audit event emitted during a tick. Two shapes coexist:
+
+    - Diff-derived (legacy): `%{type: atom(), payload: map()}` — produced
+      by `derive_events/2`.
+    - Channel-direct (post-Sub-task 1.4): flat shape with arbitrary keys,
+      e.g. `%{type: :transformation_event, tick: integer(),
+              recipient_lineage_id: binary(), ...}`.
+
+  See `Arkea.Persistence.AuditWriter` for per-type field documentation.
+  """
+  @type event :: map()
 
   @lineage_cap Application.compile_env(:arkea, :lineage_cap, 100)
 
@@ -114,6 +133,14 @@ defmodule Arkea.Sim.Tick do
   """
   @spec tick(BiotopeState.t()) :: {BiotopeState.t(), [event()]}
   def tick(%BiotopeState{} = state) do
+    # Sub-task 1.1: reset transient per-tick event buffer at the start of every
+    # tick. Sub-task 1.4 also clears `new_state.pending_events` *before
+    # returning* (events have already been promoted to the outward list and
+    # must not leak into the persisted snapshot).
+    # Rebind is load-bearing: `derive_events/2` below uses this `state`
+    # (post-reset) as its diff baseline against `new_state`.
+    state = %{state | pending_events: []}
+
     new_state =
       state
       |> step_metabolism()
@@ -132,8 +159,14 @@ defmodule Arkea.Sim.Tick do
       |> step_pruning()
       |> increment_tick()
 
-    events = derive_events(state, new_state)
-    {new_state, events}
+    # Sub-task 1.4: outward events combine the per-step `pending_events`
+    # buffer (channel-direct emissions, in insertion order) with the
+    # state-diff `derive_events/2` output. The buffer is then cleared on
+    # the returned state so it does not bleed into the persisted snapshot.
+    derived = derive_events(state, new_state)
+    pending = Enum.reverse(new_state.pending_events)
+    events = pending ++ derived
+    {%{new_state | pending_events: []}, events}
   end
 
   @doc """
@@ -409,14 +442,26 @@ defmodule Arkea.Sim.Tick do
   Pure: no I/O, no message sends.
   """
   @spec step_bacteriocin(BiotopeState.t()) :: BiotopeState.t()
-  def step_bacteriocin(%BiotopeState{lineages: lineages, phases: phases} = state) do
-    {new_lineages, new_phases} =
-      Enum.reduce(phases, {lineages, []}, fn phase, {acc_lineages, acc_phases} ->
-        {ls_out, ph_out} = Bacteriocin.step(acc_lineages, phase)
-        {ls_out, acc_phases ++ [ph_out]}
+  def step_bacteriocin(
+        %BiotopeState{lineages: lineages, phases: phases, tick_count: tick} = state
+      ) do
+    # Sub-task 1.5: Bacteriocin.step_with_events/3 returns
+    # `:bacteriocin_kill` audit events for any lineage whose wall
+    # crossed the Phase 14 lysis threshold this tick. Buffer them onto
+    # `state.pending_events` via the prepend-then-reverse convention.
+    {new_lineages, new_phases, new_pending} =
+      Enum.reduce(phases, {lineages, [], state.pending_events}, fn phase,
+                                                                    {acc_lineages, acc_phases,
+                                                                     acc_events} ->
+        {ls_out, ph_out, ev_out} = Bacteriocin.step_with_events(acc_lineages, phase, tick)
+
+        next_events =
+          Enum.reduce(ev_out, acc_events, fn event, ev_acc -> [event | ev_acc] end)
+
+        {ls_out, acc_phases ++ [ph_out], next_events}
       end)
 
-    %{state | lineages: new_lineages, phases: new_phases}
+    %{state | lineages: new_lineages, phases: new_phases, pending_events: new_pending}
   end
 
   @doc """
@@ -536,11 +581,23 @@ defmodule Arkea.Sim.Tick do
 
     state_after_growth = %{state | lineages: grown}
 
-    # Stochastic fission: may produce new child lineages
+    # Stochastic fission: may produce new child lineages and emit
+    # :error_catastrophe_death audit events when offspring is non-viable
+    # under the Eigen quasispecies threshold (Sub-task 1.5).
     rng = get_rng(state_after_growth)
-    {updated_lineages, new_rng} = spawn_mutants(state_after_growth, rng)
+    {updated_lineages, new_rng, fission_events} = spawn_mutants(state_after_growth, rng)
 
-    %{state_after_growth | lineages: updated_lineages, rng_seed: new_rng}
+    new_pending =
+      Enum.reduce(fission_events, state_after_growth.pending_events, fn ev, acc ->
+        [ev | acc]
+      end)
+
+    %{
+      state_after_growth
+      | lineages: updated_lineages,
+        rng_seed: new_rng,
+        pending_events: new_pending
+    }
   end
 
   @doc """
@@ -564,10 +621,18 @@ defmodule Arkea.Sim.Tick do
     rng = get_rng(state)
 
     # Step 4a: conjugation — run per phase, accumulate new child lineages
-    {conjugated_lineages, new_children, rng1} =
-      Enum.reduce(phases, {lineages, [], rng}, fn phase, {acc_lineages, acc_children, acc_rng} ->
-        {updated, children, next_rng} = HGT.step(phase.name, acc_lineages, tick, acc_rng)
-        {updated, acc_children ++ children, next_rng}
+    # and channel-direct audit events. Sub-task 1.4: HGT.step/4 now returns
+    # the 5-tuple {lineages, phase_name, children, events, rng}; the
+    # `:hgt_transfer` and `:plasmid_displaced` events are buffered onto
+    # `state.pending_events` (prepend-then-reverse convention).
+    {conjugated_lineages, new_children, conjugation_events, rng1} =
+      Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
+                                                      {acc_lineages, acc_children, acc_events,
+                                                       acc_rng} ->
+        {updated, _phase_name, children, events, next_rng} =
+          HGT.step(phase.name, acc_lineages, tick, acc_rng)
+
+        {updated, acc_children ++ children, acc_events ++ events, next_rng}
       end)
 
     all_lineages = conjugated_lineages ++ new_children
@@ -575,10 +640,25 @@ defmodule Arkea.Sim.Tick do
     # Step 4b: natural transformation (Phase 13) — competent recipients
     # take up DNA fragments from the phase dna_pool, gated by R-M, with
     # positional homologous recombination producing transformant children.
-    {transformed_lineages, phases_after_transformation, transformant_children, rng2} =
+    # Sub-task 1.2: each successful uptake also emits a
+    # :transformation_event that we prepend onto state.pending_events.
+    {transformed_lineages, phases_after_transformation, transformant_children,
+     transformation_events, rng2} =
       run_transformation(all_lineages, phases, tick, rng1)
 
     lineages_after_transformation = transformed_lineages ++ transformant_children
+
+    # Buffer events using the prepend-then-reverse convention pinned in
+    # BiotopeState.pending_events: prepend each event for O(1) cost; the
+    # consumer in Tick.tick/1 will Enum.reverse/1 to recover insertion
+    # order. Conjugation events are appended *before* transformation events
+    # to preserve the per-tick step order (4a → 4b).
+    pending_events_after_transformation =
+      Enum.reduce(
+        transformation_events,
+        Enum.reduce(conjugation_events, state.pending_events, fn ev, acc -> [ev | acc] end),
+        fn ev, acc -> [ev | acc] end
+      )
 
     # Step 4c: prophage induction — stress-triggered lytic burst that
     # produces free virions in `phase.phage_pool` and DNA fragments in
@@ -596,20 +676,32 @@ defmodule Arkea.Sim.Tick do
         rng2
       )
 
-    %{state | lineages: induced_lineages, phases: induced_phases, rng_seed: rng3}
+    %{
+      state
+      | lineages: induced_lineages,
+        phases: induced_phases,
+        rng_seed: rng3,
+        pending_events: pending_events_after_transformation
+    }
   end
 
   # Run natural transformation for every phase, threading lineages and
   # phases through the per-phase channel and returning the aggregate
-  # transformant children alongside the updated phase list.
+  # transformant children, transformation events and the updated phase
+  # list.
+  #
+  # Sub-task 1.2: each per-phase `Transformation.step/4` call now
+  # returns a 5-tuple including the events emitted by successful
+  # uptakes. We accumulate them across phases so the caller can buffer
+  # them onto BiotopeState.pending_events.
   defp run_transformation(lineages, phases, tick, rng) do
-    Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
-                                                    {acc_lineages, acc_phases, acc_children,
-                                                     acc_rng} ->
-      {ls_out, p_out, children, rng_out} =
+    Enum.reduce(phases, {lineages, [], [], [], rng}, fn phase,
+                                                        {acc_lineages, acc_phases, acc_children,
+                                                         acc_events, acc_rng} ->
+      {ls_out, p_out, children, events, rng_out} =
         Transformation.step(acc_lineages, phase, tick, acc_rng)
 
-      {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+      {ls_out, acc_phases ++ [p_out], acc_children ++ children, acc_events ++ events, rng_out}
     end)
   end
 
@@ -633,21 +725,31 @@ defmodule Arkea.Sim.Tick do
       ) do
     rng = get_rng(state)
 
-    {updated_lineages, updated_phases, all_children, rng_out} =
-      Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
-                                                      {acc_lineages, acc_phases, acc_children,
-                                                       acc_rng} ->
-        {ls_out, p_out, children, rng_out} =
+    # Sub-task 1.3: each per-phase `Phage.infection_step/4` call returns
+    # a 5-tuple including the audit events emitted by successful entries
+    # and R-M digestions during the sweep. We accumulate them across
+    # phases, then prepend onto `state.pending_events` (insertion-order
+    # preserving, prepend-then-reverse convention pinned in
+    # `BiotopeState`).
+    {updated_lineages, updated_phases, all_children, all_events, rng_out} =
+      Enum.reduce(phases, {lineages, [], [], [], rng}, fn phase,
+                                                          {acc_lineages, acc_phases, acc_children,
+                                                           acc_events, acc_rng} ->
+        {ls_out, p_out, children, events, rng_out} =
           Phage.infection_step(acc_lineages, phase, tick, acc_rng)
 
-        {ls_out, acc_phases ++ [p_out], acc_children ++ children, rng_out}
+        {ls_out, acc_phases ++ [p_out], acc_children ++ children, acc_events ++ events, rng_out}
       end)
+
+    pending_events_after_infection =
+      Enum.reduce(all_events, state.pending_events, fn ev, acc -> [ev | acc] end)
 
     %{
       state
       | lineages: updated_lineages ++ all_children,
         phases: updated_phases,
-        rng_seed: rng_out
+        rng_seed: rng_out,
+        pending_events: pending_events_after_infection
     }
   end
 
@@ -986,10 +1088,11 @@ defmodule Arkea.Sim.Tick do
     - `:lineage_extinct` for every lineage id present in `old_state` but absent
       from `new_state`.
 
-  Phase 6 adds:
-
-    - `:hgt_transfer` for every new lineage whose parent carried fewer plasmids,
-      indicating a successful conjugation event (transconjugant detected).
+  Phase 6 / Sub-task 1.4 (remediation P0): the channel-direct
+  `:hgt_transfer` event is emitted from `Arkea.Sim.HGT.step/4` (with
+  `channel: :conjugation` and full donor/recipient/inc_group payload)
+  and arrives via the `BiotopeState.pending_events` buffer — no longer
+  re-derived here from a plasmid-count diff.
 
   UI Phase B (data pipeline backfill) adds events derivable from
   state-diff alone, without changing the per-step internal signatures:
@@ -1049,11 +1152,6 @@ defmodule Arkea.Sim.Tick do
         }
       end)
 
-    hgt_events =
-      Enum.flat_map(born_lineages, fn l ->
-        detect_hgt_transfer(l, old_by_id, new_state.tick_count)
-      end)
-
     notable_events =
       Enum.flat_map(born_lineages, fn l -> detect_mutation_notable(l, old_by_id, new_state) end)
 
@@ -1063,7 +1161,6 @@ defmodule Arkea.Sim.Tick do
 
     born_events ++
       extinct_events ++
-      hgt_events ++
       notable_events ++
       mass_lysis_events ++
       colonization_events ++
@@ -1072,38 +1169,6 @@ defmodule Arkea.Sim.Tick do
 
   # ---------------------------------------------------------------------------
   # Private helpers
-
-  # Emit a :hgt_transfer event if the new lineage gained plasmids vs its parent.
-  defp detect_hgt_transfer(%{parent_id: nil}, _old_by_id, _tick), do: []
-  defp detect_hgt_transfer(%{genome: nil}, _old_by_id, _tick), do: []
-
-  defp detect_hgt_transfer(new_l, old_by_id, tick) do
-    gain = plasmid_count_gain(new_l.genome, Map.get(old_by_id, new_l.parent_id))
-
-    if gain > 0 do
-      [
-        %{
-          type: :hgt_transfer,
-          payload: %{
-            lineage_id: new_l.id,
-            parent_id: new_l.parent_id,
-            original_seed_id: new_l.original_seed_id,
-            plasmids_gained: gain,
-            tick: tick
-          }
-        }
-      ]
-    else
-      []
-    end
-  end
-
-  defp plasmid_count_gain(_genome, nil), do: 0
-
-  defp plasmid_count_gain(new_genome, parent) do
-    parent_count = if parent.genome != nil, do: length(parent.genome.plasmids), else: 0
-    max(length(new_genome.plasmids) - parent_count, 0)
-  end
 
   # ---------------------------------------------------------------------------
   # UI Phase B — extra event detectors derived from old/new state diff
@@ -1521,28 +1586,35 @@ defmodule Arkea.Sim.Tick do
   end
 
   # Stochastic fission: for each lineage with genome != nil, maybe produce a
-  # child mutant. Returns {updated_lineages, new_rng}.
+  # child mutant. Returns {updated_lineages, new_rng, events}, where `events`
+  # is the list of `:error_catastrophe_death` audit maps emitted this tick
+  # (Sub-task 1.5 — remediation P0).
   defp spawn_mutants(%BiotopeState{lineages: lineages, tick_count: tick} = state, rng) do
-    {updated_lineages, new_rng, new_children} =
-      Enum.reduce(lineages, {[], rng, []}, &reduce_spawn(&1, &2, state, tick))
+    {updated_lineages, new_rng, new_children, events} =
+      Enum.reduce(lineages, {[], rng, [], []}, &reduce_spawn(&1, &2, state, tick))
 
     final_lineages = Enum.reverse(updated_lineages) ++ Enum.reverse(new_children)
-    {final_lineages, new_rng}
+    {final_lineages, new_rng, Enum.reverse(events)}
   end
 
-  defp reduce_spawn(lineage, {acc_lineages, acc_rng, acc_children}, state, tick) do
+  defp reduce_spawn(lineage, {acc_lineages, acc_rng, acc_children, acc_events}, state, tick) do
     if lineage.genome == nil do
-      {[lineage | acc_lineages], acc_rng, acc_children}
+      {[lineage | acc_lineages], acc_rng, acc_children, acc_events}
     else
-      {lineage_out, acc_rng2, maybe_child} = maybe_spawn_child(lineage, state, acc_rng, tick)
+      {lineage_out, acc_rng2, maybe_child, maybe_event} =
+        maybe_spawn_child(lineage, state, acc_rng, tick)
+
       children = if maybe_child, do: [maybe_child | acc_children], else: acc_children
-      {[lineage_out | acc_lineages], acc_rng2, children}
+      events = if maybe_event, do: [maybe_event | acc_events], else: acc_events
+      {[lineage_out | acc_lineages], acc_rng2, children, events}
     end
   end
 
   # For one lineage: compute SOS-aware mutation probability, roll the
   # dice, and if successful generate and apply a mutation → child lineage.
-  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil}.
+  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil,
+  # event_or_nil}. The `event_or_nil` slot carries an
+  # `:error_catastrophe_death` audit map when the offspring is non-viable.
   defp maybe_spawn_child(parent, state, rng, tick) do
     phenotype = Phenotype.from_genome(parent.genome)
     abundance = Lineage.total_abundance(parent)
@@ -1555,7 +1627,7 @@ defmodule Arkea.Sim.Tick do
     if roll < prob do
       attempt_spawn(parent, phenotype, state, rng1, tick)
     else
-      {parent, rng1, nil}
+      {parent, rng1, nil, nil}
     end
   end
 
@@ -1563,16 +1635,17 @@ defmodule Arkea.Sim.Tick do
   # invalid mutation, applicator error) returns the parent unchanged. Phase 17
   # error-catastrophe gate: when the per-cell mutation rate × genome size
   # exceeds the Eigen threshold, the offspring carries one or more lethal
-  # mutations and never gets seeded — only the parent decrement happens.
+  # mutations and never gets seeded — only the parent decrement happens, plus
+  # an `:error_catastrophe_death` audit event surfaces the failed division.
   defp attempt_spawn(parent, phenotype, state, rng, tick) do
     case Mutator.generate(parent.genome, rng) do
       {:skip, rng1} ->
-        {parent, rng1, nil}
+        {parent, rng1, nil, nil}
 
       {:ok, mutation, rng1} ->
         case Applicator.apply(parent.genome, mutation) do
           {:error, _} ->
-            {parent, rng1, nil}
+            {parent, rng1, nil, nil}
 
           {:ok, child_genome} ->
             mu_per_cell =
@@ -1606,12 +1679,22 @@ defmodule Arkea.Sim.Tick do
               # Error-catastrophe: child is non-vital, parent still
               # invests the replication cost (5 cell-equivalents).
               updated_parent = decrement_abundance(parent, primary_phase, 5)
-              {updated_parent, rng2, nil}
+
+              # lineage_id is the parent that lost an offspring (not a deceased lineage).
+              event = %{
+                type: :error_catastrophe_death,
+                tick: tick,
+                lineage_id: parent.id,
+                mu: mu_per_cell,
+                genome_size: genome_size
+              }
+
+              {updated_parent, rng2, nil, event}
             else
               child_abundances = %{primary_phase => 5}
               child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
               updated_parent = decrement_abundance(parent, primary_phase, 5)
-              {updated_parent, rng2, child}
+              {updated_parent, rng2, child, nil}
             end
         end
     end

@@ -46,6 +46,8 @@ defmodule Arkea.Sim.HGT.Phage do
   def name, do: :phage_infection
 
   @impl true
+  @spec step([Lineage.t()], Phase.t(), non_neg_integer(), :rand.state()) ::
+          {[Lineage.t()], Phase.t(), [Lineage.t()], [map()], :rand.state()}
   def step(lineages, phase, tick, rng), do: infection_step(lineages, phase, tick, rng)
 
   @burst_size_min 10
@@ -242,7 +244,24 @@ defmodule Arkea.Sim.HGT.Phage do
   triggers an immediate lytic burst on the recipient or integrates the
   cassette as a lysogenic prophage in a child lineage.
 
-  Returns `{updated_lineages, updated_phase, new_children, rng_out}`.
+  Returns `{updated_lineages, updated_phase, new_children, events, rng_out}`,
+  where `events` is the list of audit-event maps emitted during the sweep
+  in insertion order (Sub-task 1.3 of remediation P0):
+
+  - `%{type: :phage_infection, mode: :lytic | :lysogenic, recipient_lineage_id, virion_id, origin_lineage_id, tick}`
+    for every successful entry past the R-M gate.
+  - `%{type: :rm_digestion, recipient_lineage_id, virion_id, origin_lineage_id, tick}`
+    for every virion digested by the recipient's restriction-modification
+    system (R-M check failed because the methylation profile did not
+    cover one of the recipient's restriction sites).
+  - `%{type: :transduction_event, donor_lineage_id, recipient_lineage_id, payload_kind, tick}`
+    for every successful generalised- or specialised-transduction
+    integration (Sub-task 1.4 of remediation P0). `payload_kind` is
+    `:generalized | :specialized` — the audit-space label, mapped from
+    the virion's internal `payload_kind`.
+
+  The caller (`Tick.step_phage_infection/1`) buffers these into
+  `BiotopeState.pending_events` using the prepend-then-reverse convention.
 
   Pure.
   """
@@ -252,10 +271,10 @@ defmodule Arkea.Sim.HGT.Phage do
           non_neg_integer(),
           :rand.state()
         ) ::
-          {[Lineage.t()], Phase.t(), [Lineage.t()], :rand.state()}
+          {[Lineage.t()], Phase.t(), [Lineage.t()], [map()], :rand.state()}
   def infection_step(lineages, %Phase{phage_pool: pool} = phase, _tick, rng)
       when map_size(pool) == 0 do
-    {lineages, phase, [], rng}
+    {lineages, phase, [], [], rng}
   end
 
   def infection_step(lineages, %Phase{} = phase, tick, rng) do
@@ -266,12 +285,15 @@ defmodule Arkea.Sim.HGT.Phage do
 
     n_total = total_abundance(candidate_recipients, phase.name)
 
-    {lineages_out, phase_out, children, rng_out} =
-      Enum.reduce(phase.phage_pool, {lineages, phase, [], rng}, fn {phage_id, virion}, acc ->
+    {lineages_out, phase_out, children, events, rng_out} =
+      Enum.reduce(phase.phage_pool, {lineages, phase, [], [], rng}, fn {phage_id, virion}, acc ->
         process_virion(phage_id, virion, candidate_recipients, n_total, tick, acc)
       end)
 
-    {lineages_out, phase_out, children, rng_out}
+    # Children and events are accumulated in reverse insertion order
+    # (prepend-then-reverse). Reverse here so callers see them in the
+    # order successful events actually fired during the sweep.
+    {lineages_out, phase_out, Enum.reverse(children), Enum.reverse(events), rng_out}
   end
 
   @doc """
@@ -382,20 +404,34 @@ defmodule Arkea.Sim.HGT.Phage do
   end
 
   defp process_virion(phage_id, virion, recipients, n_total, tick, acc) do
-    Enum.reduce(recipients, acc, fn recipient, {ls, ph, children, rng} ->
-      attempt_infection(phage_id, virion, recipient, n_total, tick, {ls, ph, children, rng})
+    Enum.reduce(recipients, acc, fn recipient, {ls, ph, children, events, rng} ->
+      attempt_infection(
+        phage_id,
+        virion,
+        recipient,
+        n_total,
+        tick,
+        {ls, ph, children, events, rng}
+      )
     end)
   end
 
-  defp attempt_infection(phage_id, virion, recipient, n_total, tick, {ls, ph, children, rng}) do
+  defp attempt_infection(
+         phage_id,
+         virion,
+         recipient,
+         n_total,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     current_recipient = find_lineage(ls, recipient.id)
 
     cond do
       current_recipient == nil ->
-        {ls, ph, children, rng}
+        {ls, ph, children, events, rng}
 
       not receptor_match?(virion, current_recipient) ->
-        {ls, ph, children, rng}
+        {ls, ph, children, events, rng}
 
       true ->
         do_attempt_infection(
@@ -404,38 +440,53 @@ defmodule Arkea.Sim.HGT.Phage do
           current_recipient,
           n_total,
           tick,
-          {ls, ph, children, rng}
+          {ls, ph, children, events, rng}
         )
     end
   end
 
-  defp do_attempt_infection(phage_id, virion, recipient, n_total, tick, {ls, ph, children, rng}) do
+  defp do_attempt_infection(
+         phage_id,
+         virion,
+         recipient,
+         n_total,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     n_recip = Lineage.abundance_in(recipient, ph.name)
     p_infect = compute_infection_probability(virion.abundance, n_recip, n_total)
     {roll, rng1} = :rand.uniform_s(rng)
 
     if roll >= p_infect do
-      {ls, ph, children, rng1}
+      {ls, ph, children, events, rng1}
     else
-      run_rm_and_outcome(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+      run_rm_and_outcome(phage_id, virion, recipient, tick, {ls, ph, children, events, rng1})
     end
   end
 
-  defp run_rm_and_outcome(phage_id, virion, recipient, tick, {ls, ph, children, rng}) do
+  defp run_rm_and_outcome(phage_id, virion, recipient, tick, {ls, ph, children, events, rng}) do
     recipient_phenotype = Phenotype.from_genome(recipient.genome)
 
     case Defense.restriction_check_virion(recipient_phenotype.restriction_profile, virion, rng) do
       {:digested, _sites, rng1} ->
         # The R-M system cleaves the incoming DNA; the virion is consumed
         # but no transfer happens. We still consume one virion particle to
-        # reflect the encounter.
+        # reflect the encounter. Sub-task 1.3: emit an :rm_digestion audit
+        # event so the caller can buffer it on `state.pending_events`.
         new_phase = consume_one_virion(ph, phage_id)
-        {ls, new_phase, children, rng1}
+        event = build_rm_digestion_event(virion, recipient, tick)
+        {ls, new_phase, children, [event | events], rng1}
 
       {:passed, rng1} ->
         case virion.payload_kind do
           :phage ->
-            decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+            decide_lytic_or_lysogenic(
+              phage_id,
+              virion,
+              recipient,
+              tick,
+              {ls, ph, children, events, rng1}
+            )
 
           :generalized_transduction ->
             run_transducing_integration(
@@ -443,7 +494,7 @@ defmodule Arkea.Sim.HGT.Phage do
               virion,
               recipient,
               tick,
-              {ls, ph, children, rng1}
+              {ls, ph, children, events, rng1}
             )
 
           # Specialised transduction: Phase 16 stretch goal — the
@@ -452,7 +503,13 @@ defmodule Arkea.Sim.HGT.Phage do
           # prophage (existing path) and additionally allelic-replace
           # the carried chromosomal genes by position.
           :specialized_transduction ->
-            decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng1})
+            decide_lytic_or_lysogenic(
+              phage_id,
+              virion,
+              recipient,
+              tick,
+              {ls, ph, children, events, rng1}
+            )
         end
     end
   end
@@ -461,22 +518,43 @@ defmodule Arkea.Sim.HGT.Phage do
   # On entry the recipient swaps the gene at the matching position
   # in its own chromosome (positional homologous recombination,
   # mirrors `HGT.Channel.Transformation`). No prophage integration.
-  defp run_transducing_integration(phage_id, virion, recipient, tick, {ls, ph, children, rng}) do
+  defp run_transducing_integration(
+         phage_id,
+         virion,
+         recipient,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     case virion.genes do
       [donor_gene | _] ->
-        do_transducing_swap(phage_id, donor_gene, recipient, tick, {ls, ph, children, rng})
+        do_transducing_swap(
+          phage_id,
+          donor_gene,
+          recipient,
+          tick,
+          {ls, ph, children, events, rng}
+        )
 
       _ ->
-        {ls, consume_one_virion(ph, phage_id), children, rng}
+        {ls, consume_one_virion(ph, phage_id), children, events, rng}
     end
   end
 
-  defp do_transducing_swap(phage_id, donor_gene, recipient, tick, {ls, ph, children, rng}) do
+  defp do_transducing_swap(
+         phage_id,
+         donor_gene,
+         recipient,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
+    # The virion struct is recovered from the phase pool so we can read
+    # its `payload_kind` and `origin_lineage_id` for the audit event.
+    virion = Map.get(ph.phage_pool, phage_id)
     chromosome = recipient.genome.chromosome
     n = length(chromosome)
 
     if n == 0 do
-      {ls, consume_one_virion(ph, phage_id), children, rng}
+      {ls, consume_one_virion(ph, phage_id), children, events, rng}
     else
       {idx, rng1} = :rand.uniform_s(n, rng)
       idx = idx - 1
@@ -497,18 +575,54 @@ defmodule Arkea.Sim.HGT.Phage do
       new_lineages = replace_lineage(ls, recipient.id, updated_recipient)
       new_phase = consume_one_virion(ph, phage_id)
 
-      {new_lineages, new_phase, [child | children], rng1}
+      event = build_transduction_event(virion, recipient, tick)
+
+      {new_lineages, new_phase, [child | children], [event | events], rng1}
     end
   end
 
-  defp decide_lytic_or_lysogenic(phage_id, virion, recipient, tick, {ls, ph, children, rng}) do
+  # Sub-task 1.4 — transduction audit event.
+  #
+  # Maps the virion's internal `payload_kind` (`:generalized_transduction`
+  # | `:specialized_transduction`) onto the audit-log atom space
+  # (`:generalized | :specialized`). A `:phage` payload should never reach
+  # this builder because the routing in `run_rm_and_outcome/5` only calls
+  # `run_transducing_integration` for transducing virions.
+  defp build_transduction_event(%Virion{} = virion, %Lineage{} = recipient, tick) do
+    %{
+      type: :transduction_event,
+      donor_lineage_id: virion.origin_lineage_id,
+      recipient_lineage_id: recipient.id,
+      payload_kind: payload_kind_label(virion.payload_kind),
+      tick: tick
+    }
+  end
+
+  defp payload_kind_label(:generalized_transduction), do: :generalized
+  defp payload_kind_label(:specialized_transduction), do: :specialized
+  defp payload_kind_label(other), do: other
+
+  defp decide_lytic_or_lysogenic(
+         phage_id,
+         virion,
+         recipient,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     cassette = build_cassette(virion)
     repressor = cassette.repressor_strength
     p_lytic = max(0.0, min(1.0, @lytic_decision_base * (1.0 - repressor) * 2.0))
     {roll, rng1} = :rand.uniform_s(rng)
 
     if roll < p_lytic do
-      run_immediate_lysis(phage_id, virion, recipient, cassette, tick, {ls, ph, children, rng1})
+      run_immediate_lysis(
+        phage_id,
+        virion,
+        recipient,
+        cassette,
+        tick,
+        {ls, ph, children, events, rng1}
+      )
     else
       run_lysogenic_integration(
         phage_id,
@@ -516,18 +630,18 @@ defmodule Arkea.Sim.HGT.Phage do
         recipient,
         cassette,
         tick,
-        {ls, ph, children, rng1}
+        {ls, ph, children, events, rng1}
       )
     end
   end
 
   defp run_lysogenic_integration(
          phage_id,
-         _virion,
+         virion,
          recipient,
          cassette,
          tick,
-         {ls, ph, children, rng}
+         {ls, ph, children, events, rng}
        ) do
     new_genome = Genome.integrate_prophage(recipient.genome, cassette)
     child_tick = max(tick + 1, recipient.created_at_tick + 1)
@@ -538,10 +652,19 @@ defmodule Arkea.Sim.HGT.Phage do
     new_lineages = replace_lineage(ls, recipient.id, updated_recipient)
     new_phase = consume_one_virion(ph, phage_id)
 
-    {new_lineages, new_phase, [child | children], rng}
+    event = build_phage_infection_event(virion, recipient, :lysogenic, tick)
+
+    {new_lineages, new_phase, [child | children], [event | events], rng}
   end
 
-  defp run_immediate_lysis(phage_id, _virion, recipient, _cassette, tick, {ls, ph, children, rng}) do
+  defp run_immediate_lysis(
+         phage_id,
+         virion,
+         recipient,
+         _cassette,
+         tick,
+         {ls, ph, children, events, rng}
+       ) do
     abundance = Lineage.abundance_in(recipient, ph.name)
     lost = max(div(abundance, 2), 1)
 
@@ -553,7 +676,32 @@ defmodule Arkea.Sim.HGT.Phage do
       |> consume_one_virion(phage_id)
       |> deposit_dna_fragment(recipient, lost, tick)
 
-    {new_lineages, new_phase, children, rng}
+    event = build_phage_infection_event(virion, recipient, :lytic, tick)
+
+    {new_lineages, new_phase, children, [event | events], rng}
+  end
+
+  # Sub-task 1.3 — audit event constructors.
+  defp build_phage_infection_event(%Virion{} = virion, %Lineage{} = recipient, mode, tick)
+       when mode in [:lytic, :lysogenic] do
+    %{
+      type: :phage_infection,
+      mode: mode,
+      tick: tick,
+      recipient_lineage_id: recipient.id,
+      virion_id: virion.id,
+      origin_lineage_id: virion.origin_lineage_id
+    }
+  end
+
+  defp build_rm_digestion_event(%Virion{} = virion, %Lineage{} = recipient, tick) do
+    %{
+      type: :rm_digestion,
+      tick: tick,
+      recipient_lineage_id: recipient.id,
+      virion_id: virion.id,
+      origin_lineage_id: virion.origin_lineage_id
+    }
   end
 
   # Phase 20 — Cassette repressor_strength is now derived from the

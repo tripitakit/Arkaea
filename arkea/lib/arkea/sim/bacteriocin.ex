@@ -155,6 +155,13 @@ defmodule Arkea.Sim.Bacteriocin do
     }
   end
 
+  # Phase 14 wall-failure threshold from `Biomass.lysis_probability/1`.
+  # A lineage crossing below this value due to bacteriocin damage is
+  # considered "lethally hit" for audit purposes — `step_lysis/1` will
+  # subsequently roll a non-zero lysis probability against the depleted
+  # wall.
+  @lethal_wall_threshold 0.40
+
   @doc """
   Run one bacteriocin tick across a single phase.
 
@@ -167,19 +174,46 @@ defmodule Arkea.Sim.Bacteriocin do
   2. For every non-immune lineage with abundance in this phase,
      reduce `biomass.wall` by the cumulative damage of the
      non-self-tagged pools.
+
+  Backwards-compatible 2-tuple form. See `step_with_events/3` for the
+  audit-aware 3-tuple variant used by `Tick.step_bacteriocin/1`.
   """
   @spec step([Lineage.t()], Phase.t()) :: {[Lineage.t()], Phase.t()}
   def step(lineages, %Phase{} = phase) do
+    {new_lineages, new_phase, _events} = step_with_events(lineages, phase, 0)
+    {new_lineages, new_phase}
+  end
+
+  @doc """
+  Audit-aware variant of `step/2` (Sub-task 1.5 — remediation P0).
+
+  Returns `{updated_lineages, updated_phase, events}` where `events` is
+  a list of `:bacteriocin_kill` audit maps for any lineage whose wall
+  crossed below the Phase 14 lysis threshold (0.40) within this tick
+  *because of* bacteriocin damage. A lineage already below the
+  threshold pre-tick does NOT re-emit (only the crossing edge counts),
+  so the event is a single-fire signal per lethal hit rather than a
+  per-tick stream.
+
+  Pure.
+  """
+  @spec step_with_events([Lineage.t()], Phase.t(), non_neg_integer()) ::
+          {[Lineage.t()], Phase.t(), [map()]}
+  def step_with_events(lineages, %Phase{} = phase, tick) when is_integer(tick) do
     profiles = Map.new(lineages, fn l -> {l.id, lineage_profile(l)} end)
 
     pool_with_secretion = secrete_into_pool(phase.toxin_pool, lineages, profiles, phase.name)
 
-    new_lineages =
-      Enum.map(lineages, fn lineage ->
-        apply_damage(lineage, pool_with_secretion, profiles, phase.name)
+    {new_lineages, events} =
+      Enum.map_reduce(lineages, [], fn lineage, acc_events ->
+        {updated, maybe_event} =
+          apply_damage_with_audit(lineage, pool_with_secretion, profiles, phase.name, tick)
+
+        next_events = if maybe_event, do: [maybe_event | acc_events], else: acc_events
+        {updated, next_events}
       end)
 
-    {new_lineages, %{phase | toxin_pool: pool_with_secretion}}
+    {new_lineages, %{phase | toxin_pool: pool_with_secretion}, Enum.reverse(events)}
   end
 
   # ---------------------------------------------------------------------------
@@ -219,52 +253,108 @@ defmodule Arkea.Sim.Bacteriocin do
     end)
   end
 
-  defp apply_damage(%Lineage{} = lineage, pool, profiles, phase_name)
+  defp apply_damage_with_audit(%Lineage{} = lineage, pool, profiles, phase_name, _tick)
        when map_size(pool) == 0 do
     _ = profiles
     _ = phase_name
-    lineage
+    {lineage, nil}
   end
 
-  defp apply_damage(%Lineage{} = lineage, pool, profiles, phase_name) do
+  defp apply_damage_with_audit(%Lineage{} = lineage, pool, profiles, phase_name, tick) do
     abundance = Lineage.abundance_in(lineage, phase_name)
 
     cond do
       abundance == 0 ->
-        lineage
+        {lineage, nil}
 
       lineage.genome == nil ->
-        lineage
+        {lineage, nil}
 
       true ->
         target_profile = Map.fetch!(profiles, lineage.id)
 
-        damage =
-          Enum.reduce(pool, 0.0, fn {producer_id, conc}, acc ->
+        # Track contributing producers alongside the cumulative damage so
+        # the audit event can list every lineage whose toxin pool reached
+        # the victim. Non-contributing entries (self-pool, fully immune)
+        # are skipped.
+        {damage, contributors} =
+          Enum.reduce(pool, {0.0, []}, fn {producer_id, conc}, {acc_damage, acc_ids} ->
             cond do
               producer_id == lineage.id ->
-                acc
+                {acc_damage, acc_ids}
 
               # Self-immunity: any matching surface_tag protects.
               not MapSet.disjoint?(
                 target_profile.immunity_tags,
                 producer_immunity_tags(profiles, producer_id)
               ) ->
-                acc
+                {acc_damage, acc_ids}
 
               true ->
-                acc + min(@max_damage_per_pool, conc * @damage_rate)
+                pool_damage = min(@max_damage_per_pool, conc * @damage_rate)
+
+                if pool_damage > 0.0 do
+                  {acc_damage + pool_damage, [producer_id | acc_ids]}
+                else
+                  {acc_damage, acc_ids}
+                end
             end
           end)
 
         if damage <= 0.0 do
-          lineage
+          {lineage, nil}
         else
-          new_wall = max(lineage.biomass.wall - damage, 0.0)
+          old_wall = lineage.biomass.wall
+          new_wall = max(old_wall - damage, 0.0)
           new_biomass = %{lineage.biomass | wall: new_wall}
-          %{lineage | biomass: new_biomass, fitness_cache: nil}
+          updated = %{lineage | biomass: new_biomass, fitness_cache: nil}
+
+          maybe_event =
+            if old_wall >= @lethal_wall_threshold and new_wall < @lethal_wall_threshold do
+              build_bacteriocin_kill_event(lineage, contributors, profiles, tick)
+            else
+              nil
+            end
+
+          {updated, maybe_event}
         end
     end
+  end
+
+  defp build_bacteriocin_kill_event(victim, contributors, profiles, tick) do
+    # `surface_tag_target` records the producer-side immunity tag the
+    # bacteriocin is keyed to (the tag the victim *fails* to carry).
+    # We pick the first immunity tag from the first contributor so the
+    # event surfaces a concrete kin-recognition signature for downstream
+    # audit consumers; multi-producer cases collapse to the lead
+    # producer's tag, which is sufficient as a categorical pointer.
+    surface_tag_target =
+      contributors
+      |> List.last()
+      |> case do
+        nil ->
+          ""
+
+        producer_id ->
+          tags = producer_immunity_tags(profiles, producer_id)
+
+          tags
+          |> Enum.to_list()
+          |> List.first()
+          |> case do
+            nil -> ""
+            atom when is_atom(atom) -> Atom.to_string(atom)
+            other -> to_string(other)
+          end
+      end
+
+    %{
+      type: :bacteriocin_kill,
+      tick: tick,
+      victim_lineage_id: victim.id,
+      producer_lineage_ids: Enum.reverse(contributors),
+      surface_tag_target: surface_tag_target
+    }
   end
 
   defp producer_immunity_tags(profiles, producer_id) do

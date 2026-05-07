@@ -104,7 +104,8 @@ defmodule Arkea.Sim.HGTTest do
     rng = Mutator.init_seed(seed)
 
     Enum.reduce(1..ticks, {0, rng}, fn tick, {acc_children, acc_rng} ->
-      {_updated, children, new_rng} = HGT.step(:surface, lineages, tick, acc_rng)
+      {_updated, _phase_name, children, _events, new_rng} =
+        HGT.step(:surface, lineages, tick, acc_rng)
       {acc_children + length(children), new_rng}
     end)
     |> elem(0)
@@ -133,7 +134,8 @@ defmodule Arkea.Sim.HGTTest do
     # and the count measures raw conjugation events.
     {total_children, _rng} =
       Enum.reduce(1..2000, {0, rng}, fn tick, {acc_children, acc_rng} ->
-        {_updated, children, new_rng} = HGT.step(:surface, lineages, tick, acc_rng)
+        {_updated, _phase_name, children, _events, new_rng} =
+        HGT.step(:surface, lineages, tick, acc_rng)
         {acc_children + length(children), new_rng}
       end)
 
@@ -154,7 +156,8 @@ defmodule Arkea.Sim.HGTTest do
 
     {total_children, _rng} =
       Enum.reduce(1..2000, {0, rng}, fn tick, {acc_children, acc_rng} ->
-        {_updated, children, new_rng} = HGT.step(:surface, lineages, tick, acc_rng)
+        {_updated, _phase_name, children, _events, new_rng} =
+        HGT.step(:surface, lineages, tick, acc_rng)
         {acc_children + length(children), new_rng}
       end)
 

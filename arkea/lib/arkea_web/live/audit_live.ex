@@ -18,9 +18,20 @@ defmodule ArkeaWeb.AuditLive do
 
   @page_size 50
 
+  # Filter atoms map 1:1 to `audit_log.event_type` strings (via
+  # `Atom.to_string/1`) — except `:all`, which bypasses the WHERE clause.
+  # Sub-task 1.4–1.6 replaced the diff-derived `hgt_event` umbrella with
+  # the channel-direct event types listed below.
   @event_types [
     :all,
-    :hgt_event,
+    :hgt_transfer,
+    :transformation_event,
+    :transduction_event,
+    :phage_infection,
+    :rm_digestion,
+    :plasmid_displaced,
+    :bacteriocin_kill,
+    :error_catastrophe_death,
     :mutation_notable,
     :mass_lysis,
     :intervention,
@@ -240,7 +251,14 @@ defmodule ArkeaWeb.AuditLive do
   end
 
   defp filter_label(:all), do: "All"
-  defp filter_label(:hgt_event), do: "HGT"
+  defp filter_label(:hgt_transfer), do: "Conjugation"
+  defp filter_label(:transformation_event), do: "Transformation"
+  defp filter_label(:transduction_event), do: "Transduction"
+  defp filter_label(:phage_infection), do: "Phage"
+  defp filter_label(:rm_digestion), do: "R-M digest"
+  defp filter_label(:plasmid_displaced), do: "Plasmid displ."
+  defp filter_label(:bacteriocin_kill), do: "Bacteriocin"
+  defp filter_label(:error_catastrophe_death), do: "Error catastrophe"
   defp filter_label(:mutation_notable), do: "Mutations"
   defp filter_label(:mass_lysis), do: "Lysis"
   defp filter_label(:intervention), do: "Interventions"
@@ -288,6 +306,14 @@ defmodule ArkeaWeb.AuditLive do
   defp inline_value(v), do: inspect(v, limit: 1)
 
   defp type_tone("hgt_event"), do: "metabolite"
+  defp type_tone("hgt_transfer"), do: "metabolite"
+  defp type_tone("transformation_event"), do: "metabolite"
+  defp type_tone("transduction_event"), do: "metabolite"
+  defp type_tone("phage_infection"), do: "rust"
+  defp type_tone("rm_digestion"), do: "muted"
+  defp type_tone("plasmid_displaced"), do: "muted"
+  defp type_tone("bacteriocin_kill"), do: "stress"
+  defp type_tone("error_catastrophe_death"), do: "stress"
   defp type_tone("mutation_notable"), do: "signal"
   defp type_tone("mass_lysis"), do: "stress"
   defp type_tone("intervention"), do: "growth"

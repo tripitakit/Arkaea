@@ -447,6 +447,15 @@ defmodule Arkea.Sim.TickTest do
   end
 
   # ---------------------------------------------------------------------------
+  # pending_events transient buffer (Sub-task 1.1)
+
+  test "resets pending_events at start of tick" do
+    state = %{simple_state() | pending_events: [%{type: :stale}]}
+    {new_state, _events} = Tick.tick(state)
+    assert new_state.pending_events == []
+  end
+
+  # ---------------------------------------------------------------------------
   # Private helpers
 
   # A genome whose only domain is :catalytic_site with all-zero parameter_codons.

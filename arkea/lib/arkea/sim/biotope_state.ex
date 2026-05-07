@@ -45,6 +45,14 @@ defmodule Arkea.Sim.BiotopeState do
     dilution in `step_environment/1`. Models a chemostat: continuous inflow
     of fresh substrate keeps the biotope from starving. Empty `%{}` by
     default (no inflow).
+  - `pending_events` — transient buffer of event structs accumulated during
+    the tick; consumed by `Arkea.Sim.Tick.tick/1` and emitted to the caller
+    alongside `derive_events/2` output, then reset at the start of the next
+    tick. NOT persisted; see `Arkea.Persistence.AuditWriter` for the
+    persistence path. Foundation for per-channel HGT, transformation, phage,
+    bacteriocin and error-catastrophe events (Sub-tasks 1.2–1.5).
+    Convention: steps prepend events with `[event | state.pending_events]`
+    for O(1) cost; consumers must `Enum.reverse/1` to recover insertion order.
 
   ## Invariants
 
@@ -88,6 +96,7 @@ defmodule Arkea.Sim.BiotopeState do
     field :atp_yield_by_lineage, %{binary() => float()}, default: %{}
     field :uptake_by_lineage, %{binary() => %{atom() => float()}}, default: %{}
     field :metabolite_inflow, %{atom() => float()}, default: %{}
+    field :pending_events, [map()], default: []
   end
 
   @doc """
