@@ -15,7 +15,7 @@ defmodule ArkeaWeb.Components.Phylogeny do
     short-id label; internal nodes (lineages that branched) are
     rendered as smaller anchor dots.
   - Node colour codes the abundance band of the *live* lineage —
-    green → teal → cyan → violet → fuchsia as N grows from ≤50 to >5k.
+    green → teal → cyan → violet → magenta as N grows from ≤50 to >5k.
     Extinct nodes (if the caller passes them in the model with
     `extinct?: true`) render in grey with a dashed outline. SimLive's
     Phylogeny tab opts to filter extinct lineages out so the dendrogram
