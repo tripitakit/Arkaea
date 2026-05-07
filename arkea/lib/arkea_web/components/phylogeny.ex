@@ -11,9 +11,13 @@ defmodule ArkeaWeb.Components.Phylogeny do
   - Edges are right-angle L-shapes (parent vertical drop → horizontal
     span → child vertical drop) so divergence depth is read off the
     y-coordinate of the horizontal segment.
-  - Leaves (lineages with no descendants in the input set) carry a
-    short-id label; internal nodes (lineages that branched) are
-    rendered as smaller anchor dots.
+  - Every observed lineage is a tip (canonical phylogenetic
+    convention): tips carry a short-id label and a circle coloured by
+    the lineage's current abundance.
+  - Speciation events appear as synthetic split nodes — rendered as
+    small neutral dots with no label, no abundance and no
+    associated lineage record. They mark the Y-junctions where a
+    lineage branched.
   - Node colour codes the abundance band of the *live* lineage —
     green → teal → cyan → violet → magenta as N grows from ≤50 to >5k.
     Extinct nodes (if the caller passes them in the model with
@@ -104,7 +108,7 @@ defmodule ArkeaWeb.Components.Phylogeny do
                 <g class={[
                   "arkea-phylogeny__node",
                   node.leaf? && "arkea-phylogeny__node--leaf",
-                  not node.leaf? && "arkea-phylogeny__node--internal",
+                  Map.get(node, :synthetic?, false) && "arkea-phylogeny__node--split",
                   node.extinct? && "arkea-phylogeny__node--extinct"
                 ]}>
                   <circle
@@ -112,8 +116,8 @@ defmodule ArkeaWeb.Components.Phylogeny do
                     cy={fmt(ny)}
                     r={node_radius(node)}
                     fill={node_color(node)}
-                    stroke={if node.extinct?, do: "rgba(148,163,184,0.6)", else: "rgba(15,23,42,0.6)"}
-                    stroke-width="1.2"
+                    stroke={node_stroke(node)}
+                    stroke-width={node_stroke_width(node)}
                     stroke-dasharray={if node.extinct?, do: "2 2", else: nil}
                   >
                     <title>{node_title(node)}</title>
@@ -152,6 +156,9 @@ defmodule ArkeaWeb.Components.Phylogeny do
   # ---------------------------------------------------------------------------
   # Private helpers
 
+  # Synthetic split (speciation event) — neutral grey dot, no label.
+  defp node_color(%{synthetic?: true}), do: "rgba(71, 85, 105, 0.55)"
+
   defp node_color(%{extinct?: true}), do: "rgba(148, 163, 184, 0.55)"
 
   defp node_color(%{abundance: abundance}) when is_integer(abundance) and abundance > 0 do
@@ -171,6 +178,10 @@ defmodule ArkeaWeb.Components.Phylogeny do
 
   defp node_color(_), do: "rgba(148, 163, 184, 0.55)"
 
+  defp node_title(%{synthetic?: true} = node) do
+    "Speciation event · depth #{node.depth}"
+  end
+
   defp node_title(node) do
     abundance =
       cond do
@@ -179,9 +190,7 @@ defmodule ArkeaWeb.Components.Phylogeny do
         true -> "N=#{node.abundance}"
       end
 
-    role = if node.leaf?, do: "leaf", else: "internal"
-
-    "Lineage #{short_id(node.id)} · #{role} · depth #{node.depth} · " <>
+    "Lineage #{short_id(node.id)} · tip · depth #{node.depth} · " <>
       "#{abundance} · genes #{node.gene_count}"
   end
 
@@ -207,8 +216,16 @@ defmodule ArkeaWeb.Components.Phylogeny do
     Enum.join(parts ++ summary_part, " · ")
   end
 
+  defp node_radius(%{synthetic?: true}), do: 2
   defp node_radius(%{leaf?: true}), do: 6
   defp node_radius(_), do: 3
+
+  defp node_stroke(%{synthetic?: true}), do: "rgba(71, 85, 105, 0.7)"
+  defp node_stroke(%{extinct?: true}), do: "rgba(148, 163, 184, 0.6)"
+  defp node_stroke(_), do: "rgba(15, 23, 42, 0.6)"
+
+  defp node_stroke_width(%{synthetic?: true}), do: "0.8"
+  defp node_stroke_width(_), do: "1.2"
 
   defp format_distance(d) when is_number(d) do
     :erlang.float_to_binary(d * 1.0, decimals: 4)

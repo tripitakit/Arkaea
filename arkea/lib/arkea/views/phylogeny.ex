@@ -1,10 +1,22 @@
 defmodule Arkea.Views.Phylogeny do
   @moduledoc """
-  Pure phylogeny layout (UI Phase D).
+  Pure phylogeny layout (UI Phase D, post-Review-2 canonical refactor).
 
   Given a list of `Arkea.Ecology.Lineage` structs (with `parent_id`
-  pointers) plus a list of audit log entries, produces a tidy-tree
-  layout (Reingold–Tilford-like) ready for SVG rendering.
+  pointers) plus a list of audit log entries, produces a *canonical*
+  phylogenetic dendrogram where:
+
+  - **Every observed lineage is a tip** (leaf), labelled and coloured by
+    abundance band — regardless of whether it has descendants.
+  - **Speciation events are explicit synthetic split nodes** ("Y
+    junctions") that have no abundance, no label and no associated
+    lineage record. Each synthetic split corresponds to one observed
+    lineage L: it is the point where L's lineage branched, with L
+    itself attached as one tip among its descendants.
+
+  This matches the convention used in molecular phylogenetics
+  (Newick/Nexus output, FigTree, iTOL): tips are extant taxa, internal
+  nodes are inferred speciation points.
 
   ## Output shape
 
@@ -12,12 +24,16 @@ defmodule Arkea.Views.Phylogeny do
   %{
     nodes: [
       %{
-        id: lineage_id,
-        parent_id: parent_id | nil,
-        depth: integer,        # 0 for founders
-        x: float,              # horizontal (sibling-spread) coordinate
-        y: float,              # vertical (depth) coordinate
-        abundance: integer,    # current total abundance, 0 if extinct
+        id: lineage_id | "split:" <> lineage_id,
+        parent_id: rendered_parent_id | nil,
+        depth: integer,
+        x: float,
+        y: float,
+        branch_length: float,
+        cumulative_distance: float,
+        leaf?: boolean,        # true for observed lineage tips
+        synthetic?: boolean,   # true for speciation-event splits
+        abundance: integer,    # 0 for synthetic splits and extinct
         extinct?: boolean,
         gene_count: integer,
         phenotype: %{base_growth_rate: f, repair_efficiency: f, energy_cost: f}
@@ -25,10 +41,10 @@ defmodule Arkea.Views.Phylogeny do
     ],
     edges: [
       %{
-        from: parent_id,
+        from: rendered_parent_id,
         to: child_id,
-        mutation_summary: map | nil,   # populated from :lineage_born audit payload
-        kind: :vertical                # :vertical for parent-child, :hgt for HGT-borne
+        mutation_summary: map | nil,
+        kind: :vertical
       }
     ],
     width: float,
@@ -37,13 +53,27 @@ defmodule Arkea.Views.Phylogeny do
   }
   ```
 
+  ## Edge labelling
+
+  `mutation_summary` is attached to the edge whose `to` is either:
+
+  - an observed lineage tip whose biological parent is *not* the same
+    lineage (i.e. the speciation edge that gave birth to it), OR
+  - a synthetic split that *represents* an observed lineage's
+    speciation event (in that case the summary describes the
+    cumulative phenotype delta of the speciating lineage relative to
+    its own biological parent).
+
+  The edge `S_X → X_tip` (the "X continued to exist after speciating"
+  zero-distance branch) deliberately carries no mutation_summary.
+
   ## Behaviour
 
   - Lineages whose `parent_id` is unknown (nil or not in the input
     list) are treated as roots.
   - Extinct lineages (those mentioned in audit but absent from the
     current lineage list) can be supplied via the `:extinct_lineages`
-    option to keep clades visible as ghost nodes.
+    option to keep clades visible as ghost tips.
   - Layout is deterministic: same input → same `(x, y)` per node.
 
   This module does not render — `ArkeaWeb.Components.Phylogeny` does.
@@ -54,20 +84,10 @@ defmodule Arkea.Views.Phylogeny do
   alias Arkea.Persistence.AuditLog
   alias Arkea.Sim.Phenotype
 
-  # Sibling spread (one row per leaf, vertical axis).
   @sibling_step 48.0
 
-  # Px per unit p-distance. p-distance ranges 0..1 in theory but in
-  # practice most parent→child branches sit between 0.0 and ~0.05
-  # (one-codon mutation over a 200-codon genome ≈ 0.005). The chosen
-  # scale gives a single mutation a visible 4 px branch while keeping
-  # cumulative drift across deep clades inside the SVG viewport.
   @distance_scale 800.0
 
-  # Minimum branch length so identical genomes (e.g. delta-encoded
-  # descendants whose genome cache is `nil` — distance is reported as
-  # 0 in that case) are still drawn as a small gap rather than
-  # overlapping their parent.
   @min_branch_px 12.0
 
   @type node_record :: %{
@@ -79,6 +99,7 @@ defmodule Arkea.Views.Phylogeny do
           branch_length: float(),
           cumulative_distance: float(),
           leaf?: boolean(),
+          synthetic?: boolean(),
           abundance: non_neg_integer(),
           extinct?: boolean(),
           gene_count: non_neg_integer(),
@@ -115,19 +136,17 @@ defmodule Arkea.Views.Phylogeny do
 
     roots = roots_for(all_lineages, by_id)
 
-    {nodes_acc, _next_x} =
+    {raw_nodes, _next_y} =
       Enum.reduce(roots, {[], 0.0}, fn root, {acc, cursor} ->
         {laid_out, next} =
-          layout_subtree(root, 0, 0.0, cursor, nil, children_by_parent)
+          layout_subtree(root, 0, 0.0, cursor, nil, nil, children_by_parent)
 
         {acc ++ laid_out, next}
       end)
 
-    nodes = Enum.map(nodes_acc, &enrich_node(&1, lineages, children_by_parent))
-    edges = build_edges(nodes_acc, born_payloads)
+    nodes = Enum.map(raw_nodes, &enrich_node(&1, lineages))
+    edges = build_edges(raw_nodes, born_payloads)
 
-    # Horizontal dendrogram: x = cumulative p-distance from root,
-    # y = sibling spread (one row per leaf).
     width = nodes |> Enum.map(& &1.x) |> Enum.max(fn -> 0.0 end)
     height = nodes |> Enum.map(& &1.y) |> Enum.max(fn -> 0.0 end)
     max_depth = nodes |> Enum.map(& &1.depth) |> Enum.max(fn -> 0 end)
@@ -142,9 +161,7 @@ defmodule Arkea.Views.Phylogeny do
   end
 
   # -------------------------------------------------------------------------
-  # Children adjacency map: %{parent_id => [child_lineage_struct, …]}.
-  # We deduplicate children to keep the layout deterministic if the
-  # caller supplied the same lineage twice.
+  # Layout
 
   defp build_children_map(lineages, by_id) do
     lineages
@@ -167,12 +184,23 @@ defmodule Arkea.Views.Phylogeny do
     |> Enum.sort_by(& &1.id)
   end
 
-  # Recursive layout for a horizontal dendrogram:
-  #   x = cumulative p-distance from the root, scaled to px (with a
-  #     per-edge floor so zero-distance branches stay visible),
-  #   y = sibling spread — one row per leaf, parents centred on the
-  #     y-midpoint of their direct children.
-  defp layout_subtree(node, depth, cumulative_distance, cursor, parent_node, children_by_parent) do
+  # Recursive layout. Every observed lineage becomes a tip; lineages
+  # with descendants are wrapped in a synthetic split (Y-junction) so
+  # the tree is canonical (every taxon is a leaf).
+  #
+  # Arguments:
+  #   - `node`            : the lineage struct currently being laid out
+  #   - `depth`           : nesting depth in the *rendered* tree
+  #   - `cumulative_distance` : x-coordinate of the lineage's branch
+  #                             entry-point (== parent's split x, if any)
+  #   - `cursor`          : next available y-row for a tip
+  #   - `rendered_parent_id` : the id of the rendered parent — either a
+  #                            synthetic split or `nil` for absolute roots
+  #   - `parent_node`     : the lineage struct of `node`'s biological
+  #                         parent (nil for absolute roots), used only
+  #                         to compute branch_length via PDistance
+  #   - `children_by_parent` : adjacency map
+  defp layout_subtree(node, depth, cumulative_distance, cursor, rendered_parent_id, parent_node, children_by_parent) do
     branch_length = branch_length_for(parent_node, node)
     edge_px = max(branch_length * @distance_scale, @min_branch_px)
     next_cumulative = cumulative_distance + edge_px
@@ -180,55 +208,73 @@ defmodule Arkea.Views.Phylogeny do
     children = Map.get(children_by_parent, node.id, [])
 
     if children == [] do
-      record = %{
-        id: node.id,
-        parent_id: node.parent_id,
-        depth: depth,
-        x: next_cumulative,
-        y: cursor,
-        branch_length: branch_length,
-        cumulative_distance: next_cumulative,
-        lineage: node
-      }
+      record =
+        tip_record(node, rendered_parent_id, depth, next_cumulative, cursor, branch_length)
 
       {[record], cursor + @sibling_step}
     else
-      {child_records, next_cursor} =
-        Enum.reduce(children, {[], cursor}, fn child, {acc, cur} ->
+      # Lineage with descendants: emit a synthetic split + the lineage
+      # itself as one tip + every child subtree, all parented under
+      # the split.
+      split_id = synthetic_split_id(node.id)
+
+      # Place the lineage's own tip first (top row of the split's
+      # children) so dominant lineages stay near the top of their clade.
+      own_tip = tip_record(node, split_id, depth + 1, next_cumulative, cursor, 0.0)
+      cursor1 = cursor + @sibling_step
+
+      {child_records, cursor2} =
+        Enum.reduce(children, {[], cursor1}, fn child, {acc, cur} ->
           {laid, next} =
-            layout_subtree(child, depth + 1, next_cumulative, cur, node, children_by_parent)
+            layout_subtree(child, depth + 1, next_cumulative, cur, split_id, node, children_by_parent)
 
           {acc ++ laid, next}
         end)
 
-      mid_y =
-        case Enum.filter(child_records, fn r -> r.parent_id == node.id end) do
-          [] -> cursor
-          direct -> avg(Enum.map(direct, & &1.y))
-        end
+      # Anchor the synthetic split at the y-midpoint of all its direct
+      # rendered children (own tip + each child subtree's root).
+      direct = Enum.filter([own_tip | child_records], &(&1.parent_id == split_id))
+      split_y = avg(Enum.map(direct, & &1.y))
 
-      record = %{
-        id: node.id,
-        parent_id: node.parent_id,
+      split_record = %{
+        id: split_id,
+        parent_id: rendered_parent_id,
+        # The lineage that "speciates" at this split. Used to fetch
+        # mutation_summary for the edge that *enters* this split.
+        lineage_id: node.id,
         depth: depth,
         x: next_cumulative,
-        y: mid_y,
+        y: split_y,
         branch_length: branch_length,
         cumulative_distance: next_cumulative,
-        lineage: node
+        lineage: nil,
+        synthetic?: true
       }
 
-      {[record | child_records], next_cursor}
+      {[split_record, own_tip | child_records], cursor2}
     end
   end
+
+  defp tip_record(node, rendered_parent_id, depth, x, y, branch_length) do
+    %{
+      id: node.id,
+      parent_id: rendered_parent_id,
+      lineage_id: node.id,
+      depth: depth,
+      x: x,
+      y: y,
+      branch_length: branch_length,
+      cumulative_distance: x,
+      lineage: node,
+      synthetic?: false
+    }
+  end
+
+  defp synthetic_split_id(lineage_id), do: "split:" <> lineage_id
 
   defp avg([]), do: 0.0
   defp avg(list), do: Enum.sum(list) / length(list)
 
-  # The lineage stored on the layout record is an `%Arkea.Ecology.Lineage{}`
-  # struct; we fall back to its sibling map shape for tests/extinct
-  # node injection. p-distance returns 0.0 if either genome is nil
-  # (delta-encoded descendants).
   defp branch_length_for(nil, _child), do: 0.0
 
   defp branch_length_for(parent, child) do
@@ -238,9 +284,28 @@ defmodule Arkea.Views.Phylogeny do
   defp genome_of(%Lineage{genome: g}), do: g
   defp genome_of(_), do: nil
 
-  # Enrich layout records with phenotype/abundance metadata; drops the
-  # raw lineage struct so the result is JSON-encodable.
-  defp enrich_node(%{lineage: %Lineage{} = lineage} = record, alive_lineages, children_by_parent) do
+  # -------------------------------------------------------------------------
+  # Enrichment: turn raw layout records into JSON-encodable node rows.
+
+  defp enrich_node(%{synthetic?: true} = record, _alive_lineages) do
+    %{
+      id: record.id,
+      parent_id: record.parent_id,
+      depth: record.depth,
+      x: record.x,
+      y: record.y,
+      branch_length: Map.get(record, :branch_length, 0.0),
+      cumulative_distance: Map.get(record, :cumulative_distance, 0.0),
+      leaf?: false,
+      synthetic?: true,
+      abundance: 0,
+      extinct?: false,
+      gene_count: 0,
+      phenotype: %{base_growth_rate: 0.0, repair_efficiency: 0.0, energy_cost: 0.0}
+    }
+  end
+
+  defp enrich_node(%{lineage: %Lineage{} = lineage} = record, alive_lineages) do
     alive_set = MapSet.new(alive_lineages, & &1.id)
 
     abundance =
@@ -269,7 +334,8 @@ defmodule Arkea.Views.Phylogeny do
       y: record.y,
       branch_length: Map.get(record, :branch_length, 0.0),
       cumulative_distance: Map.get(record, :cumulative_distance, 0.0),
-      leaf?: Map.get(children_by_parent, record.id, []) == [],
+      leaf?: true,
+      synthetic?: false,
       abundance: abundance,
       extinct?: not MapSet.member?(alive_set, lineage.id),
       gene_count: gene_count(lineage),
@@ -281,34 +347,48 @@ defmodule Arkea.Views.Phylogeny do
   defp gene_count(%Lineage{genome: %{gene_count: n}}), do: n
   defp gene_count(_), do: 0
 
-  defp build_edges(nodes, born_payloads) do
-    by_id = Map.new(nodes, fn n -> {n.id, n} end)
+  # -------------------------------------------------------------------------
+  # Edges: connect rendered parent → record. mutation_summary attaches
+  # to the edge that "represents" a lineage's birth from its parent.
 
-    Enum.flat_map(nodes, fn node ->
-      case node.parent_id do
+  defp build_edges(records, born_payloads) do
+    Enum.flat_map(records, fn record ->
+      case record.parent_id do
         nil ->
           []
 
         pid ->
-          if Map.has_key?(by_id, pid) do
-            [
-              %{
-                from: pid,
-                to: node.id,
-                mutation_summary: Map.get(born_payloads, node.id),
-                kind: :vertical
-              }
-            ]
-          else
-            []
-          end
+          summary =
+            cond do
+              # The S_X → X_tip self-continuation edge: same lineage,
+              # no birth event.
+              not record.synthetic? and pid == synthetic_split_id(record.id) ->
+                nil
+
+              # Synthetic split S_L: the entering edge represents L's
+              # birth from its biological parent.
+              record.synthetic? ->
+                Map.get(born_payloads, record.lineage_id)
+
+              # Observed lineage tip whose biological parent has no
+              # children (so no synthetic split was emitted) — direct
+              # parent_id → child edge with the standard mutation_summary.
+              true ->
+                Map.get(born_payloads, record.id)
+            end
+
+          [
+            %{
+              from: pid,
+              to: record.id,
+              mutation_summary: summary,
+              kind: :vertical
+            }
+          ]
       end
     end)
   end
 
-  # Audit log entries with `event_type == "lineage_born"` carry the
-  # phenotype delta (Phase B mutation_summary). We index by child id
-  # so edges can label themselves with the delta.
   defp born_payloads_by_lineage(audit) do
     audit
     |> Enum.filter(fn

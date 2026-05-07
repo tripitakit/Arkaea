@@ -16,22 +16,52 @@ defmodule Arkea.Views.PhylogenyTest do
     assert is_float(h)
   end
 
-  test "founder + two children produces 3 nodes and 2 edges" do
+  test "founder + two children produces a canonical tree with synthetic split" do
     founder = lineage("a", nil)
     child1 = lineage("b", "a")
     child2 = lineage("c", "a")
 
     model = Phylogeny.build([founder, child1, child2], [])
 
-    assert length(model.nodes) == 3
-    assert length(model.edges) == 2
-    assert model.max_depth == 1
+    # Canonical phylogeny: 3 observed lineages → 3 tips + 1 synthetic
+    # speciation split (the founder branched twice into b and c).
+    assert length(model.nodes) == 4
 
-    # The founder lives at depth 0; children at depth 1.
-    depths_by_id = Map.new(model.nodes, fn n -> {n.id, n.depth} end)
-    assert depths_by_id["a"] == 0
-    assert depths_by_id["b"] == 1
-    assert depths_by_id["c"] == 1
+    # Edges: synthetic split → a (self-continuation), split → b, split → c.
+    assert length(model.edges) == 3
+
+    by_id = Map.new(model.nodes, fn n -> {n.id, n} end)
+    assert by_id["split:a"].synthetic? == true
+    assert by_id["a"].leaf? == true
+    assert by_id["b"].leaf? == true
+    assert by_id["c"].leaf? == true
+
+    # The synthetic split is at depth 0 (it sits where `a` "spoke");
+    # all observed lineages are tips at depth 1 below it.
+    assert by_id["split:a"].depth == 0
+    assert by_id["a"].depth == 1
+    assert by_id["b"].depth == 1
+    assert by_id["c"].depth == 1
+    assert model.max_depth == 1
+  end
+
+  test "every observed lineage is a tip in the canonical view" do
+    a = lineage("a", nil)
+    b = lineage("b", "a")
+    c = lineage("c", "b")
+
+    model = Phylogeny.build([a, b, c], [])
+    by_id = Map.new(model.nodes, fn n -> {n.id, n} end)
+
+    assert by_id["a"].leaf? == true
+    assert by_id["b"].leaf? == true
+    assert by_id["c"].leaf? == true
+
+    # `a` and `b` both have descendants → each spawns a synthetic
+    # split. `c` is terminal in the lineage tree, no split for it.
+    assert by_id["split:a"].synthetic? == true
+    assert by_id["split:b"].synthetic? == true
+    refute Map.has_key?(by_id, "split:c")
   end
 
   test "lineages with unknown parent_id are treated as roots" do
@@ -82,10 +112,17 @@ defmodule Arkea.Views.PhylogenyTest do
 
     model = Phylogeny.build([founder, child], audit)
 
-    [edge] = model.edges
-    assert edge.from == "a"
-    assert edge.to == "b"
-    assert edge.mutation_summary["d_growth_rate"] == 0.3
+    # The speciation edge in the canonical tree is split:a → b (the
+    # synthetic split represents `a`'s speciation event).
+    speciation_edge = Enum.find(model.edges, &(&1.to == "b"))
+    assert speciation_edge.from == "split:a"
+    assert speciation_edge.mutation_summary["d_growth_rate"] == 0.3
+
+    # The self-continuation edge split:a → a carries no mutation
+    # summary (no birth event happened on that edge).
+    self_edge = Enum.find(model.edges, &(&1.to == "a"))
+    assert self_edge.from == "split:a"
+    assert self_edge.mutation_summary == nil
   end
 
   defp lineage(id, parent_id) do
@@ -130,7 +167,7 @@ defmodule Arkea.Views.PhylogenyTest do
       assert child_node.cumulative_distance > parent_node.cumulative_distance
     end
 
-    test "the leaf? flag distinguishes terminal from internal lineages" do
+    test "every observed lineage is a leaf, only synthetic splits are internal" do
       a = lineage("a", nil)
       b = lineage("b", "a")
       c = lineage("c", "a")
@@ -138,9 +175,11 @@ defmodule Arkea.Views.PhylogenyTest do
       model = Phylogeny.build([a, b, c], [])
 
       by_id = Map.new(model.nodes, &{&1.id, &1})
-      refute by_id["a"].leaf?
+      assert by_id["a"].leaf?
       assert by_id["b"].leaf?
       assert by_id["c"].leaf?
+      refute by_id["split:a"].leaf?
+      assert by_id["split:a"].synthetic?
     end
   end
 end
