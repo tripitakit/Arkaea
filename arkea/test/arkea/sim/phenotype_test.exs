@@ -255,4 +255,155 @@ defmodule Arkea.Sim.PhenotypeTest do
     # domain2 appears last in gene order → its km wins
     assert_in_delta entry.km, domain2.params.km, 0.001
   end
+
+  # ---------------------------------------------------------------------------
+  # ribosome_like generative derivation (Block 5)
+
+  describe "ribosome_like generative derivation (Block 5)" do
+    # Helpers — codon constructions validated against Domain.new/2:
+    #   - [0,0,8] type_tag → :structural_fold (sum 8, idx 8 in canonical list).
+    #   - [0,0,1] type_tag → :catalytic_site  (sum 1, idx 1).
+    #   - structural_fold params: multimerization_n = max(1, rem(sum_last_3, 8) + 1).
+    #     all-5 codons → last_3 [5,5,5] sum 15 → rem 7 → +1 = 8.
+    #     all-0 codons → last_3 [0,0,0] sum  0 → rem 0 → +1 = 1.
+    #   - catalytic_site params: reaction_class = @reaction_classes[rem(sum_first_3, 6)],
+    #     where @reaction_classes = [:hydrolysis, :oxidation, :reduction,
+    #     :isomerization, :ligation, :lyase]. So first_3 sum 4 → :ligation,
+    #     first_3 sum 0 → :hydrolysis.
+    defp high_multimer_fold,
+      do: Domain.new([0, 0, 8], List.duplicate(5, 20))
+
+    defp low_multimer_fold,
+      do: Domain.new([0, 0, 8], List.duplicate(0, 20))
+
+    defp ligation_catalytic,
+      do: Domain.new([0, 0, 1], [4, 0, 0 | List.duplicate(10, 17)])
+
+    defp hydrolysis_catalytic,
+      do: Domain.new([0, 0, 1], List.duplicate(10, 20))
+
+    test "empty (chromosome-less) genome → ribosome_like == 0.0" do
+      # Genome.new([]) is not allowed by chromosome invariants; build a
+      # genome with a single non-ribosome gene to express "no proxy".
+      gene = Gene.from_domains([Domain.new([0, 0, 0], List.duplicate(5, 20))])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    test "structural_fold alone (no ligation site) → ribosome_like == 0.0" do
+      gene = Gene.from_domains([high_multimer_fold()])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    test "ligation site alone (no structural_fold) → ribosome_like == 0.0" do
+      gene = Gene.from_domains([ligation_catalytic()])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    test "low-multimerization fold + ligation → ribosome_like == 0.0" do
+      # multimerization_n = 1 fails the >= 4 threshold even with a
+      # co-occurring ligation site.
+      fold = low_multimer_fold()
+      assert fold.type == :structural_fold
+      assert fold.params.multimerization_n == 1
+
+      gene = Gene.from_domains([fold, ligation_catalytic()])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    test "high-multimerization fold + non-ligation catalytic → ribosome_like == 0.0" do
+      # The catalytic site is :hydrolysis here, not :ligation.
+      catalytic = hydrolysis_catalytic()
+      assert catalytic.params.reaction_class == :hydrolysis
+
+      gene = Gene.from_domains([high_multimer_fold(), catalytic])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    test "both prongs co-occurring in one gene → ribosome_like > 0.0" do
+      fold = high_multimer_fold()
+      catalytic = ligation_catalytic()
+      assert fold.params.multimerization_n >= 4
+      assert catalytic.params.reaction_class == :ligation
+
+      gene = Gene.from_domains([fold, catalytic])
+      genome = Genome.new([gene])
+
+      assert Phenotype.target_classes(genome).ribosome_like > 0.0
+    end
+
+    test "two ribosome-like genes → higher index, capped at ≤ 1.0" do
+      ribo_gene1 = Gene.from_domains([high_multimer_fold(), ligation_catalytic()])
+      ribo_gene2 = Gene.from_domains([high_multimer_fold(), ligation_catalytic()])
+
+      single = Phenotype.target_classes(Genome.new([ribo_gene1])).ribosome_like
+      double = Phenotype.target_classes(Genome.new([ribo_gene1, ribo_gene2])).ribosome_like
+
+      assert double > single
+      assert double <= 1.0
+    end
+
+    test "two prongs split across two genes → ribosome_like == 0.0 (must co-occur in one gene)" do
+      # Block 5 invariant: the proxy must co-occur within the SAME gene,
+      # not just within the same genome.
+      fold_only = Gene.from_domains([high_multimer_fold()])
+      catalytic_only = Gene.from_domains([ligation_catalytic()])
+      genome = Genome.new([fold_only, catalytic_only])
+
+      assert Phenotype.target_classes(genome).ribosome_like == 0.0
+    end
+
+    property "random genome without proxy → ribosome_like == 0.0; with proxy → > 0.0" do
+      check all(g <- genome(), max_runs: 100) do
+        # Negative direction: when the random genome contains no
+        # ribosome-shaped gene (a single gene that simultaneously carries an
+        # oligomeric `:structural_fold` and a `:ligation` `:catalytic_site`),
+        # the proxy must read 0.0. When such a gene is present (rare but
+        # possible), the proxy must read > 0.0.
+        if Enum.any?(g.chromosome, &ribosome_like_gene?/1) do
+          assert Phenotype.target_classes(g).ribosome_like > 0.0
+        else
+          assert Phenotype.target_classes(g).ribosome_like == 0.0
+        end
+
+        # Positive direction (augmentation): appending a guaranteed
+        # ribosome-shaped gene must drive ribosome_like > 0.0 regardless of
+        # the original genome.
+        ribo_gene =
+          Gene.from_domains([
+            Domain.new([0, 0, 8], List.duplicate(5, 20)),
+            Domain.new([0, 0, 1], [4, 0, 0 | List.duplicate(10, 17)])
+          ])
+
+        augmented = Genome.new(g.chromosome ++ [ribo_gene])
+        assert Phenotype.target_classes(augmented).ribosome_like > 0.0
+      end
+    end
+  end
+
+  # Mirror of the private `ribosome_like?/1` predicate in
+  # `Arkea.Sim.Phenotype` (lib/arkea/sim/phenotype.ex). Kept in sync so the
+  # property test can pivot on the same shape the production code uses.
+  defp ribosome_like_gene?(%Gene{domains: domains}) do
+    has_oligomeric_fold =
+      Enum.any?(domains, fn d ->
+        d.type == :structural_fold and (d.params[:multimerization_n] || 1) >= 4
+      end)
+
+    has_ligation_site =
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and d.params[:reaction_class] == :ligation
+      end)
+
+    has_oligomeric_fold and has_ligation_site
+  end
 end

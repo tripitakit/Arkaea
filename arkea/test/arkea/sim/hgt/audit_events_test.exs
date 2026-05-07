@@ -566,54 +566,22 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
     end
   end
 
-  # Error-catastrophe helpers. Build a 200-gene genome so that under
-  # SOS-amplified mu the Eigen product mu * gene_count is comfortably
-  # above the critical threshold of 1.0 (no repair_fidelity domains
-  # means Phenotype.repair_efficiency falls back to its 0.5 default,
-  # giving mu_per_cell ≈ 0.02 with SOS active).
-  defp runaway_mutator_genome do
-    genes = for _ <- 1..200, do: Gene.from_domains([catalytic_domain()])
-    Genome.new(genes)
-  end
-
   describe "error_catastrophe_death emission" do
+    # Post-Review-2 calibration (Task 5): `Mutator.error_catastrophe_lethality`
+    # now follows the Eigen quasispecies criterion strictly — fidelity
+    # `(1 − µ/L)^L` versus `1/σ`. With the σ = 2 default the per-cell
+    # critical µ is ≈ ln(2) ≈ 0.69, far above any rate Arkea's mutation
+    # pipeline can produce (max `mu_per_cell ≈ 0.04` under SOS×4 with
+    # repair = 0). This is biologically faithful: bacteria operate orders
+    # of magnitude below the Eigen threshold. The legacy "natural
+    # emission" test driven through `Tick.tick/1` therefore can no longer
+    # trigger; the audit-event contract for `:error_catastrophe_death`
+    # remains covered by `audit_writer_test.exs:221` (synthetic event
+    # persistence) and `mutator_test.exs` (formula behaviour above the
+    # Eigen threshold).
+    @tag :skip
     test "lineage with mu * L >> 1 emits :error_catastrophe_death on division" do
-      # Phenotype.repair_efficiency defaults to 0.5 in the absence of
-      # `:repair_fidelity` domains. We seed dna_damage well above the
-      # SOS threshold (0.20) so the mutation rate is amplified ×4:
-      # mu_per_cell = 0.01 * (1 - 0.5) * 4.0 = 0.02. With gene_count =
-      # 200, mu * L = 4.0 — Eigen breach with p_lethal ≈ 0.95 per
-      # attempted division.
-      base = Lineage.new_founder(runaway_mutator_genome(), %{surface: 1_000}, 0)
-      lineage = %{base | dna_damage: 0.5}
-
-      state =
-        BiotopeState.new_from_opts(
-          id: "error-catastrophe-event-emission",
-          archetype: :hot_spring,
-          phases: [surface_phase()],
-          dilution_rate: 0.0,
-          lineages: [lineage],
-          rng_seed: Mutator.init_seed("error-catastrophe-event-emission")
-        )
-
-      {_final_state, all_events} =
-        Enum.reduce(1..200, {state, []}, fn _i, {acc_state, acc_events} ->
-          {next_state, events} = Tick.tick(acc_state)
-          {next_state, acc_events ++ events}
-        end)
-
-      catastrophes = Enum.filter(all_events, &(&1.type == :error_catastrophe_death))
-
-      assert length(catastrophes) >= 1,
-             "Expected at least one :error_catastrophe_death event over 200 ticks; got #{inspect(Enum.map(all_events, & &1.type))}"
-
-      assert Enum.all?(catastrophes, fn e ->
-               is_binary(e.lineage_id) and
-                 is_float(e.mu) and
-                 is_integer(e.genome_size) and e.genome_size > 0 and
-                 is_integer(e.tick)
-             end)
+      assert false, "deferred: Eigen-aderent threshold is unreachable in stock simulation"
     end
   end
 end
