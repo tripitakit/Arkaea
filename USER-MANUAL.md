@@ -467,14 +467,36 @@ Sei tab. Solo il body della tab attiva è renderizzato; lo scroll è interno.
 
 #### Events
 
-Stream degli ultimi ~20 eventi del biotope, in ordine cronologico decrescente. Tipi:
+Stream degli ultimi ~20 eventi del biotope, in ordine cronologico decrescente. Dopo la remediation post-Review-2 il pipeline emette **15 tipi tipizzati**, raggruppati per ambito:
+
+**Demografici / lineage**
 
 - **`:lineage_born`** — nuovo lineage nato (mutazione che produce un genome nuovo). Icona: ➕ verde.
 - **`:lineage_extinct`** — lineage estinto (`total_abundance = 0`). Icona: ➖ rossa.
-- **`:hgt_transfer`** — evento HGT (coniugazione, trasformazione, trasduzione, infezione lisogenica). Icona: ⇄ ambra.
+- **`:colonization`** — un lineage attraversa 0 → ≥50 cellule in una nuova fase.
+- **`:mass_lysis`** — una fase perde >30% della popolazione in un singolo tick.
+
+**HGT (uno per canale, post-Review-2)**
+
+- **`:hgt_transfer`** — coniugazione plasmidica con dettagli di canale nel payload. Icona: ⇄ ambra.
+- **`:transformation_event`** — uptake DNA libero da `dna_pool`.
+- **`:transduction_event`** — burst lytic con virion *mis-packaged* (lateral transduction).
+- **`:phage_infection`** — infezione fagica con receptor matching riuscito.
+- **`:rm_digestion`** — restriction enzyme cliva un payload in ingresso (R-M difensivo).
+
+**Fenomeni biologici notevoli**
+
+- **`:phage_burst`** — `phage_pool` di una fase guadagna >25 virioni in un tick.
+- **`:plasmid_displaced`** — incompatibilità inc-group: un plasmide preesistente perso.
+- **`:bacteriocin_kill`** — un lineage è stato lisato da bacteriocina (con `producer_lineage_ids` nel payload).
+- **`:error_catastrophe_death`** — divisione abortita per breach della soglia Eigen (raro: post-Review-2 la soglia σ=2 mette il critical µ a ≈ ln(σ) ≈ 0.693 per cellula, ben sopra il regime SOS-amplificato di Arkea).
+- **`:mutation_notable`** — il fenotipo del bambino differisce ≥20% dal parent su `base_growth_rate`, `repair_efficiency` o `energy_cost`.
+
+**Player**
+
 - **`:intervention`** — intervento del player applicato. Icona: 🧪 teal.
 
-Ogni entry mostra: icona, label, tick di occorrenza, short_id del lineage coinvolto.
+Ogni entry mostra: icona, label, tick di occorrenza, short_id del lineage coinvolto. Per il dettaglio completo del payload tipizzato → tab **Audit** (`/audit`) o **HGT Ledger** (filtra per canale).
 
 #### Lineages
 
@@ -622,18 +644,31 @@ P, N, Fe, S sono richiesti per la produzione di biomassa. Sotto un floor (`@elem
 
 ### 6.3 Error catastrophe
 
-Soglia di Eigen: per un genome di N geni con error rate per gene µ, se `µ × N > 1`, le mutazioni accumulate per replicazione sono troppe per essere riparate, e la fitness collassa.
+Soglia di Eigen *aderente* (post-Review-2): la fidelity per replicazione è `(1 − µ/L)^L` e la lethality è il deficit relativo rispetto alla soglia `1/σ`:
 
-**Cosa vedi**: lineage `mutator` (basso `repair_efficiency`) speciano velocemente nei primi 100-200 tick, poi cominciano a estinguersi. In Events vedrai un picco di `:lineage_born` seguito da un'ondata di `:lineage_extinct`. In Audit, cerca `error_catastrophe_death` events.
+```
+lethality = max(0, 1 − (1 − µ/L)^L · σ)
+```
+
+con `σ = 2.0` (master sequence con fitness ≈ 2× il mutante medio, Bull et al. 2005). Il critical µ per-cell è ≈ `ln(σ) ≈ 0.693`, *quasi indipendente da L* per L moderati.
+
+**Conseguenza biologica**: Arkea, con `mu_per_cell ≤ 0.04` (`base 0.01 × repair=0 × SOS×4`), opera **molto sotto** la soglia. È coerente con la realtà: i batteri non sono normalmente vicini al collasso quasispecies; solo i virus a RNA ci si avvicinano. L'error catastrophe è quindi un *theoretical ceiling*: enforced ma raramente raggiunto in scenari standard.
+
+**Cosa vedi**: lineage `mutator` (basso `repair_efficiency`) speciano velocemente nei primi 100-200 tick, poi cominciano a estinguersi *per altre cause* (carenze nutrienti, predazione, displacement) prima che la formula Eigen morda. In Events vedrai un picco di `:lineage_born` seguito da un'ondata di `:lineage_extinct`. Gli `:error_catastrophe_death` sono molto rari in canary; per scatenarli serve uno scenario sintetico con µ artificialmente alto.
 
 ### 6.4 Predazione fagica
 
 I profagi inducono sotto stress (SOS attivo). Un induction → lytic burst → 10–500 virioni nel `phage_pool`. I virioni decadono con half-life 3–5 tick. Se il pool è alto e ci sono recipient con `:phage_receptor` matching, l'infection rate decolla.
 
+**Switch lisi/lisogenia (cI/cro emergente)**: la `repressor_strength` di una cassetta profagica è derivata dalla mean `binding_affinity` dei domini `:dna_binding` della cassetta stessa.
+
+- Cassetta con repressore forte (`repressor_strength → 1.0`) → `p_lytic = 0.0` → lisogenia stabile.
+- Cassetta `cI−` (no `:dna_binding`) → `repressor_strength = 0.0` → `p_lytic = 1.0` → **obligate lytic** al primo SOS, fenomenologia λ`cI−` documentata.
+
 **Cosa vedi**:
 
 - Phage load alto in una fase (visibile nella token cloud sotto Chemistry).
-- Eventi `:hgt_transfer` ripetuti (l'hook `infection_step` emette questo tipo).
+- Eventi `:phage_infection` (entry riuscita) e `:rm_digestion` (entry digerita dal restriction enzyme) ripetuti, più `:transduction_event` quando un burst lytic mis-packaging avviene.
 - Lineage con loss-of-receptor che improvvisamente esplodono (selezione positiva sulla mutazione che rimuove il `:phage_receptor`). Arms race classica.
 
 ### 6.5 Bacteriocine warfare
@@ -800,13 +835,16 @@ La pagina è divisa in due pannelli affiancati:
 
 Una riga di chip in alto filtra per tipo di evento. Filtri attualmente esposti:
 
-- `hgt_event` — il transfer storico (Phase 6 originale).
-- `hgt_conjugation_attempt`, `hgt_transformation_event`, `hgt_transduction_event` — i tre canali HGT canonici (Block 7 DESIGN).
-- `rm_digestion` — restrizione enzima ha clivato un payload in entrata.
+- `hgt_transfer` — coniugazione plasmidica (con `channel: :conjugation` nel payload).
+- `transformation_event` — uptake DNA libero da `dna_pool`.
+- `transduction_event` — burst lytic con virion mis-packaged.
+- `phage_infection` — infezione fagica con receptor matching riuscito.
+- `rm_digestion` — restrizione enzima cliva un payload in ingresso (Arber-Dussoix bypass via metilazione visibile nel payload).
 - `plasmid_displaced` — plasmide spiazzato per incompatibilità inc-group.
-- `phage_burst`, `phage_infection` — emissione e infezione fagiche.
+- `phage_burst` — `phage_pool` di una fase guadagna >25 virioni in un tick.
+- `bacteriocin_kill` — un lineage è stato lisato da bacteriocina prodotta da un altro.
 
-> **Nota**: alcuni canali (R-M, transformation, transduction) richiedono che il sim emetta esplicitamente l'evento. La pipeline è cablata (`Arkea.Persistence.AuditLog`), ma l'emissione vera è graduale: i canali ancora silenziosi mostreranno conteggio 0. Vedi `05-BIOLOGICAL-MODEL-REVIEW.md` Phase 12-16 per il roadmap di emissione.
+> **Nota**: post-Review-2 (Task 1 di REMEDIATION-PLAN), l'emissione è completamente cablata: ogni canale HGT, ogni evento di lisi e ogni catastrofe di divisione produce un evento tipizzato in `pending_events`, che `Tick.tick/1` raccoglie e che `AuditWriter` persiste. La copertura è strict pattern-match — i canali silenziosi nei vecchi roadmap ora hanno tutti un handler dedicato.
 
 Il filtro selezionato è **deep-linkable**: l'URL include `?kind=<tipo>` quindi può essere bookmarkato o condiviso.
 
@@ -935,18 +973,30 @@ Ogni biotope persistente campiona automaticamente:
 
 Cap per biotope: 100 000 sample. Quando viene superato, i sample più vecchi vengono eliminati a batch del 10%. Il rate di sampling è `Application.compile_env(:arkea, :time_series_sampling_period, 5)` — modificabile via config.
 
-### 13.5 Eventi audit "estesi" (Phase B)
+### 13.5 Eventi audit "estesi"
 
-Oltre ai classici `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, il sim emette ora anche:
+Oltre ai classici `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, il sim emette eventi tipizzati introdotti in due ondate:
+
+**Phase B (UI-OPTIMIZATION-PLAN)**
 
 - `mass_lysis` — quando una fase perde >30% della popolazione in un singolo tick.
 - `colonization` — quando un lineage attraversa la soglia 0 → ≥50 cellule in una nuova fase.
 - `phage_burst` — quando il `phage_pool` di una fase guadagna >25 virioni in un tick.
 - `mutation_notable` — quando il fenotipo del bambino differisce di ≥20% dal parent su `base_growth_rate`, `repair_efficiency` o `energy_cost`. Il payload include il diff come `mutation_summary` (`d_growth_rate`, `d_repair`, `d_energy_cost`, `child_gene_count`, `parent_gene_count`).
 
-Il `lineage_born` event ora porta anche un `mutation_summary` quando il parent è ancora identificabile, così il phylogeny viewer (§5.5) può etichettare gli archi parent → child con il delta fenotipico.
+**Post-Review-2 (REMEDIATION-PLAN Task 1, audit log per-canale)**
 
-Tutti questi eventi finiscono in `audit_log`; sono accessibili via API audit (§13.2), via Audit live view (§9), via HGT ledger (§11), e influenzano i marker verticali del Trends tab (§5.5).
+- `transformation_event` — uptake DNA libero da `dna_pool` (HGT trasformazione naturale).
+- `transduction_event` — burst lytic con virion mis-packaged (lateral transduction, Chen 2018).
+- `phage_infection` — infezione fagica con receptor matching riuscito.
+- `rm_digestion` — restriction enzyme cliva un payload in ingresso (R-M difensivo). Il payload include il `target_methylation_profile` per diagnosticare gli escape via Arber-Dussoix.
+- `plasmid_displaced` — incompatibilità inc-group: un plasmide preesistente è stato perso.
+- `bacteriocin_kill` — un lineage è stato lisato da bacteriocina; payload include `producer_lineage_ids` e `surface_tag_target`.
+- `error_catastrophe_death` — divisione abortita per breach Eigen (raro post-Review-2: vedi §6.3).
+
+Il `lineage_born` event porta anche un `mutation_summary` quando il parent è ancora identificabile, così il phylogeny viewer (§5.5) può etichettare gli archi parent → child con il delta fenotipico.
+
+Tutti questi eventi finiscono in `audit_log`; sono accessibili via API audit (§13.2), via Audit live view (§9), via HGT ledger (§11), e influenzano i marker verticali del Trends tab (§5.5). I payload sono `jsonb` e ogni handler in `Arkea.Persistence.AuditWriter` è strict pattern-match (no fallback silenzioso).
 
 ---
 
@@ -1119,9 +1169,9 @@ No. Solo i biotopi che hai colonizzato (`player_controlled`) accettano intervent
 
 Sì, il draft non è persistito. Se ricarichi la pagina, riparti da zero. Committa quando sei soddisfatto.
 
-#### Vedo `:hgt_transfer` events ma non capisco quale canale di HGT è stato usato
+#### Vedo eventi HGT ma non capisco quale canale è stato usato
 
-Il payload dell'evento contiene il channel (`:conjugation`, `:transformation`, `:transduction`, `:phage_infection`). Attualmente il preview mostra solo le prime 4 chiavi del payload — apri Audit con filter `hgt_event` per vedere il contesto completo (i payload preview includono il channel).
+Post-Review-2 il sim emette **un evento per canale** (no più solo `:hgt_transfer` generico): `:transformation_event`, `:transduction_event`, `:phage_infection`, `:rm_digestion`. Il `:hgt_transfer` legacy è ancora emesso da `HGT.step` per la coniugazione plasmidica, con `channel: :conjugation` nel payload. Apri Audit (`/audit`) o HGT Ledger (`/hgt-ledger`) per filtrare per canale e vedere il payload completo.
 
 #### Posso forzare un mutation rate alto in un singolo lineage?
 

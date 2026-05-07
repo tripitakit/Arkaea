@@ -467,14 +467,36 @@ Six tabs. Only the body of the active tab is rendered; scrolling is internal.
 
 #### Events
 
-Stream of the last ~20 biotope events, in descending chronological order. Types:
+Stream of the last ~20 biotope events, in descending chronological order. After the post-Review-2 remediation the pipeline emits **15 typed events**, grouped by scope:
+
+**Demographic / lineage**
 
 - **`:lineage_born`** — new lineage born (mutation producing a new genome). Icon: ➕ green.
 - **`:lineage_extinct`** — lineage extinct (`total_abundance = 0`). Icon: ➖ red.
-- **`:hgt_transfer`** — HGT event (conjugation, transformation, transduction, lysogenic infection). Icon: ⇄ amber.
+- **`:colonization`** — a lineage crosses 0 → ≥50 cells in a new phase.
+- **`:mass_lysis`** — a phase loses >30% of its population in a single tick.
+
+**HGT (one per channel, post-Review-2)**
+
+- **`:hgt_transfer`** — plasmid conjugation with channel details in the payload. Icon: ⇄ amber.
+- **`:transformation_event`** — uptake of free DNA from `dna_pool`.
+- **`:transduction_event`** — lytic burst with mis-packaged virion (lateral transduction).
+- **`:phage_infection`** — phage infection with successful receptor matching.
+- **`:rm_digestion`** — restriction enzyme cleaves an incoming payload (R-M defence).
+
+**Notable biological phenomena**
+
+- **`:phage_burst`** — `phage_pool` of a phase gains >25 virions in a tick.
+- **`:plasmid_displaced`** — inc-group incompatibility: a pre-existing plasmid lost.
+- **`:bacteriocin_kill`** — a lineage was lysed by a bacteriocin (with `producer_lineage_ids` in the payload).
+- **`:error_catastrophe_death`** — division aborted by Eigen breach (rare: post-Review-2 the σ=2 threshold puts critical µ at ≈ ln(σ) ≈ 0.693 per cell, well above Arkea's SOS-amplified regime).
+- **`:mutation_notable`** — child phenotype differs ≥20% from parent on `base_growth_rate`, `repair_efficiency` or `energy_cost`.
+
+**Player**
+
 - **`:intervention`** — player intervention applied. Icon: 🧪 teal.
 
-Each entry shows: icon, label, occurrence tick, short_id of the lineage involved.
+Each entry shows: icon, label, occurrence tick, short_id of the lineage involved. For full typed-payload detail → **Audit** tab (`/audit`) or **HGT Ledger** (filter by channel).
 
 #### Lineages
 
@@ -622,18 +644,31 @@ P, N, Fe, S are required for biomass production. Below a floor (`@elemental_floo
 
 ### 6.3 Error catastrophe
 
-Eigen threshold: for a genome of N genes with per-gene error rate µ, if `µ × N > 1`, mutations accumulated per replication are too many to be repaired, and fitness collapses.
+Eigen-aderent threshold (post-Review-2): the per-replication fidelity is `(1 − µ/L)^L`, and the lethality is the relative deficit against `1/σ`:
 
-**What you see**: `mutator` lineages (low `repair_efficiency`) speciate rapidly in the first 100–200 ticks, then begin to go extinct. In Events you will see a peak of `:lineage_born` followed by a wave of `:lineage_extinct`. In Audit, look for `error_catastrophe_death` events.
+```
+lethality = max(0, 1 − (1 − µ/L)^L · σ)
+```
+
+with `σ = 2.0` (master sequence with fitness ≈ 2× the mean mutant, Bull et al. 2005). The per-cell critical µ is ≈ `ln(σ) ≈ 0.693`, *almost L-independent* for moderate L.
+
+**Biological consequence**: Arkea, with `mu_per_cell ≤ 0.04` (`base 0.01 × repair=0 × SOS×4`), operates **far below** the threshold. This is consistent with reality: bacteria are not normally near the quasispecies collapse; only RNA viruses are. Error catastrophe is therefore a *theoretical ceiling* — enforced but rarely reached in standard scenarios.
+
+**What you see**: `mutator` lineages (low `repair_efficiency`) speciate rapidly in the first 100–200 ticks, then begin to go extinct *for other reasons* (nutrient deficits, predation, displacement) before the Eigen formula bites. In Events you will see a peak of `:lineage_born` followed by a wave of `:lineage_extinct`. `:error_catastrophe_death` events are very rare in canary scenarios; to trigger them you need a synthetic setup with artificially high µ.
 
 ### 6.4 Phage predation
 
 Prophages induce under stress (SOS active). One induction → lytic burst → 10–500 virions in the `phage_pool`. Virions decay with half-life 3–5 ticks. If the pool is high and there are recipients with a matching `:phage_receptor`, the infection rate takes off.
 
+**Lytic / lysogeny switch (emergent cI/cro)**: a prophage cassette's `repressor_strength` is derived from the mean `binding_affinity` of its `:dna_binding` domains.
+
+- Cassette with strong repressor (`repressor_strength → 1.0`) → `p_lytic = 0.0` → stable lysogeny.
+- `cI−` cassette (no `:dna_binding`) → `repressor_strength = 0.0` → `p_lytic = 1.0` → **obligate lytic** at the first SOS trigger, the documented λ`cI−` phenotype.
+
 **What you see**:
 
 - High phage load in a phase (visible in the token cloud below Chemistry).
-- Repeated `:hgt_transfer` events (the `infection_step` hook emits this type).
+- Repeated `:phage_infection` events (successful entry) and `:rm_digestion` (entry digested by the restriction enzyme), plus `:transduction_event` when a lytic burst mis-packages.
 - Lineages with loss-of-receptor that suddenly expand (positive selection on the mutation that removes the `:phage_receptor`). Classic arms race.
 
 ### 6.5 Bacteriocin warfare
@@ -800,13 +835,16 @@ The page is divided into two side-by-side panels:
 
 A row of chips at the top filters by event type. Currently exposed filters:
 
-- `hgt_event` — the historical transfer (original Phase 6).
-- `hgt_conjugation_attempt`, `hgt_transformation_event`, `hgt_transduction_event` — the three canonical HGT channels (Block 7 DESIGN).
-- `rm_digestion` — restriction enzyme cleaved an incoming payload.
+- `hgt_transfer` — plasmid conjugation (with `channel: :conjugation` in the payload).
+- `transformation_event` — uptake of free DNA from `dna_pool`.
+- `transduction_event` — lytic burst with mis-packaged virion.
+- `phage_infection` — phage infection with successful receptor matching.
+- `rm_digestion` — restriction enzyme cleaves an incoming payload (Arber-Dussoix bypass via methylation visible in the payload).
 - `plasmid_displaced` — plasmid displaced due to inc-group incompatibility.
-- `phage_burst`, `phage_infection` — phage emission and infection.
+- `phage_burst` — `phage_pool` of a phase gains >25 virions in a tick.
+- `bacteriocin_kill` — a lineage was lysed by bacteriocin produced by another.
 
-> **Note**: some channels (R-M, transformation, transduction) require the sim to explicitly emit the event. The pipeline is wired (`Arkea.Persistence.AuditLog`), but actual emission is gradual: channels not yet active will show a count of 0. See `05-BIOLOGICAL-MODEL-REVIEW.md` Phases 12–16 for the emission roadmap.
+> **Note**: post-Review-2 (Task 1 of REMEDIATION-PLAN), emission is fully wired: every HGT channel, every lysis event and every division catastrophe produces a typed event in `pending_events`, which `Tick.tick/1` collects and `AuditWriter` persists. Coverage is strict pattern-match — channels that were silent in old roadmaps now all have a dedicated handler.
 
 The selected filter is **deep-linkable**: the URL includes `?kind=<type>` and can therefore be bookmarked or shared.
 
@@ -935,18 +973,30 @@ Each persistent biotope samples automatically:
 
 Cap per biotope: 100,000 samples. When exceeded, the oldest samples are pruned in batches of 10%. The sampling rate is `Application.compile_env(:arkea, :time_series_sampling_period, 5)` — configurable via config.
 
-### 13.5 "Extended" audit events (Phase B)
+### 13.5 "Extended" audit events
 
-In addition to the classic `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, the sim now also emits:
+In addition to the classic `lineage_born`, `lineage_extinct`, `hgt_transfer`, `intervention`, the sim emits typed events introduced in two waves:
+
+**Phase B (UI-OPTIMIZATION-PLAN)**
 
 - `mass_lysis` — when a phase loses >30% of its population in a single tick.
 - `colonization` — when a lineage crosses the 0 → ≥50 cells threshold in a new phase.
 - `phage_burst` — when the `phage_pool` of a phase gains >25 virions in a tick.
 - `mutation_notable` — when the child phenotype differs by ≥20% from the parent on `base_growth_rate`, `repair_efficiency` or `energy_cost`. The payload includes the diff as `mutation_summary` (`d_growth_rate`, `d_repair`, `d_energy_cost`, `child_gene_count`, `parent_gene_count`).
 
-The `lineage_born` event now also carries a `mutation_summary` when the parent is still identifiable, so the Phylogeny viewer (§5.5) can label parent → child arcs with the phenotypic delta.
+**Post-Review-2 (REMEDIATION-PLAN Task 1, per-channel audit log)**
 
-All these events go into `audit_log`; they are accessible via the audit API (§13.2), via the Audit live view (§9), via the HGT ledger (§11), and influence the vertical markers in the Trends tab (§5.5).
+- `transformation_event` — uptake of free DNA from `dna_pool` (HGT natural transformation).
+- `transduction_event` — lytic burst with mis-packaged virion (lateral transduction, Chen 2018).
+- `phage_infection` — phage infection with successful receptor matching.
+- `rm_digestion` — restriction enzyme cleaves an incoming payload (R-M defence). The payload includes the `target_methylation_profile` to diagnose Arber-Dussoix escapes.
+- `plasmid_displaced` — inc-group incompatibility: a pre-existing plasmid was lost.
+- `bacteriocin_kill` — a lineage was lysed by a bacteriocin; payload includes `producer_lineage_ids` and `surface_tag_target`.
+- `error_catastrophe_death` — division aborted by Eigen breach (rare post-Review-2: see §6.3).
+
+The `lineage_born` event also carries a `mutation_summary` when the parent is still identifiable, so the Phylogeny viewer (§5.5) can label parent → child arcs with the phenotypic delta.
+
+All these events go into `audit_log`; they are accessible via the audit API (§13.2), via the Audit live view (§9), via the HGT ledger (§11), and influence the vertical markers in the Trends tab (§5.5). Payloads are `jsonb` and every handler in `Arkea.Persistence.AuditWriter` is strict pattern-match (no silent fallback).
 
 ---
 
@@ -1119,9 +1169,9 @@ No. Only biotopes you have colonized (`player_controlled`) accept interventions.
 
 Yes, the draft is not persisted. If you reload the page, you start from scratch. Commit when you are satisfied.
 
-#### I see `:hgt_transfer` events but I cannot tell which HGT channel was used
+#### I see HGT events but I cannot tell which channel was used
 
-The event payload contains the channel (`:conjugation`, `:transformation`, `:transduction`, `:phage_infection`). Currently the preview shows only the first 4 keys of the payload — open Audit with filter `hgt_event` to see the full context (payload previews include the channel).
+Post-Review-2 the sim emits **one event per channel** (no longer just a generic `:hgt_transfer`): `:transformation_event`, `:transduction_event`, `:phage_infection`, `:rm_digestion`. The legacy `:hgt_transfer` is still emitted by `HGT.step` for plasmid conjugation, with `channel: :conjugation` in the payload. Open Audit (`/audit`) or HGT Ledger (`/hgt-ledger`) to filter by channel and see the full payload.
 
 #### Can I force a high mutation rate on a single lineage?
 
