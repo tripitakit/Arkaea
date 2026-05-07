@@ -210,6 +210,20 @@ Le funzioni dei geni emergono da un sistema **a domini con composizione**, non d
 
 **Conseguenza**: il modello permette tre regimi di evoluzione: drift parametrico (tuning), salti di specificità (cambio di dominio), innovazione composta (fusione). Tutti emergono dallo stesso sistema di mutazioni.
 
+#### Eccezioni dichiarate al principio "tutto è codificato nel genoma"
+
+Il principio si applica ai **tratti del lignaggio**: ogni capacità del lignaggio (uptake, catalisi, resistenza, comunicazione, difesa) deve emergere da composizione di domini genomici. **Non si applica** ai parametri dell'ambiente, che sono caratteristiche del biotopo / chimica intrinseca:
+
+- **Stechiometria di ATP yield** dei metaboliti (`metabolism.ex:@atp_coefficients`) — chimica dell'ambiente, non dell'enzima.
+- **Profilo di tossicità** dei metaboliti (`metabolism.ex:@toxicity_profile`) — proprietà chimica intrinseca.
+- **Set di substrati aerobic-boostable** (`metabolism.ex:@aerobic_substrates`) — caratteristica della catena respiratoria a livello di sistema, non di singolo enzima.
+- **Catalogo xenobiotici** (`xenobiotic.ex:@catalog`) — gli xenobiotici sono perturbazioni esterne, non codificati nel genoma del lignaggio.
+- **Coefficienti di by-product nelle vie metaboliche** (`metabolism.ex:@byproducts`) — stechiometria della reazione chimica, non parametro del genoma.
+
+`ribosome_like` è invece **derivato dal genoma** dalla Phase 21 in poi (vedi commit "Phenotype: derive ribosome_like from genome composition") — *non* è un'eccezione, era un bug di hardcoding ora rimosso.
+
+Questa distinzione è esplicita per evitare che future revisioni interpretino "tutto è codificato nel genoma" come applicabile alla chimica dell'environment, e per coordinare la lettura di `IMPLEMENTATION-PLAN.md` § 9 (Debito post-Fase 20, voce D5).
+
 ---
 
 ### Blocco 6 — Inventario metabolico

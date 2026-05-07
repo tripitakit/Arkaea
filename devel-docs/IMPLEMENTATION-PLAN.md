@@ -769,3 +769,48 @@ Output atteso: ~3–5 giorni di lavoro, ambiente pronto per la Fase 1.
 **Roadmap**: 12 fasi incrementali, dimostrabili una a una, con primo feedback evolutivo in Fase 4.
 **Disciplina**: pure functions, property tests, audit dal giorno 1, niente ottimizzazione prematura.
 **Prossimo step**: Fase 0 — bootstrap del progetto Phoenix.
+
+---
+
+## 9. Debito documentato post-Fase 20
+
+Le seguenti feature hanno **schema dati implementato** ma **runtime non implementato**, oppure **semplificato rispetto al design originale**. Sono **deliberatamente non chiuse** in questa fase di consolidamento (post `BIOLOGICAL-MODEL-REVIEW-2.md` + `REMEDIATION-PLAN.md`); future sessioni di sviluppo non devono trattarle come "lavoro mancante" da chiudere subito senza prima rivisitare il design.
+
+### D1 — Operoni runtime non implementato
+
+- **Stato**: `Arkea.Genome.Gene` ha campo `operon_id :: binary | nil` ([gene.ex:89](../arkea/lib/arkea/genome/gene.ex#L89)); nessun modulo runtime usa `operon_id` (`Arkea.Genome.Operon` non esiste).
+- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva espressione coordinata operonica con `kcat × shared_sigma`.
+- **Razionale del rinvio**: l'expression attuale (sigma derivato da `dna_binding_affinity` media) è funzionalmente equivalente al livello di astrazione B+C. Operoni-as-runtime aggiungerebbe complessità con beneficio fenomenologico marginale.
+- **Riapertura**: solo se un canary scenario produce comportamenti di expression che un microbiologo riconosce come "operone-mancante" (es. geni co-regolati che non si attivano in coordinazione).
+
+### D2 — `regulator_output` parsato ma non aggregato in sigma
+
+- **Stato**: `Phenotype.from_genome` parsa `:regulator_output` come domain type valido ma non lo aggrega ([phenotype.ex:564-566](../arkea/lib/arkea/sim/phenotype.ex#L564-L566)).
+- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 18 prescriveva participation in sigma del gene/operon target.
+- **Razionale del rinvio**: ridondante con `dna_binding_affinity` per il livello di expression attuale. La meccanica targeted-regulator richiederebbe operoni runtime (D1).
+- **Riapertura**: insieme a D1, in un Phase 21 dedicato.
+
+### D3 — SOS threshold come costante modulo-level
+
+- **Stato**: `@sos_active_threshold = 0.20` in [mutator.ex:86](../arkea/lib/arkea/sim/mutator.ex#L86); uniforme per tutti i lignaggi.
+- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva derivazione da `:ligand_sensor` (DNA-damage-like) per-lineage.
+- **Razionale del rinvio**: la costante calibrata in Phase 20 produce dinamiche SOS biologicamente realistiche; la per-lineage variability richiederebbe un nuovo `:reaction_class :dna_damage_sensor` non presente nella tassonomia attuale.
+- **Riapertura**: insieme a D1/D2 o quando si introducono nuovi reaction_class.
+
+### D4 — Proxy coniugazione: solo `:transmembrane_anchor`
+
+- **Stato**: `HGT.conjugation_strength/1` usa il count di `:transmembrane_anchor` come proxy di pilus-like ([hgt.ex:84](../arkea/lib/arkea/sim/hgt.ex#L84)).
+- **Design originale**: DESIGN.md Blocco 5 prescriveva la triade `pili_like + relaxase_like + oriT_like`.
+- **Razionale del rinvio**: `:relaxase_like` e `:oriT_like` non sono nella tassonomia degli 11 domini correnti; introdurli richiederebbe espansione coordinata di tassonomia + Phenotype + tutti i Factories nei test. La coniugazione attuale è funzionalmente plausibile (cap 0.30, density-dependent, entry-exclusion via inc_group).
+- **Riapertura**: in un Phase 21 dedicato all'espansione tassonomica dei domini.
+
+### D5 — Lookup tables ambientali (toxicity_profile, atp_coefficients, aerobic_substrates)
+
+- **Stato**: [`metabolism.ex:81`](../arkea/lib/arkea/sim/metabolism.ex#L81) (`@atp_coefficients`), [`:121`](../arkea/lib/arkea/sim/metabolism.ex#L121) (`@aerobic_substrates`), [`:159`](../arkea/lib/arkea/sim/metabolism.ex#L159) (`@toxicity_profile`) sono parametri ambientali hardcoded.
+- **Decisione**: questi NON sono un debito ma una **decisione di design consolidata** — la chimica dell'ambiente (stechiometria di ATP yield, profilo di tossicità dei metaboliti, set di substrati aerobic-boostable) è un parametro del biotopo, non del genoma. Il principio Blocco 5 "tutto è codificato nel genoma" si applica ai *tratti del lignaggio*, non al modello dell'ambiente. Vedi le "Eccezioni dichiarate" in DESIGN.md Blocco 5.
+- **Aggiornamento**: documentato esplicitamente in DESIGN.md per evitare reinterpretazioni future.
+
+### Errore catastrofica — soglia Eigen come *theoretical ceiling* (non debito)
+
+- Post-Review-2 Task 5: [`Mutator.error_catastrophe_lethality`](../arkea/lib/arkea/sim/mutator.ex) ora segue strettamente Eigen `(1 − µ/L)^L > 1/σ`. La soglia per-cell ≈ ln(σ) è ben sopra il range operativo di Arkea (max `mu_per_cell ≈ 0.04`), quindi l'evento viene emesso *raramente* — coerente con la realtà microbiologica (i batteri operano lontano dalla soglia; solo i virus a RNA ci si avvicinano).
+- Vedi `CALIBRATION.md` § "Error catastrophe — soglia Eigen (post-Review-2)".

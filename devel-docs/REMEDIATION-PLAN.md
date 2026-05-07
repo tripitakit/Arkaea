@@ -975,7 +975,7 @@ git commit -m "Phage: transduction_probability default 0.005 (closer to Chen 201
 
 #### Sub-task 7.1: sezione "Debito post-Fase 20"
 
-- [ ] **Step 1: aggiungere a IMPLEMENTATION-PLAN.md**
+- [x] **Step 1: aggiungere a IMPLEMENTATION-PLAN.md**
 
 Aggiungere alla fine del file:
 
@@ -1023,7 +1023,7 @@ Le seguenti feature hanno **schema dati implementato** ma **runtime non implemen
 ---
 ```
 
-- [ ] **Step 2: aggiornare DESIGN.md Blocco 5**
+- [x] **Step 2: aggiornare DESIGN.md Blocco 5**
 
 In `devel-docs/DESIGN.md`, alla fine del Blocco 5, aggiungere:
 
