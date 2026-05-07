@@ -102,13 +102,50 @@ defmodule Arkea.Sim.HGTTest do
 
   defp count_hgt_children(lineages, ticks, seed) do
     rng = Mutator.init_seed(seed)
+    phase = surface_phase()
 
     Enum.reduce(1..ticks, {0, rng}, fn tick, {acc_children, acc_rng} ->
-      {_updated, _phase_name, children, _events, new_rng} =
-        HGT.step(:surface, lineages, tick, acc_rng)
+      {_updated, _phase, children, _events, new_rng} =
+        HGT.step(lineages, phase, tick, acc_rng)
       {acc_children + length(children), new_rng}
     end)
     |> elem(0)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Sub-task 2.1 — HGT.Channel behaviour conformance for conjugation.
+
+  describe "HGT.Channel behaviour conformance" do
+    test "HGT module declares @behaviour HGT.Channel" do
+      behaviours = Arkea.Sim.HGT.module_info(:attributes)[:behaviour] || []
+      assert Arkea.Sim.HGT.Channel in behaviours
+    end
+
+    test "HGT implements name/0 returning :conjugation" do
+      assert function_exported?(Arkea.Sim.HGT, :name, 0)
+      assert Arkea.Sim.HGT.name() == :conjugation
+    end
+
+    test "HGT.step/4 takes (lineages, phase, tick, rng) and returns 5-tuple {lineages, phase, [], events, rng}" do
+      plasmid = conjugative_plasmid()
+      donor = make_founder(donor_genome(plasmid), 200)
+      recipient = make_founder(recipient_genome(), 200)
+      lineages = [donor, recipient]
+      phase = surface_phase()
+      tick = 100
+      rng = Mutator.init_seed("hgt-conformance")
+
+      {updated_lineages, updated_phase, children, events, _rng} =
+        Arkea.Sim.HGT.step(lineages, phase, tick, rng)
+
+      assert is_list(updated_lineages)
+      assert match?(%Phase{}, updated_phase)
+      # Conjugation produces transconjugant children, not extra lineages
+      # threaded through the `children` slot of the behaviour result; the
+      # contract only requires it to be a list.
+      assert is_list(children)
+      assert is_list(events)
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -126,6 +163,7 @@ defmodule Arkea.Sim.HGTTest do
     donor = make_founder(donor_genome(plasmid), 200)
     recipient = make_founder(recipient_genome(), 200)
     lineages = [donor, recipient]
+    phase = surface_phase()
 
     rng = Mutator.init_seed("hgt-test")
 
@@ -134,8 +172,8 @@ defmodule Arkea.Sim.HGTTest do
     # and the count measures raw conjugation events.
     {total_children, _rng} =
       Enum.reduce(1..2000, {0, rng}, fn tick, {acc_children, acc_rng} ->
-        {_updated, _phase_name, children, _events, new_rng} =
-        HGT.step(:surface, lineages, tick, acc_rng)
+        {_updated, _phase, children, _events, new_rng} =
+        HGT.step(lineages, phase, tick, acc_rng)
         {acc_children + length(children), new_rng}
       end)
 
@@ -151,13 +189,14 @@ defmodule Arkea.Sim.HGTTest do
     donor = make_founder(donor_genome(plasmid), 200)
     recipient = make_founder(recipient_genome(), 200)
     lineages = [donor, recipient]
+    phase = surface_phase()
 
     rng = Mutator.init_seed("hgt-test")
 
     {total_children, _rng} =
       Enum.reduce(1..2000, {0, rng}, fn tick, {acc_children, acc_rng} ->
-        {_updated, _phase_name, children, _events, new_rng} =
-        HGT.step(:surface, lineages, tick, acc_rng)
+        {_updated, _phase, children, _events, new_rng} =
+        HGT.step(lineages, phase, tick, acc_rng)
         {acc_children + length(children), new_rng}
       end)
 

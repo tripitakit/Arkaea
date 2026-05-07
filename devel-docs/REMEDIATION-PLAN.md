@@ -936,7 +936,7 @@ git commit -m "Mutator: Eigen-derived error_catastrophe_lethality + CALIBRATION 
 
 #### Sub-task 6.1
 
-- [ ] **Step 1: cambiare il default**
+- [x] **Step 1: cambiare il default**
 
 In `lib/arkea/sim/hgt/phage.ex:75`:
 
@@ -944,28 +944,14 @@ In `lib/arkea/sim/hgt/phage.ex:75`:
 @transduction_probability Application.compile_env(:arkea, :transduction_probability, 0.005)
 ```
 
-- [ ] **Step 2: aggiornare CALIBRATION.md**
+- [x] **Step 2: aggiornare CALIBRATION.md**
 
-Aggiungere nota:
+- [x] **Step 3: regression — controllare che i canary tests che si aspettano transduction-driven phenomena continuino a passare**
 
-```markdown
-## Transduction probability
-
-Default `0.005` per burst (configurabile via `:arkea, :transduction_probability`).
-- Letteratura primaria (Chen et al. 2018, *Science* lateral transduction): 10⁻⁶–10⁻³
-  per phage particle.
-- Scelta Arkea: 1 ordine di magnitudine sopra il limite superiore biologico per
-  garantire visibilità in canary scenarios senza inflazionare di 3 ordini come
-  il default precedente (0.05).
-```
-
-- [ ] **Step 3: regression — controllare che i canary tests che si aspettano transduction-driven phenomena continuino a passare**
-
-```bash
-mix test
-```
-
-Se un test si aspetta una specifica frequenza di transduction events, settarlo via `Application.put_env(:arkea, :transduction_probability, 0.05)` esplicitamente in `setup`.
+> **Esecuzione 2026-05-07**: 309 test sim+persistence verdi. Le 8 failure di
+> `mix test` sono UI/LiveView pre-esistenti (`arkea-tabs__tab` vs
+> `arkea-tab`), non correlate. Nessun test sim si aspettava una specifica
+> frequenza di transduction.
 
 - [ ] **Step 4: commit**
 

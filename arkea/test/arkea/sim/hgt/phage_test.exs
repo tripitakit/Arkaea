@@ -244,23 +244,84 @@ defmodule Arkea.Sim.HGT.PhageTest do
           Map.new(pool, fn {id, v} -> {id, %{v | abundance: 200}} end)
         end)
 
-      {_lineages_out, _phase_out, children, _rng_out} =
-        Enum.reduce(1..50, {[lineage_recipient], pumped_phase, [], rng1}, fn _i,
-                                                                             {ls, ph,
-                                                                              acc_children,
-                                                                              acc_rng} ->
-          {ls_out, ph_out, new_children, _events, rng_out} =
+      {_lineages_out, _phase_out, children, infection_events, _rng_out} =
+        Enum.reduce(1..50, {[lineage_recipient], pumped_phase, [], [], rng1}, fn _i,
+                                                                                 {ls, ph,
+                                                                                  acc_children,
+                                                                                  acc_events,
+                                                                                  acc_rng} ->
+          {ls_out, ph_out, new_children, new_events, rng_out} =
             Phage.infection_step(ls, ph, 1, acc_rng)
 
-          {ls_out, ph_out, acc_children ++ new_children, rng_out}
+          {ls_out, ph_out, acc_children ++ new_children, acc_events ++ new_events, rng_out}
         end)
 
       # Over 50 ticks with a stable virion population we expect at least
-      # one successful infection event (lytic or lysogenic). The variance
-      # is high but P(zero events in 50 ticks) << 1% with these parameters.
-      assert length(children) > 0 or
-               Enum.any?([lineage_recipient], fn _ -> false end),
+      # one successful infection event (lytic or lysogenic). Sub-task 4.1:
+      # the seed cassette has no `:dna_binding` domain, so post-fix
+      # `repressor_strength = 0.0` → `p_lytic = 1.0` and infections are
+      # obligate lytic (children list stays empty; assertion now also
+      # accepts the audit-event channel). The variance is high but
+      # P(zero events in 50 ticks) << 1% with these parameters.
+      phage_events =
+        Enum.filter(infection_events, fn e -> e.type == :phage_infection end)
+
+      assert length(children) > 0 or length(phage_events) > 0,
              "Expected at least one infection product after 50 ticks"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # derive_repressor_strength/1 + lytic_probability/1 (Sub-task 4.1)
+
+  describe "derive_repressor_strength + lytic_probability (Sub-task 4.1)" do
+    # Param codons producing a high binding_affinity for :dna_binding domains.
+    # binding_affinity = norm_of(second half of codons) — weights for codon 17
+    # are ~2.012, so 10×17×2.012 ≈ 342 → norm ≈ 0.68 (> 0.5).
+    @strong_binding_codons List.duplicate(17, 20)
+
+    defp gene_without_dna_binding do
+      Gene.from_domains([catalytic_domain(), structural_domain()])
+    end
+
+    defp gene_with_strong_dna_binding do
+      Gene.from_domains([Domain.new([0, 0, 5], @strong_binding_codons)])
+    end
+
+    test "cassette without :dna_binding domains gets repressor_strength = 0.0" do
+      genes = [gene_without_dna_binding()]
+
+      refute Enum.any?(genes, fn g ->
+               Enum.any?(g.domains, &(&1.type == :dna_binding))
+             end)
+
+      assert Phage.derive_repressor_strength(genes) == 0.0
+    end
+
+    test "cassette with strong dna_binding gets repressor_strength close to 1.0" do
+      genes = [gene_with_strong_dna_binding()]
+
+      assert Enum.any?(genes, fn g ->
+               Enum.any?(g.domains, &(&1.type == :dna_binding))
+             end)
+
+      assert Phage.derive_repressor_strength(genes) > 0.5
+    end
+
+    test "lytic_probability(0.0) saturates at 1.0 (cI-null cassette is obligate lytic)" do
+      assert Phage.lytic_probability(0.0) == 1.0
+    end
+
+    test "lytic_probability(1.0) is 0.0 (full repressor → stable lysogeny)" do
+      assert Phage.lytic_probability(1.0) == 0.0
+    end
+
+    test "lytic_probability is monotonically non-increasing in repressor_strength" do
+      p_low = Phage.lytic_probability(0.1)
+      p_mid = Phage.lytic_probability(0.5)
+      p_high = Phage.lytic_probability(0.9)
+      assert p_low >= p_mid
+      assert p_mid >= p_high
     end
   end
 end

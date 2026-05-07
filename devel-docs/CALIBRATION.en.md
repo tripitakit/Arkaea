@@ -47,7 +47,7 @@ This document is the calibration appendix of the biological model, recommended b
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
 | `@cleave_p` | `defense.ex:62` | **0.95** (Phase 20: was 0.70) | Type II 95–99 % per site (Tock & Dryden 2005) | ✅ Aligned post-Phase 20 |
-| `@transduction_probability` | `phage.ex:71` | 0.05 (override-able) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | **Amplified for canary visibility**. Override: `config :arkea, :transduction_probability, 0.001` |
+| `@transduction_probability` | `phage.ex:77` | **0.005** (post-Review-2; was 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 order of magnitude above the literature ceiling (canary visibility); realistic override: `config :arkea, :transduction_probability, 0.001` |
 | `@transducing_burst_fraction` | `phage.ex:84` | 0.03 | ~3 % mis-packaged capsids | Realistic |
 | `@base_decay` | `phage.ex:75` | 0.20/tick | Free phage half-life (Suttle 1994) | Consistent with time scale |
 | `@p_infect_base` | `phage.ex:78` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrated for visibility |
@@ -191,7 +191,7 @@ Phase 20 performed a *scientific calibration pass* to align key constants to bio
 - `@cleave_p`: 0.70 → 0.95 (R-M efficiency 95–99 % per site, Tock & Dryden 2005)
 - `@sos_active_threshold`: 0.50 → 0.20 (SOS near-immediate in vivo, Cox 2000)
 - `oxygen` toxic threshold: 200 → 50 (obligate anaerobes discriminated, Imlay 2008)
-- `@transduction_probability`: now `Application.compile_env`-tunable (default 0.05 amplified; override for scientific benchmarks)
+- `@transduction_probability`: now `Application.compile_env`-tunable (default 0.05 amplified; override for scientific benchmarks). **Post-Review-2 (Task 6)**: default lowered to 0.005 — still above the literature ceiling for canary visibility, but by 1 order of magnitude rather than 3.
 
 ### New Phase 20 mechanisms
 - **Aerobic ATP upregulation** (`Metabolism.aerobic_boost_factor/1`): multiplicative boost `1 + 7 × oxygen_share` on organic substrates (`:glucose`, `:acetate`, `:lactate`, `:ch4`) when co-uptaken with O₂. Surface aerobic vs anaerobic niche now distinct.

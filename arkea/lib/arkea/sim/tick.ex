@@ -621,16 +621,20 @@ defmodule Arkea.Sim.Tick do
     rng = get_rng(state)
 
     # Step 4a: conjugation — run per phase, accumulate new child lineages
-    # and channel-direct audit events. Sub-task 1.4: HGT.step/4 now returns
-    # the 5-tuple {lineages, phase_name, children, events, rng}; the
+    # and channel-direct audit events. Sub-task 2.1: HGT.step/4 now
+    # conforms to the `Arkea.Sim.HGT.Channel` behaviour, taking
+    # `(lineages, phase, tick, rng)` and returning the 5-tuple
+    # `{lineages, phase, children, events, rng}` with the `Phase` struct
+    # in slot 2. Conjugation does not modify phase chemistry, so we
+    # discard the returned phase (it is == the input). The
     # `:hgt_transfer` and `:plasmid_displaced` events are buffered onto
     # `state.pending_events` (prepend-then-reverse convention).
     {conjugated_lineages, new_children, conjugation_events, rng1} =
       Enum.reduce(phases, {lineages, [], [], rng}, fn phase,
                                                       {acc_lineages, acc_children, acc_events,
                                                        acc_rng} ->
-        {updated, _phase_name, children, events, next_rng} =
-          HGT.step(phase.name, acc_lineages, tick, acc_rng)
+        {updated, _phase, children, events, next_rng} =
+          HGT.step(acc_lineages, phase, tick, acc_rng)
 
         {updated, acc_children ++ children, acc_events ++ events, next_rng}
       end)
