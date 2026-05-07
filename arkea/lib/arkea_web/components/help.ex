@@ -24,14 +24,14 @@ defmodule ArkeaWeb.Components.Help do
        summary:
          "Turnover number: catalytic reactions per active site per second under saturating substrate.",
        doc: "design",
-       section: "block-7-domini-funzionali"
+       section: "tassonomia-dei-tipi-di-dominio-11"
      }},
     {"km",
      %{
        summary:
          "Michaelis constant: substrate concentration at which the enzyme runs at half-Vmax.",
        doc: "design",
-       section: "block-7-domini-funzionali"
+       section: "tassonomia-dei-tipi-di-dominio-11"
      }},
     {"hgt",
      %{
@@ -45,7 +45,7 @@ defmodule ArkeaWeb.Components.Help do
        summary:
          "Quorum sensing: density-dependent regulation via secreted/received small-molecule signals.",
        doc: "design",
-       section: "block-9-quorum-sensing"
+       section: "blocco-9-quorum-sensing-signaling"
      }},
     {"sos",
      %{
@@ -66,63 +66,63 @@ defmodule ArkeaWeb.Components.Help do
        summary:
          "Extrachromosomal replicon, often mobilizable; copy-number, inc-group and oriT govern its dynamics.",
        doc: "design",
-       section: "block-4-replicon-i-cromosoma-plasmidi-profagi"
+       section: "costo-del-plasmide"
      }},
     {"prophage",
      %{
        summary:
          "Phage genome integrated lysogenically; can be induced under stress to enter the lytic cycle.",
        doc: "design",
-       section: "blocco-5-meccanismi-del-motore-biologico"
+       section: "sotto-sistema-fagico"
      }},
     {"lineage",
      %{
        summary:
          "A clonal population sharing a genome; speciation creates a new lineage with a parent_id link.",
        doc: "design",
-       section: "block-3-lineage-speciazione-tracking"
+       section: "blocco-4-modello-di-popolazione"
      }},
     {"phenotype",
      %{
        summary:
          "Aggregated runtime expression of the genome — kcat, Km, n_passes, qs_receives, surface tags, etc.",
        doc: "design",
-       section: "block-8-phenotype-aggregator"
+       section: "composizione-e-regole-di-coerenza"
      }},
     {"biofilm",
      %{
        summary:
          "QS-driven aggregation lowering local dilution; emergent from adhesin/matrix surface tags.",
        doc: "design",
-       section: "block-9-quorum-sensing"
+       section: "comportamento-di-quorum-emergente"
      }},
     {"mutator",
      %{
        summary:
          "Strain with reduced repair fidelity → elevated mutation rate; explores phenotype space faster, risks error catastrophe.",
        doc: "design",
-       section: "block-7-domini-funzionali"
+       section: "tasso-di-mutazione-modulabile-sos-like"
      }},
     {"tick",
      %{
        summary:
          "One step of the simulation clock; a biotope advances ~once every 2s in production.",
        doc: "design",
-       section: "block-2-tick-determinismo-rng"
+       section: "blocco-11-dimensionamento-temporale"
      }},
     {"seed",
      %{
        summary:
          "Player-designed founder genome + spec; instantiated as the initial lineage of a home biotope.",
        doc: "user-manual",
-       section: "4-seed-lab--progettare-larkeon-iniziale"
+       section: "4-seed-lab-progettare-larkeon-iniziale"
      }},
     {"oriT",
      %{
        summary:
          "Origin of transfer: intergenic motif marking a plasmid as conjugatively mobilizable.",
        doc: "design",
-       section: "block-7-domini-funzionali"
+       section: "coniugazione-gene-encoded"
      }}
   ]
 

@@ -35,4 +35,25 @@ defmodule ArkeaWeb.Components.HelpTest do
              "glossary term #{term} points to unknown doc #{meta.doc}"
     end
   end
+
+  # Regression guard: every glossary entry must deep-link to a section
+  # anchor that actually exists in its target doc. The Help live view
+  # silently falls back to "doc top" when the anchor is missing, so a
+  # broken section pointer is invisible without this check.
+  test "every glossary section anchor resolves to a heading in its target doc" do
+    docs = Arkea.Views.HelpDoc.list() |> Map.new(&{&1.slug, &1})
+
+    headings_per_doc =
+      Map.new(docs, fn {slug, meta} ->
+        {:ok, %{headings: hs}} = Arkea.Views.HelpDoc.render(meta)
+        {slug, MapSet.new(hs, & &1.anchor)}
+      end)
+
+    for {term, meta} <- Help.glossary() do
+      anchors = Map.fetch!(headings_per_doc, meta.doc)
+
+      assert MapSet.member?(anchors, meta.section),
+             "glossary term #{term} → #{meta.doc}##{meta.section} : anchor not found in doc"
+    end
+  end
 end
