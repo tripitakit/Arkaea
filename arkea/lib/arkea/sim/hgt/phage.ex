@@ -58,23 +58,22 @@ defmodule Arkea.Sim.HGT.Phage do
   #
   # Probability that a lytic burst also packages a chromosomal
   # fragment in some of its capsids. In vivo rate is ~10⁻⁶–10⁻³ per
-  # phage particle (Chen et al. 2018). The Arkea default is
-  # **amplified to 0.05 per burst** to make transduction observable
-  # within a few thousand canary ticks — at the realistic biological
-  # rate a typical canary scenario would never witness a single
-  # transduction event. Phase 20 makes this a config-tunable
-  # constant; benchmark / publication runs should override to a
-  # biologically realistic value (e.g. 0.001) and accept the
-  # corresponding loss of test-suite signal.
-  #
-  # Override at compile time:
+  # phage particle (Chen et al. 2018). Post-Review-2 calibration
+  # lowers the default to **0.005 per burst**: still ~one order of
+  # magnitude above the biological upper bound, but no longer the
+  # 50× inflation of the legacy 0.05 default. This keeps transduction
+  # observable inside a typical canary scenario without producing a
+  # phylogeny that a microbiologist would flag as obviously wrong.
+  # Benchmark / publication runs that need strict realism should
+  # override to a biologically realistic value (e.g. 0.001) at compile
+  # time:
   #
   #     config :arkea, :transduction_probability, 0.001
   #
   # `@transducing_burst_fraction` (0.03) caps the abundance of the
   # mis-packaged virion at ~3 % of the main lytic burst — biologically
   # realistic regardless of the per-burst trigger rate.
-  @transduction_probability Application.compile_env(:arkea, :transduction_probability, 0.05)
+  @transduction_probability Application.compile_env(:arkea, :transduction_probability, 0.005)
   @transducing_burst_fraction 0.03
 
   # Per-tick decay applied on top of phase dilution. The full decay rate is

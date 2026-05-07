@@ -47,7 +47,7 @@ Questo documento è l'appendice di calibrazione del modello biologico, raccomand
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
 | `@cleave_p` | `defense.ex:62` | **0.95** (Phase 20: era 0.70) | Tipo II 95–99 % per sito (Tock & Dryden 2005) | ✅ Allineato post-Phase-20 |
-| `@transduction_probability` | `phage.ex:71` | 0.05 (override-able) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | **Amplificato per visibilità in canary**. Override: `config :arkea, :transduction_probability, 0.001` |
+| `@transduction_probability` | `phage.ex:77` | **0.005** (post-Review-2; era 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 ordine di magnitudine sopra letteratura (canary visibility); override realistico: `config :arkea, :transduction_probability, 0.001` |
 | `@transducing_burst_fraction` | `phage.ex:84` | 0.03 | ~3 % dei capsidi mis-packaged | Realistico |
 | `@base_decay` | `phage.ex:75` | 0.20/tick | Free phage half-life (Suttle 1994) | Coerente con time scale |
 | `@p_infect_base` | `phage.ex:78` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrato per visibilità |
@@ -191,7 +191,7 @@ Phase 20 ha eseguito un *scientific calibration pass* per allineare le costanti 
 - `@cleave_p`: 0.70 → 0.95 (R-M efficiency 95–99 % per sito, Tock & Dryden 2005)
 - `@sos_active_threshold`: 0.50 → 0.20 (SOS quasi-immediato in vivo, Cox 2000)
 - `oxygen` toxic threshold: 200 → 50 (anaerobi obbligati discriminati, Imlay 2008)
-- `@transduction_probability`: ora `Application.compile_env`-tunable (default 0.05 amplificato; override per benchmark scientifici)
+- `@transduction_probability`: ora `Application.compile_env`-tunable (default 0.05 amplificato; override per benchmark scientifici). **Post-Review-2 (Task 6)**: default abbassato a 0.005 — sempre sopra letteratura per canary visibility, ma 1 ordine di magnitudine, non 3.
 
 ### Nuovi meccanismi Phase 20
 - **Aerobic ATP upregulation** (`Metabolism.aerobic_boost_factor/1`): boost moltiplicativo `1 + 7 × oxygen_share` su organic substrates (`:glucose`, `:acetate`, `:lactate`, `:ch4`) quando co-uptaken con O₂. Surface niche aerobic vs anaerobic ora distinta.
