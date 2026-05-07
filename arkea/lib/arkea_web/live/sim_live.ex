@@ -77,6 +77,7 @@ defmodule ArkeaWeb.SimLive do
       )
       |> assign_scene_snapshot()
       |> maybe_refresh_trends(new_state)
+      |> maybe_refresh_phylogeny(events)
 
     {:noreply, socket}
   end
@@ -97,6 +98,29 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp maybe_refresh_trends(socket, _state), do: socket
+
+  # When the user is currently viewing the Phylogeny tab and a tick
+  # produced at least one topology-changing event (`:lineage_born` or
+  # `:lineage_extinct`), re-derive the dendrogram from the live state
+  # plus the freshly-updated audit log. Other ticks are ignored: the
+  # tree topology is stable across them and re-querying the audit log
+  # would be wasteful (see `maybe_load_phylogeny_data/2`).
+  defp maybe_refresh_phylogeny(socket, events) when is_list(events) do
+    topology_changed? =
+      Enum.any?(events, fn
+        %{type: :lineage_born} -> true
+        %{type: :lineage_extinct} -> true
+        _ -> false
+      end)
+
+    if socket.assigns.bottom_tab == :phylogeny and topology_changed? do
+      maybe_load_phylogeny_data(socket, :phylogeny)
+    else
+      socket
+    end
+  end
+
+  defp maybe_refresh_phylogeny(socket, _events), do: socket
 
   @impl Phoenix.LiveView
   def handle_params(%{"id" => biotope_id}, _uri, socket) do
