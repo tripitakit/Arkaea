@@ -975,7 +975,7 @@ git commit -m "Phage: transduction_probability default 0.005 (closer to Chen 201
 
 #### Sub-task 7.1: sezione "Debito post-Fase 20"
 
-- [ ] **Step 1: aggiungere a IMPLEMENTATION-PLAN.md**
+- [x] **Step 1: aggiungere a IMPLEMENTATION-PLAN.md**
 
 Aggiungere alla fine del file:
 
@@ -1023,7 +1023,7 @@ Le seguenti feature hanno **schema dati implementato** ma **runtime non implemen
 ---
 ```
 
-- [ ] **Step 2: aggiornare DESIGN.md Blocco 5**
+- [x] **Step 2: aggiornare DESIGN.md Blocco 5**
 
 In `devel-docs/DESIGN.md`, alla fine del Blocco 5, aggiungere:
 
@@ -1091,7 +1091,7 @@ git commit -m "Docs: sync English mirrors for post-Phase-20 debt + reviews"
 
 #### Sub-task 8.1
 
-- [ ] **Step 1: audit dei valori citati**
+- [x] **Step 1: audit dei valori citati**
 
 ```bash
 grep -n "0.05\|0.005\|0.40\|0.50\|repressor_strength\|error_catastrophe" devel-docs/CALIBRATION.md
@@ -1099,7 +1099,7 @@ grep -n "0.05\|0.005\|0.40\|0.50\|repressor_strength\|error_catastrophe" devel-d
 
 Per ogni valore, verificare che il file Elixir corrispondente abbia lo stesso numero. Se non match, aggiornare CALIBRATION.md.
 
-- [ ] **Step 2: aggiornare le citazioni di file:linea**
+- [x] **Step 2: aggiornare le citazioni di file:linea**
 
 CALIBRATION.md cita spesso `phenotype.ex:281-294` (target_classes), `phage.ex:565-580` (derive_repressor_strength), `mutator.ex:289-300` (error_catastrophe_lethality). Dopo i refactor, questi range potrebbero essere shiftati. Verificare con:
 
@@ -1109,7 +1109,7 @@ grep -n "phenotype.ex:\|phage.ex:\|mutator.ex:" devel-docs/CALIBRATION.md
 
 E confermare ogni linea con `grep -n` nel file di codice corrispondente.
 
-- [ ] **Step 3: commit + bilingual sync**
+- [x] **Step 3: commit + bilingual sync**
 
 ```bash
 git add devel-docs/CALIBRATION.md

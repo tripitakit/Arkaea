@@ -24,9 +24,9 @@ defmodule ArkeaWeb.WorldLiveTest do
     assert html =~ ~s|href="/seed-lab"|
 
     # Filter tabs
-    assert has_element?(view, ".arkea-world__filter", "All")
-    assert has_element?(view, ".arkea-world__filter", "Mine")
-    assert has_element?(view, ".arkea-world__filter", "Wild")
+    assert has_element?(view, ".arkea-tab", "All")
+    assert has_element?(view, ".arkea-tab", "Mine")
+    assert has_element?(view, ".arkea-tab", "Wild")
   end
 
   test "filter tab updates the active filter", %{conn: conn} do
@@ -34,8 +34,8 @@ defmodule ArkeaWeb.WorldLiveTest do
 
     view |> element(~s|button[phx-click="filter"][phx-value-to="mine"]|) |> render_click()
 
-    assert has_element?(view, ".arkea-world__filter--active", "Mine")
-    refute has_element?(view, ".arkea-world__filter--active", "All")
+    assert has_element?(view, ~s|.arkea-tab--active|, "Mine")
+    refute has_element?(view, ~s|.arkea-tab--active|, "All")
   end
 
   test "selected_panel shows empty placeholder until a node is clicked", %{conn: conn} do

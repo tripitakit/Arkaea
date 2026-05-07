@@ -32,8 +32,8 @@ This document is the calibration appendix of the biological model, recommended b
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@conj_base_rate` | `hgt.ex:53` | 0.005 | F-plasmid 10⁻²/cell/h at high density | Under-estimate at low densities; OK in "estuary" canary |
-| `@p_conj_max` | `hgt.ex:54` | 0.30 | Saturation cap | Conservative |
+| `@conj_base_rate` | `hgt.ex:55` | 0.005 | F-plasmid 10⁻²/cell/h at high density | Under-estimate at low densities; OK in "estuary" canary |
+| `@p_conj_max` | `hgt.ex:56` | 0.30 | Saturation cap | Conservative |
 
 ### HGT — transformation
 
@@ -46,40 +46,40 @@ This document is the calibration appendix of the biological model, recommended b
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@cleave_p` | `defense.ex:62` | **0.95** (Phase 20: was 0.70) | Type II 95–99 % per site (Tock & Dryden 2005) | ✅ Aligned post-Phase 20 |
-| `@transduction_probability` | `phage.ex:77` | **0.005** (post-Review-2; was 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 order of magnitude above the literature ceiling (canary visibility); realistic override: `config :arkea, :transduction_probability, 0.001` |
-| `@transducing_burst_fraction` | `phage.ex:84` | 0.03 | ~3 % mis-packaged capsids | Realistic |
-| `@base_decay` | `phage.ex:75` | 0.20/tick | Free phage half-life (Suttle 1994) | Consistent with time scale |
-| `@p_infect_base` | `phage.ex:78` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrated for visibility |
-| `@lytic_decision_base` | `phage.ex:82` | 0.40 | Lambda lysis frequency under stress | Plausible |
+| `@cleave_p` | `defense.ex:67` | **0.95** (Phase 20: was 0.70) | Type II 95–99 % per site (Tock & Dryden 2005) | ✅ Aligned post-Phase 20 |
+| `@transduction_probability` | `phage.ex:76` | **0.005** (post-Review-2; was 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 order of magnitude above the literature ceiling (canary visibility); realistic override: `config :arkea, :transduction_probability, 0.001` |
+| `@transducing_burst_fraction` | `phage.ex:77` | 0.03 | ~3 % mis-packaged capsids | Realistic |
+| `@base_decay` | `phage.ex:84` | 0.20/tick | Free phage half-life (Suttle 1994) | Consistent with time scale |
+| `@p_infect_base` | `phage.ex:92` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrated for visibility |
+| `@lytic_decision_base` | `phage.ex:104` | **0.50** (post-Review-2; was 0.40) | Lambda lysis frequency under stress | p_lytic saturates at 1 with repressor=0 (commit `d922365`) |
 
 ### Selection pressures
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `oxygen` toxic threshold | `metabolism.ex:140` | **50** (Phase 20: was 200) | µM for obligate anaerobes, Imlay 2008 | ✅ Phase 20: obligate anaerobes discriminated |
-| `oxygen` toxic scale | `metabolism.ex:140` | 200 | Slope towards full toxicity | OK |
-| `h2s` toxic threshold | `metabolism.ex:141` | 20 | 10–100 µM on cytochrome c (Cooper & Brown 2008) | OK |
-| `lactate` toxic threshold | `metabolism.ex:142` | 30 | Not toxic per se (it is pH) | **To be removed** when Phase 21 implements dynamic pH |
+| `oxygen` toxic threshold | `metabolism.ex:160` | **50** (Phase 20: was 200) | µM for obligate anaerobes, Imlay 2008 | ✅ Phase 20: obligate anaerobes discriminated |
+| `oxygen` toxic scale | `metabolism.ex:160` | 200 | Slope towards full toxicity | OK |
+| `h2s` toxic threshold | `metabolism.ex:161` | 20 | 10–100 µM on cytochrome c (Cooper & Brown 2008) | OK |
+| `lactate` toxic threshold | `metabolism.ex:162` | 30 | Not toxic per se (it is pH) | **To be removed** when Phase 21 implements dynamic pH |
 | `@elemental_floor_per_cell` | `metabolism.ex` | 0.001 | Stoichiometry-derived | Conservative |
 
 ### Aerobic respiration (Phase 20)
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@aerobic_boost` | `metabolism.ex:127` | 7.0 | Glucose: 32 ATP aerobic vs 2 fermentation = 16× | Conservative (8× max effective vs 16× textbook) |
+| `@aerobic_boost` | `metabolism.ex:120` | 7.0 | Glucose: 32 ATP aerobic vs 2 fermentation = 16× | Conservative (8× max effective vs 16× textbook) |
 
 ### SOS / error catastrophe
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@sos_active_threshold` | `mutator.ex:81` | **0.20** (Phase 20: was 0.50) | SOS near-immediate in vivo (Cox 2000) | ✅ Phase 20: now routine under stress |
-| `@sos_mutation_amplifier` | `mutator.ex:82` | 4.0× | DinB-like fold-change µ: 10²–10⁴ × in vivo | Conservative |
-| `@sos_induction_amplifier` | `mutator.ex:83` | 3.0× | RecA cleaves cI fold-change | Plausible |
-| `@dna_damage_decay` | `mutator.ex:80` | 0.10/tick | Repair half-life ~min in vivo | Consistent with tick ≈ hours |
-| `@ros_damage_max_per_tick` | `mutator.ex:90` | 0.05 | Per-tick increment ceiling under full exposure | Phase 20 addition |
-| `@critical_mu_per_gene` | `mutator.ex:84` | 0.20 | Eigen quasispecies threshold (legacy hint) | Exposed as API; no longer used in lethality |
-| `@selection_coefficient_default` | `mutator.ex:79` | 2.0 | Master sequence fitness 2× mean mutant (Bull et al. 2005) | σ used in `error_catastrophe_lethality/2` |
+| `@sos_active_threshold` | `mutator.ex:86` | **0.20** (Phase 20: was 0.50) | SOS near-immediate in vivo (Cox 2000) | ✅ Phase 20: now routine under stress |
+| `@sos_mutation_amplifier` | `mutator.ex:87` | 4.0× | DinB-like fold-change µ: 10²–10⁴ × in vivo | Conservative |
+| `@sos_induction_amplifier` | `mutator.ex:88` | 3.0× | RecA cleaves cI fold-change | Plausible |
+| `@dna_damage_decay` | `mutator.ex:74` | 0.10/tick | Repair half-life ~min in vivo | Consistent with tick ≈ hours |
+| `@ros_damage_max_per_tick` | `mutator.ex:99` | 0.05 | Per-tick increment ceiling under full exposure | Phase 20 addition |
+| `@critical_mu_per_gene` | `mutator.ex:89` | 0.20 | Eigen quasispecies threshold (legacy hint) | Exposed as API; no longer used in lethality |
+| `@selection_coefficient_default` | `mutator.ex:80` | 2.0 | Master sequence fitness 2× mean mutant (Bull et al. 2005) | σ used in `error_catastrophe_lethality/2` |
 
 ### Error catastrophe — Eigen threshold (post-Review-2)
 
@@ -124,8 +124,8 @@ biological macromolecules*. Naturwissenschaften 1971.
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
 | `@secretion_per_cell` | `bacteriocin.ex:62` | 0.0001/tick | Colicin nM concentrations | Calibrated for *chronic* warfare |
-| `@damage_rate` | `bacteriocin.ex:69` | 0.005 | Kill in 50–100 ticks = days at tick = 1 h | Slow but realistic |
-| `@max_damage_per_pool` | `bacteriocin.ex:73` | 0.05 | Per-pool damage cap | Conservative |
+| `@damage_rate` | `bacteriocin.ex:70` | 0.005 | Kill in 50–100 ticks = days at tick = 1 h | Slow but realistic |
+| `@max_damage_per_pool` | `bacteriocin.ex:76` | 0.05 | Per-pool damage cap | Conservative |
 
 ### Plasmids (Phase 16)
 
@@ -138,13 +138,13 @@ biological macromolecules*. Naturwissenschaften 1971.
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@biofilm_dilution_relief` | `tick.ex:91` | 0.5 | EPS retention 50–95 % in nature | Conservative |
+| `@biofilm_dilution_relief` | `tick.ex:118` | 0.5 | EPS retention 50–95 % in nature | Conservative |
 
 ### Mixing (Phase 18)
 
 | Constant | Path:line | Value | Biological range | Note |
 |---|---|---|---|---|
-| `@mixing_event_probability` | `tick.ex:107` | 1.0e-4/tick | Storm cadence ~weeks | Consistent with time-compression |
+| `@mixing_event_probability` | `tick.ex:126` | 1.0e-4/tick | Storm cadence ~weeks | Consistent with time-compression |
 
 ### Community Mode (Phase 19)
 
@@ -185,7 +185,7 @@ config :arkea, :transduction_probability, 0.001  # realistic biological rate
 Phase 20 performed a *scientific calibration pass* to align key constants to biological scales, addressing the P0 points raised in the post-Phase 19 scientific review.
 
 ### Bug fix
-- **Inverted receptor matching** (`phage.ex:550-555` pre-Phase 20): the fallback `phenotype.surface_tags == []` accepted infection on lineages without tags — the opposite of real biology. Phase 20 explicitly requires `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants now escape correctly.
+- **Inverted receptor matching** (`phage.ex:778-786` post-fix): the pre-Phase 20 fallback `phenotype.surface_tags == []` accepted infection on lineages without tags — the opposite of real biology. Phase 20 explicitly requires `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants now escape correctly.
 
 ### Calibration updates
 - `@cleave_p`: 0.70 → 0.95 (R-M efficiency 95–99 % per site, Tock & Dryden 2005)

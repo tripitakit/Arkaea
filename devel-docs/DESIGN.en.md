@@ -210,6 +210,20 @@ Gene functions emerge from a system **with domain composition**, not from a fini
 
 **Consequence**: the model allows three regimes of evolution: parametric drift (tuning), specificity jumps (domain change), composite innovation (fusion). All emerge from the same mutation system.
 
+#### Declared exceptions to the "everything is encoded in the genome" principle
+
+The principle applies to **lineage traits**: every capability of the lineage (uptake, catalysis, resistance, communication, defence) must emerge from the composition of genomic domains. **It does not apply** to environmental parameters, which are characteristics of the biotope / intrinsic chemistry:
+
+- **ATP yield stoichiometry** of metabolites (`metabolism.ex:@atp_coefficients`) — environmental chemistry, not enzyme chemistry.
+- **Toxicity profile** of metabolites (`metabolism.ex:@toxicity_profile`) — intrinsic chemical property.
+- **Set of aerobic-boostable substrates** (`metabolism.ex:@aerobic_substrates`) — characteristic of the respiratory chain at the system level, not of an individual enzyme.
+- **Xenobiotic catalog** (`xenobiotic.ex:@catalog`) — xenobiotics are external perturbations, not encoded in the lineage genome.
+- **By-product coefficients in metabolic pathways** (`metabolism.ex:@byproducts`) — stoichiometry of the chemical reaction, not a genome parameter.
+
+`ribosome_like` is instead **derived from the genome** from Phase 21 onwards (see commit "Phenotype: derive ribosome_like from genome composition") — it is *not* an exception; it was a hardcoding bug now removed.
+
+This distinction is made explicit to prevent future revisions from interpreting "everything is encoded in the genome" as applying to environmental chemistry, and to coordinate the reading of `IMPLEMENTATION-PLAN.en.md` § 9 (Post-Phase-20 documented debt, item D5).
+
 ---
 
 ### Block 6 — Metabolic inventory
