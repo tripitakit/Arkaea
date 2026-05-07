@@ -32,8 +32,8 @@ Questo documento è l'appendice di calibrazione del modello biologico, raccomand
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@conj_base_rate` | `hgt.ex:53` | 0.005 | F-plasmid 10⁻²/cell/h alta densità | Sotto-stima a basse densità; OK in canary "estuario" |
-| `@p_conj_max` | `hgt.ex:54` | 0.30 | Saturation cap | Conservativo |
+| `@conj_base_rate` | `hgt.ex:55` | 0.005 | F-plasmid 10⁻²/cell/h alta densità | Sotto-stima a basse densità; OK in canary "estuario" |
+| `@p_conj_max` | `hgt.ex:56` | 0.30 | Saturation cap | Conservativo |
 
 ### HGT — trasformazione
 
@@ -46,40 +46,40 @@ Questo documento è l'appendice di calibrazione del modello biologico, raccomand
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@cleave_p` | `defense.ex:62` | **0.95** (Phase 20: era 0.70) | Tipo II 95–99 % per sito (Tock & Dryden 2005) | ✅ Allineato post-Phase-20 |
-| `@transduction_probability` | `phage.ex:77` | **0.005** (post-Review-2; era 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 ordine di magnitudine sopra letteratura (canary visibility); override realistico: `config :arkea, :transduction_probability, 0.001` |
-| `@transducing_burst_fraction` | `phage.ex:84` | 0.03 | ~3 % dei capsidi mis-packaged | Realistico |
-| `@base_decay` | `phage.ex:75` | 0.20/tick | Free phage half-life (Suttle 1994) | Coerente con time scale |
-| `@p_infect_base` | `phage.ex:78` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrato per visibilità |
-| `@lytic_decision_base` | `phage.ex:82` | 0.40 | Lambda lysis frequency under stress | Plausibile |
+| `@cleave_p` | `defense.ex:67` | **0.95** (Phase 20: era 0.70) | Tipo II 95–99 % per sito (Tock & Dryden 2005) | ✅ Allineato post-Phase-20 |
+| `@transduction_probability` | `phage.ex:76` | **0.005** (post-Review-2; era 0.05) | 10⁻⁶–10⁻³ per phage particle (Chen 2018) | ~1 ordine di magnitudine sopra letteratura (canary visibility); override realistico: `config :arkea, :transduction_probability, 0.001` |
+| `@transducing_burst_fraction` | `phage.ex:77` | 0.03 | ~3 % dei capsidi mis-packaged | Realistico |
+| `@base_decay` | `phage.ex:84` | 0.20/tick | Free phage half-life (Suttle 1994) | Coerente con time scale |
+| `@p_infect_base` | `phage.ex:92` | 0.0008 | Adsorption rate constant 10⁻⁹–10⁻⁷ mL/min | Calibrato per visibilità |
+| `@lytic_decision_base` | `phage.ex:104` | **0.50** (post-Review-2; era 0.40) | Lambda lysis frequency under stress | Saturazione p_lytic=1 con repressor=0 (commit `d922365`) |
 
 ### Selection pressures
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `oxygen` toxic threshold | `metabolism.ex:140` | **50** (Phase 20: era 200) | µM per anaerobi obbligati, Imlay 2008 | ✅ Phase 20: anaerobi ora discriminati |
-| `oxygen` toxic scale | `metabolism.ex:140` | 200 | Slope verso piena tossicità | OK |
-| `h2s` toxic threshold | `metabolism.ex:141` | 20 | 10–100 µM su citocromo c (Cooper & Brown 2008) | OK |
-| `lactate` toxic threshold | `metabolism.ex:142` | 30 | Non tossico ex sé (è il pH) | **Da rimuovere** quando Phase 21 implementa pH dinamico |
+| `oxygen` toxic threshold | `metabolism.ex:160` | **50** (Phase 20: era 200) | µM per anaerobi obbligati, Imlay 2008 | ✅ Phase 20: anaerobi ora discriminati |
+| `oxygen` toxic scale | `metabolism.ex:160` | 200 | Slope verso piena tossicità | OK |
+| `h2s` toxic threshold | `metabolism.ex:161` | 20 | 10–100 µM su citocromo c (Cooper & Brown 2008) | OK |
+| `lactate` toxic threshold | `metabolism.ex:162` | 30 | Non tossico ex sé (è il pH) | **Da rimuovere** quando Phase 21 implementa pH dinamico |
 | `@elemental_floor_per_cell` | `metabolism.ex` | 0.001 | Stoichiometry-derived | Conservativo |
 
 ### Aerobic respiration (Phase 20)
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@aerobic_boost` | `metabolism.ex:127` | 7.0 | Glucose: 32 ATP aerobic vs 2 fermentation = 16× | Conservativo (8× max effective vs 16× textbook) |
+| `@aerobic_boost` | `metabolism.ex:120` | 7.0 | Glucose: 32 ATP aerobic vs 2 fermentation = 16× | Conservativo (8× max effective vs 16× textbook) |
 
 ### SOS / error catastrophe
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@sos_active_threshold` | `mutator.ex:81` | **0.20** (Phase 20: era 0.50) | SOS quasi-immediato in vivo (Cox 2000) | ✅ Phase 20: ora routine sotto stress |
-| `@sos_mutation_amplifier` | `mutator.ex:82` | 4.0× | DinB-like fold-change µ: 10²–10⁴ × in vivo | Conservativo |
-| `@sos_induction_amplifier` | `mutator.ex:83` | 3.0× | RecA cleaves cI fold-change | Plausibile |
-| `@dna_damage_decay` | `mutator.ex:80` | 0.10/tick | Repair half-life ~min in vivo | Coerente con tick ≈ ore |
-| `@ros_damage_max_per_tick` | `mutator.ex:90` | 0.05 | Per-tick increment ceiling sotto piena exposure | Phase 20 add |
-| `@critical_mu_per_gene` | `mutator.ex:84` | 0.20 | Eigen quasispecies threshold (legacy hint) | Esposta come API; non più usata in lethality |
-| `@selection_coefficient_default` | `mutator.ex:79` | 2.0 | Master sequence fitness 2× mutant medio (Bull et al. 2005) | σ usato in `error_catastrophe_lethality/2` |
+| `@sos_active_threshold` | `mutator.ex:86` | **0.20** (Phase 20: era 0.50) | SOS quasi-immediato in vivo (Cox 2000) | ✅ Phase 20: ora routine sotto stress |
+| `@sos_mutation_amplifier` | `mutator.ex:87` | 4.0× | DinB-like fold-change µ: 10²–10⁴ × in vivo | Conservativo |
+| `@sos_induction_amplifier` | `mutator.ex:88` | 3.0× | RecA cleaves cI fold-change | Plausibile |
+| `@dna_damage_decay` | `mutator.ex:74` | 0.10/tick | Repair half-life ~min in vivo | Coerente con tick ≈ ore |
+| `@ros_damage_max_per_tick` | `mutator.ex:99` | 0.05 | Per-tick increment ceiling sotto piena exposure | Phase 20 add |
+| `@critical_mu_per_gene` | `mutator.ex:89` | 0.20 | Eigen quasispecies threshold (legacy hint) | Esposta come API; non più usata in lethality |
+| `@selection_coefficient_default` | `mutator.ex:80` | 2.0 | Master sequence fitness 2× mutant medio (Bull et al. 2005) | σ usato in `error_catastrophe_lethality/2` |
 
 ### Error catastrophe — soglia Eigen (post-Review-2)
 
@@ -124,8 +124,8 @@ biological macromolecules*. Naturwissenschaften 1971.
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
 | `@secretion_per_cell` | `bacteriocin.ex:62` | 0.0001/tick | Colicin nM concentrations | Calibrato per warfare *cronica* |
-| `@damage_rate` | `bacteriocin.ex:69` | 0.005 | Kill in 50–100 tick = giorni a tick=1h | Lento ma realistico |
-| `@max_damage_per_pool` | `bacteriocin.ex:73` | 0.05 | Per-pool damage cap | Conservativo |
+| `@damage_rate` | `bacteriocin.ex:70` | 0.005 | Kill in 50–100 tick = giorni a tick=1h | Lento ma realistico |
+| `@max_damage_per_pool` | `bacteriocin.ex:76` | 0.05 | Per-pool damage cap | Conservativo |
 
 ### Plasmidi (Fase 16)
 
@@ -138,13 +138,13 @@ biological macromolecules*. Naturwissenschaften 1971.
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@biofilm_dilution_relief` | `tick.ex:91` | 0.5 | EPS retention 50–95 % in nature | Conservativo |
+| `@biofilm_dilution_relief` | `tick.ex:118` | 0.5 | EPS retention 50–95 % in nature | Conservativo |
 
 ### Mixing (Fase 18)
 
 | Costante | Path:linea | Valore | Range biologico | Note |
 |---|---|---|---|---|
-| `@mixing_event_probability` | `tick.ex:107` | 1.0e-4/tick | Storm cadence ~settimane | Coerente con time-compression |
+| `@mixing_event_probability` | `tick.ex:126` | 1.0e-4/tick | Storm cadence ~settimane | Coerente con time-compression |
 
 ### Community Mode (Fase 19)
 
@@ -185,7 +185,7 @@ config :arkea, :transduction_probability, 0.001  # rate biologico realistico
 Phase 20 ha eseguito un *scientific calibration pass* per allineare le costanti chiave alle scale biologiche, indirizzando i punti P0 della revisione scientifica post-Fase 19.
 
 ### Bug fix
-- **Receptor matching invertito** (`phage.ex:550-555` pre-Phase 20): il fallback `phenotype.surface_tags == []` accettava infezione su lineage senza tag — il contrario della biologia reale. Phase 20 richiede esplicitamente `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants ora escapano correttamente.
+- **Receptor matching invertito** (`phage.ex:778-786` post-fix): il fallback pre-Phase 20 `phenotype.surface_tags == []` accettava infezione su lineage senza tag — il contrario della biologia reale. Phase 20 richiede esplicitamente `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants ora escapano correttamente.
 
 ### Aggiornamenti calibrazione
 - `@cleave_p`: 0.70 → 0.95 (R-M efficiency 95–99 % per sito, Tock & Dryden 2005)
