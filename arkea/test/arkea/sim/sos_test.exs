@@ -84,40 +84,34 @@ defmodule Arkea.Sim.SosTest do
   end
 
   describe "Mutator.error_catastrophe_lethality/2" do
+    # The Eigen criterion is (1 − µ/L)^L > 1/σ; with σ = 2 the
+    # critical per-cell µ is ≈ ln(2) ≈ 0.693, essentially independent
+    # of L for moderate L. Tests pick µ values below / above that
+    # threshold rather than the legacy `µ × L > 1` mental model.
     test "zero below the Eigen threshold" do
       assert Mutator.error_catastrophe_lethality(0.001, 50) == 0.0
+      assert Mutator.error_catastrophe_lethality(0.3, 50) == 0.0
     end
 
     test "non-zero above the threshold" do
-      result = Mutator.error_catastrophe_lethality(0.05, 100)
+      result = Mutator.error_catastrophe_lethality(2.0, 100)
       assert result > 0.0
       assert result <= 1.0
     end
 
-    test "saturates near 1 at extreme µ × genome_size" do
-      assert Mutator.error_catastrophe_lethality(0.5, 100) > 0.99
+    test "saturates near 1 well above the Eigen threshold" do
+      assert Mutator.error_catastrophe_lethality(10.0, 100) > 0.99
     end
 
     property "always in [0, 1] for valid inputs" do
       check all(
-              mu <- StreamData.float(min: 0.0, max: 0.5),
+              mu <- StreamData.float(min: 0.0, max: 5.0),
               genome_size <- StreamData.integer(1..200),
               max_runs: 100
             ) do
         result = Mutator.error_catastrophe_lethality(mu, genome_size)
         assert result >= 0.0
         assert result <= 1.0
-      end
-    end
-
-    property "monotonic in genome size above the threshold" do
-      check all(
-              mu <- StreamData.float(min: 0.05, max: 0.30),
-              max_runs: 50
-            ) do
-        small = Mutator.error_catastrophe_lethality(mu, 50)
-        large = Mutator.error_catastrophe_lethality(mu, 200)
-        assert large >= small
       end
     end
   end

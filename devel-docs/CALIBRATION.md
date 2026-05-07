@@ -78,7 +78,46 @@ Questo documento è l'appendice di calibrazione del modello biologico, raccomand
 | `@sos_induction_amplifier` | `mutator.ex:83` | 3.0× | RecA cleaves cI fold-change | Plausibile |
 | `@dna_damage_decay` | `mutator.ex:80` | 0.10/tick | Repair half-life ~min in vivo | Coerente con tick ≈ ore |
 | `@ros_damage_max_per_tick` | `mutator.ex:90` | 0.05 | Per-tick increment ceiling sotto piena exposure | Phase 20 add |
-| `@critical_mu_per_gene` | `mutator.ex:84` | 0.20 | Eigen quasispecies threshold | Standard |
+| `@critical_mu_per_gene` | `mutator.ex:84` | 0.20 | Eigen quasispecies threshold (legacy hint) | Esposta come API; non più usata in lethality |
+| `@selection_coefficient_default` | `mutator.ex:79` | 2.0 | Master sequence fitness 2× mutant medio (Bull et al. 2005) | σ usato in `error_catastrophe_lethality/2` |
+
+### Error catastrophe — soglia Eigen (post-Review-2)
+
+`Mutator.error_catastrophe_lethality(mu, genome_size, sigma \\ 2.0)` implementa il
+criterio di Eigen *strictly*: la fidelity per replicazione è `(1 − µ/L)^L` e la
+lethality è il deficit relativo di fidelity rispetto alla soglia `1/σ`:
+
+```
+fidelity = (1 − µ/L)^L
+lethality = max(0, 1 − fidelity × σ)
+```
+
+- Per `σ = 2.0` (master sequence con fitness ~2× il mutante medio, valore di
+  riferimento Bull et al. 2005) la soglia per-cell è ≈ `ln(σ) = 0.693`,
+  *quasi indipendente da L* per L moderati.
+- La transizione è **smooth**, non una saturation cliff (vs la formula pre-Review-2
+  che innescava la barriera già a `µ × L ≥ 1`).
+
+#### Conseguenza biologica
+
+Sotto la formula Eigen-aderente Arkea — i cui valori massimi di `mu_per_cell` sono
+≈ 0.04 (`base_rate 0.01 × repair=0 × SOS×4`) — opera **molto sotto la soglia
+Eigen**. Questo è coerente con la realtà microbiologica:
+
+| Organismo | µ per replication | Distanza dalla soglia |
+|---|---|---|
+| Virus a RNA (poliovirus) | ~10⁰ (≈ 1 mut/genome) | *near* threshold (Eigen 1971) |
+| *E. coli* | ~10⁻³ (4.6×10⁻⁴) | far below |
+| Arkea SOS-amplificato | ~4×10⁻² | far below |
+
+`error_catastrophe_lethality` agisce quindi come **theoretical ceiling**: enforced
+ma raramente raggiunto durante una simulazione tipica. Per scenari di
+hypermutation estrema (es. test sintetici con `µ > ln(2)`) la formula produce
+una transizione smooth verso 1.
+
+Reference: **Bull JJ, Meyers LA, Lachmann M**. *Quasispecies Made Simple*. PLOS
+Comput Biol 2005; **Eigen M**. *Self-organization of matter and the evolution of
+biological macromolecules*. Naturwissenschaften 1971.
 
 ### Bacteriocins
 
@@ -131,6 +170,7 @@ config :arkea, :transduction_probability, 0.001  # rate biologico realistico
 - **Wommack KE, Colwell RR**. *Virioplankton: viruses in aquatic ecosystems*. Microbiol Mol Biol Rev 2000.
 - **Riley MA, Wertz JE**. *Bacteriocins: evolution, ecology, and application*. Annu Rev Microbiol 2002.
 - **Eigen M**. *Self-organization of matter and the evolution of biological macromolecules*. Naturwissenschaften 1971.
+- **Bull JJ, Meyers LA, Lachmann M**. *Quasispecies Made Simple*. PLOS Comput Biol 2005.
 - **Hawver LA et al**. *Specificity and complexity in bacterial quorum-sensing*. FEMS Microbiol Rev 2016.
 - **Suttle CA**. *The significance of viruses to mortality in aquatic microbial communities*. Microb Ecol 1994.
 - **Stams AJM, Plugge CM**. *Electron transfer in syntrophic communities of anaerobic bacteria and archaea*. Nat Rev Microbiol 2009.

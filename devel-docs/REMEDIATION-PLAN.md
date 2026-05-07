@@ -789,7 +789,17 @@ git commit -m "Phage: cassette without dna_binding is obligate lytic (cI-null ph
 
 #### Sub-task 5.1: test transizione smooth
 
-- [ ] **Step 1: test — falla**
+> **Implementazione (2026-05-07):** completata con due correzioni rispetto al
+> draft del piano. (1) `threshold_mu` corretto: la formula Eigen `(1 − µ/L)^L > 1/σ`
+> dà una soglia *per-cell* ≈ `ln(σ)`, **non** `ln(σ)/L`; il test usa
+> `:math.log(sigma)` come soglia. (2) Il test "lineage emette
+> :error_catastrophe_death" in `audit_events_test.exs` è stato `@tag :skip`-ato:
+> sotto la formula Eigen-aderente Arkea opera molto sotto soglia
+> (`mu_per_cell ≤ 0.04` vs threshold ≈ 0.69) — l'event è ora un *theoretical
+> ceiling*. La copertura del payload audit resta su `audit_writer_test.exs:221`.
+> Vedi `CALIBRATION.md` per dettagli.
+
+- [x] **Step 1: test — falla**
 
 In `test/arkea/sim/mutator_test.exs`:
 
@@ -837,7 +847,7 @@ mix test test/arkea/sim/mutator_test.exs --only describe:error_catastrophe
 
 Atteso: alcuni FAIL su smoothness della transizione (la formula attuale satura cliff).
 
-- [ ] **Step 2: nuova implementazione Eigen**
+- [x] **Step 2: nuova implementazione Eigen**
 
 In `lib/arkea/sim/mutator.ex:288-310`:
 
@@ -868,7 +878,7 @@ def error_catastrophe_lethality(mu, genome_size, sigma \\ @selection_coefficient
 end
 ```
 
-- [ ] **Step 3: il test passa, regression**
+- [x] **Step 3: il test passa, regression**
 
 ```bash
 mix test test/arkea/sim/mutator_test.exs
@@ -878,7 +888,14 @@ mix test
 
 Atteso: il `sos_test.exs:113` (monotonic in genome_size) deve continuare a passare. Se cambia il numero di tick attesi per estinzione in canary, aggiornare le costanti.
 
-- [ ] **Step 4: aggiornare CALIBRATION.md**
+> **Esecuzione 2026-05-07**: la `sos_test.exs:113` proprietà *monotonic in
+> genome size* è stata **rimossa** — sotto Eigen `(1 − µ/L)^L → exp(−µ)`
+> per L grande, quindi la lethality non è strettamente monotona in L per µ
+> fissato (anzi tende a *decrescere* leggermente con L). I valori di µ
+> usati nei test pre-esistenti (0.05, 0.5) sono stati alzati a (2.0, 10.0)
+> per restare sopra la nuova soglia ≈ ln(σ).
+
+- [x] **Step 4: aggiornare CALIBRATION.md**
 
 Aggiungere sezione:
 

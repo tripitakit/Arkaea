@@ -191,6 +191,63 @@ defmodule Arkea.Sim.MutatorTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Eigen-derived error catastrophe (Phase post-Review-2, Task 5)
+
+  describe "error_catastrophe_lethality (Eigen-derived)" do
+    test "smooth transition from 0 below threshold to ~1 well above" do
+      genome_size = 50
+      sigma = 2.0
+      threshold_mu = :math.log(sigma)
+
+      p_below = Mutator.error_catastrophe_lethality(threshold_mu * 0.5, genome_size)
+      assert p_below < 0.1
+
+      p_above = Mutator.error_catastrophe_lethality(threshold_mu * 1.5, genome_size)
+      assert p_above > 0.0
+      assert p_above < 0.7
+
+      p_5x = Mutator.error_catastrophe_lethality(threshold_mu * 5, genome_size)
+      assert p_5x > 0.9
+    end
+
+    test "near the Eigen threshold lethality is small but non-negative" do
+      # At µ = ln(σ) the large-L approximation gives fidelity = 1/σ
+      # exactly; for finite L the discrete (1−µ/L)^L is slightly below
+      # exp(−µ) so a small positive lethality is expected.
+      genome_size = 50
+      threshold_mu = :math.log(2.0)
+      result = Mutator.error_catastrophe_lethality(threshold_mu, genome_size)
+      assert result >= 0.0
+      assert result < 0.05
+    end
+
+    property "monotonic non-decreasing in mu for fixed genome size" do
+      check all(
+              genome_size <- StreamData.integer(10..200),
+              mu_low <- StreamData.float(min: 0.0, max: 0.5),
+              mu_high <- StreamData.float(min: 1.5, max: 5.0),
+              max_runs: 50
+            ) do
+        p_low = Mutator.error_catastrophe_lethality(mu_low, genome_size)
+        p_high = Mutator.error_catastrophe_lethality(mu_high, genome_size)
+        assert p_high >= p_low
+      end
+    end
+
+    property "always in [0, 1]" do
+      check all(
+              mu <- StreamData.float(min: 0.0, max: 5.0),
+              genome_size <- StreamData.integer(1..200),
+              max_runs: 100
+            ) do
+        result = Mutator.error_catastrophe_lethality(mu, genome_size)
+        assert result >= 0.0
+        assert result <= 1.0
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Private
 
   defp duplication_fraction(genome, samples) do

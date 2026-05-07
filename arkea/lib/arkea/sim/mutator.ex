@@ -72,6 +72,12 @@ defmodule Arkea.Sim.Mutator do
   # least one lethal mutation. Phase 17 implements the soft boundary:
   # spawn rolls ignored above `@critical_mu_per_gene` × genome_size.
   @dna_damage_decay 0.10
+  # Selection coefficient σ of the master sequence in the Eigen
+  # quasispecies model. σ ≈ 2 corresponds to a master sequence with
+  # roughly twice the fitness of the average mutant — a common
+  # textbook value for moderate selection (Bull et al. 2005, *PLOS
+  # Comp Biol*, "Quasispecies Made Simple").
+  @selection_coefficient_default 2.0
   # Phase 20 calibration — SOS threshold lowered to make hypermutation
   # a routine response to genuine stress rather than an extreme corner
   # case. In vivo SOS activates within minutes of a single double-strand
@@ -274,33 +280,53 @@ defmodule Arkea.Sim.Mutator do
   @doc """
   Error-catastrophe lethality probability for a freshly produced
   offspring, given the lineage's per-cell mutation rate `µ` and its
-  genome size.
+  genome size `L`.
 
-  Per Eigen's quasispecies result, `µ × genome_size > 1` means almost
-  every replication produces at least one lethal mutation. Phase 17
-  encodes the soft boundary as
+  Aderent to Eigen's quasispecies criterion: a master sequence is
+  sustainable only when its fidelity `(1 − µ_per_site)^L` exceeds the
+  inverse selection coefficient `1/σ`. Below that threshold the
+  population deterministically loses the master sequence — error
+  catastrophe.
 
-      p_lethal = 1 - (1 - µ_critical_share)^genome_size
-      where µ_critical_share = max(0, µ × genome_size - 1) / genome_size
+  Treating each gene as a quasi-site, the fidelity of a full
+  replication is
 
-  Returns 0 below the threshold; saturates near 1 well above.
+      fidelity = (1 − µ/L)^L
+
+  and the offspring lethality probability is the relative fidelity
+  deficit against the Eigen threshold:
+
+      p_lethal = max(0, 1 − fidelity × σ)
+
+  Returns 0 at and below the Eigen threshold (`fidelity ≥ 1/σ`),
+  rising smoothly toward 1 as µ pushes fidelity well below 1/σ. With
+  the default `σ = 2`, the per-cell critical µ is ≈ ln(2) ≈ 0.693 in
+  the large-L limit — independent of L, since fidelity → exp(−µ).
+
+  Reference: Bull JJ, Meyers LA, Lachmann M. *Quasispecies Made
+  Simple*. PLOS Comput Biol 2005; Eigen M. *Self-organization of
+  matter and the evolution of biological macromolecules*.
+  Naturwissenschaften 1971.
   """
   @spec error_catastrophe_lethality(float(), pos_integer()) :: float()
-  def error_catastrophe_lethality(mu, genome_size)
-      when is_float(mu) and is_integer(genome_size) and genome_size > 0 do
-    product = mu * genome_size
+  def error_catastrophe_lethality(mu, genome_size),
+    do: error_catastrophe_lethality(mu, genome_size, @selection_coefficient_default)
 
-    if product <= 1.0 do
-      0.0
-    else
-      share = (product - 1.0) / genome_size
-      raw = 1.0 - :math.pow(1.0 - share, genome_size)
-      raw |> max(0.0) |> min(1.0)
-    end
+  @spec error_catastrophe_lethality(float(), pos_integer(), float()) :: float()
+  def error_catastrophe_lethality(mu, genome_size, sigma)
+      when is_float(mu) and is_integer(genome_size) and genome_size > 0 and
+             is_float(sigma) and sigma > 1.0 do
+    mu_per_site = mu |> max(0.0) |> Kernel./(genome_size) |> min(1.0)
+    fidelity = :math.pow(1.0 - mu_per_site, genome_size)
+    raw = 1.0 - fidelity * sigma
+    raw |> max(0.0) |> min(1.0)
   end
 
   @doc "Per-gene µ ceiling above which error catastrophe sets in."
   def critical_mu_per_gene, do: @critical_mu_per_gene
+
+  @doc "Eigen master-sequence selection coefficient default (σ)."
+  def selection_coefficient_default, do: @selection_coefficient_default
 
   defp clamp(value, lo, hi), do: value |> max(lo) |> min(hi)
 
