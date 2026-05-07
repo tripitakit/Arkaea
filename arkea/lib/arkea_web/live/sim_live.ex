@@ -1175,9 +1175,11 @@ defmodule ArkeaWeb.SimLive do
       <div class="arkea-trends__intro">
         <span class="arkea-card__eyebrow">Phylogeny</span>
         <p class="arkea-muted">
-          Lineage genealogy. Each circle is a lineage, coloured by current
-          abundance (extinct lineages are grey + dashed). Edges carry the
-          most-impactful phenotype delta extracted from the <code>lineage_born</code> audit payload.
+          Lineage genealogy: only currently-alive lineages are rendered.
+          Each circle is a lineage; the colour codes the abundance band —
+          green (≤50) → teal (51–200) → cyan (201–1k) → violet (1k–5k) → fuchsia (>5k).
+          Edges carry the most-impactful phenotype delta extracted from the
+          <code>lineage_born</code> audit payload.
         </p>
       </div>
 

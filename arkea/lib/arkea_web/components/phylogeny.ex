@@ -14,8 +14,12 @@ defmodule ArkeaWeb.Components.Phylogeny do
   - Leaves (lineages with no descendants in the input set) carry a
     short-id label; internal nodes (lineages that branched) are
     rendered as smaller anchor dots.
-  - Extinct lineages render in grey with a dashed outline regardless
-    of position.
+  - Node colour codes the abundance band of the *live* lineage —
+    green → teal → cyan → violet → fuchsia as N grows from ≤50 to >5k.
+    Extinct nodes (if the caller passes them in the model with
+    `extinct?: true`) render in grey with a dashed outline. SimLive's
+    Phylogeny tab opts to filter extinct lineages out so the dendrogram
+    stays legible after a few thousand ticks.
   """
   use Phoenix.Component
 
