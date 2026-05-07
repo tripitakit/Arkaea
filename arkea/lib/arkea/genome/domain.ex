@@ -1,7 +1,7 @@
 defmodule Arkea.Genome.Domain do
   @moduledoc """
   A functional domain is the unit of biological function within a gene
-  (DESIGN.md Block 7).
+  (01-DESIGN.md Block 7).
 
   Composition:
 

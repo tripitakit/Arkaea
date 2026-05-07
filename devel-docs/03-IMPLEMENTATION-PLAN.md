@@ -1,8 +1,8 @@
-> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](IMPLEMENTATION-PLAN.en.md)
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](03-IMPLEMENTATION-PLAN.en.md)
 
 # Arkea — Piano di implementazione (alto livello)
 
-**Riferimenti**: [DESIGN.md](DESIGN.md), [DESIGN_STRESS-TEST.md](DESIGN_STRESS-TEST.md)
+**Riferimenti**: [01-DESIGN.md](01-DESIGN.md), [02-DESIGN_STRESS-TEST.md](02-DESIGN_STRESS-TEST.md)
 **Data**: 2026-04-26
 **Stato**: Fase 0 ✅ · Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅ · Fase 5 ✅ · Fase 6 ✅ · Fase 7 ✅ · Fase 8 ✅ · Fase 9 ✅ · Fase 10 ✅ · Fase 11 ✅ · UI Evolution ✅ (vedi §1bis). **Progetto completato.**
 
@@ -10,7 +10,7 @@
 
 ## 1. Contesto
 
-Il design (15 blocchi consolidati in DESIGN.md, validato dallo stress test di DESIGN_STRESS-TEST.md) è coerente e pronto per implementazione. Lo stack è fissato (Blocco 14):
+Il design (15 blocchi consolidati in 01-DESIGN.md, validato dallo stress test di 02-DESIGN_STRESS-TEST.md) è coerente e pronto per implementazione. Lo stack è fissato (Blocco 14):
 
 - **Sim core + orchestrazione**: Elixir + OTP
 - **Web framework**: Phoenix (LiveView per ~80% UI + PixiJS in LV Hook per la vista 2D WebGL)
@@ -139,7 +139,7 @@ Invarianti coperti (§6.2):
   1. `audit_log` ha `occurred_at` (wall-clock) oltre a `occurred_at_tick` — campo intenzionale per query analytics, non documentato nel piano. Tabella append-only: nessun `timestamps/0` e nessun `inserted_at`.
   2. `acid_mine_drainage` è mappato a `:hydrothermal_zone` — semplificazione Fase 1; rivalutare topologia zone in Fase 8.
   3. Policy costruttori: costruttori "trusted" (input già validato) usano raise; costruttori "untrusted" (da input esterno) usano `{:ok, _} | {:error, _}` — da documentare come policy esplicita.
-  4. `clade_ref_id` soglia 50 mutazioni non è ancora ancorata come costante in DESIGN.md Blocco 4 — da aggiungere prima di Fase 4.
+  4. `clade_ref_id` soglia 50 mutazioni non è ancora ancorata come costante in 01-DESIGN.md Blocco 4 — da aggiungere prima di Fase 4.
   5. `:atp` e `:nadh` nei generatori di test sostituiti con `:co2` e `:h2s` (corrispondenti ai 13 metaboliti canonici di Blocco 6; ATP è valuta interna esclusa dall'inventario ambientale).
 
 **Suite verificata** (2026-04-27, post-Ecto schemas + post-bio review):
@@ -156,7 +156,7 @@ Invarianti coperti (§6.2):
 
 **Open issues / da rivedere prima di consolidare**:
 
-- I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
+- I 6 quesiti aperti del design dell'`elixir-otp-architect` sono stati tutti decisi in conversazione (Q1–Q6), ma non sono ancora documentati formalmente in 01-DESIGN.md. Valutare se aggiungere una nota al DESIGN o lasciarli solo in IMPLEMENTATION-PLAN.
 - Il PLT di Dialyzer non è stato ancora generato localmente (rinviato; CI lo costruisce).
 - Sync EN della §1bis e delle sezioni UI/UX riallineato in questo aggiornamento; mantenere i prossimi aggiornamenti contestuali per evitare nuova deriva.
 
@@ -215,7 +215,7 @@ Invarianti coperti (§6.2):
 
 - `Mutation.Applicator.apply/2` opera a **granularità di dominio** (23 codoni) per preservare l'invariante Phase 1 grammar: tutte le mutazioni generano geni con lunghezza multiplo di 23; indel inserisce/elimina esattamente 23 codoni; translocation sposta esattamente 23 codoni
 - `Mutator.generate/2` usa `:rand.uniform_s/2` (API stateless, pura); seed initializzato da `init_seed(biotope_id)` via `:erlang.phash2/1` + algoritmo `:exsss`
-- Pesi mutazione: substitution 70%, indel 15%, dup 8%, inv 5%, transloc 2% (da DESIGN.md Blocco 5)
+- Pesi mutazione: substitution 70%, indel 15%, dup 8%, inv 5%, transloc 2% (da 01-DESIGN.md Blocco 5)
 - `mutation_probability = clamp(µ × abundance / 50.0, 0.0, 0.95)` con `µ = 0.01 × (1 - repair_efficiency)`
 - `step_cell_events` esteso: spawn_mutants genera al massimo 1 figlio per lineage per tick; conservazione abbondanza (parent - 1 per ogni child)
 - `step_pruning` implementato: (1) rimuove lineage con abundance 0, (2) cap a 100 (configurabile via `Application.get_env(:arkea, :lineage_cap, 100)`)
@@ -266,7 +266,7 @@ Invarianti coperti (§6.2):
 
 **Decisioni di design** (`elixir-otp-architect`, 2026-05-01):
 
-- Proxy per coniugazione gene-encoded (Phase 6 semplificazione): un plasmide è coniugativo se e solo se contiene almeno 1 dominio `:transmembrane_anchor` — proxy per `pili_like` di DESIGN.md Blocco 5; la verifica full domain-composition (`pili_like + relaxase_like + oriT_like`) è rinviata a Phase 8
+- Proxy per coniugazione gene-encoded (Phase 6 semplificazione): un plasmide è coniugativo se e solo se contiene almeno 1 dominio `:transmembrane_anchor` — proxy per `pili_like` di 01-DESIGN.md Blocco 5; la verifica full domain-composition (`pili_like + relaxase_like + oriT_like`) è rinviata a Phase 8
 - Formula coniugazione: `p_conj = clamp(strength × 0.005 × N_donor × N_recip / max(N_total², 1), 0.0, 0.3)`, dove `strength` = count domini TM del plasmide (mass-action con moderazione biologica)
 - Creazione transconjugant: `Lineage.new_child(recipient, Genome.add_plasmid(recipient.genome, plasmid), %{phase_name => 1}, tick + 1)` — conservazione abbondanza (-1 dal ricevente originale)
 - Costo plasmide: `plasmid_burden = plasmid_gene_count × 0.3 ATP/tick` sottratto da `net_adjusted` in `compute_growth_deltas_v5` prima del round; modella il burden trascrizionale + replicazione di Blocco 5 come scalar additive
@@ -395,7 +395,7 @@ Invarianti coperti (§6.2):
 - `test/arkea/game/world_test.exs` — verifica che il resolver del layout world eviti overlap tra nodi con coordinate iniziali collidenti
 
 **Note architetturali**:
-- Il canvas resta una **pure visualization** del dato autoritativo per fase, coerente con DESIGN.md Blocco 12: nessun click su singolo puntino ha effetto simulativo
+- Il canvas resta una **pure visualization** del dato autoritativo per fase, coerente con 01-DESIGN.md Blocco 12: nessun click su singolo puntino ha effetto simulativo
 - Il bridge Hook ↔ LiveView usa entrambi i canali previsti dallo stack di design: `push_event` server → hook per lo snapshot e `pushEvent` hook → LiveView per la selezione della fase
 - La separazione `PlayerAccess -> WorldLive -> SeedLabLive -> SimLive` chiarisce la differenza tra accesso player, vista mondo, costruzione del seed e dettaglio autoritativo del singolo biotopo
 - Gli interventi autorevoli vengono agganciati successivamente tramite `apply_intervention/2` e sono documentati nella Fase 10; il viewport Fase 9 resta comunque una vista aggregata per fasi, non una simulazione client-side
@@ -468,7 +468,7 @@ Invarianti coperti (§6.2):
 
 ### Fase 11 — Caso d'uso "Cronache" abbreviato ✅ completata (commit `bd72aed`)
 
-Riproduzione dello stress test di DESIGN_STRESS-TEST.md su scala prototipo: da seed, in alcune ore di tick reale, emergono resistenza, biofilm, induzione profago e colonizzazione competitiva tra biotopi. Tutti i 15 blocchi del design attraversati nel runtime operativo.
+Riproduzione dello stress test di 02-DESIGN_STRESS-TEST.md su scala prototipo: da seed, in alcune ore di tick reale, emergono resistenza, biofilm, induzione profago e colonizzazione competitiva tra biotopi. Tutti i 15 blocchi del design attraversati nel runtime operativo.
 
 **Suite finale**: `mix compile` + `mix test` → **124 properties, 237 tests, 0 failures**
 
@@ -774,43 +774,43 @@ Output atteso: ~3–5 giorni di lavoro, ambiente pronto per la Fase 1.
 
 ## 9. Debito documentato post-Fase 20
 
-Le seguenti feature hanno **schema dati implementato** ma **runtime non implementato**, oppure **semplificato rispetto al design originale**. Sono **deliberatamente non chiuse** in questa fase di consolidamento (post `BIOLOGICAL-MODEL-REVIEW-2.md` + `REMEDIATION-PLAN.md`); future sessioni di sviluppo non devono trattarle come "lavoro mancante" da chiudere subito senza prima rivisitare il design.
+Le seguenti feature hanno **schema dati implementato** ma **runtime non implementato**, oppure **semplificato rispetto al design originale**. Sono **deliberatamente non chiuse** in questa fase di consolidamento (post `09-BIOLOGICAL-MODEL-REVIEW-2.md` + `11-REMEDIATION-PLAN.md`); future sessioni di sviluppo non devono trattarle come "lavoro mancante" da chiudere subito senza prima rivisitare il design.
 
 ### D1 — Operoni runtime non implementato
 
 - **Stato**: `Arkea.Genome.Gene` ha campo `operon_id :: binary | nil` ([gene.ex:89](../arkea/lib/arkea/genome/gene.ex#L89)); nessun modulo runtime usa `operon_id` (`Arkea.Genome.Operon` non esiste).
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva espressione coordinata operonica con `kcat × shared_sigma`.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva espressione coordinata operonica con `kcat × shared_sigma`.
 - **Razionale del rinvio**: l'expression attuale (sigma derivato da `dna_binding_affinity` media) è funzionalmente equivalente al livello di astrazione B+C. Operoni-as-runtime aggiungerebbe complessità con beneficio fenomenologico marginale.
 - **Riapertura**: solo se un canary scenario produce comportamenti di expression che un microbiologo riconosce come "operone-mancante" (es. geni co-regolati che non si attivano in coordinazione).
 
 ### D2 — `regulator_output` parsato ma non aggregato in sigma
 
 - **Stato**: `Phenotype.from_genome` parsa `:regulator_output` come domain type valido ma non lo aggrega ([phenotype.ex:564-566](../arkea/lib/arkea/sim/phenotype.ex#L564-L566)).
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 18 prescriveva participation in sigma del gene/operon target.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 18 prescriveva participation in sigma del gene/operon target.
 - **Razionale del rinvio**: ridondante con `dna_binding_affinity` per il livello di expression attuale. La meccanica targeted-regulator richiederebbe operoni runtime (D1).
 - **Riapertura**: insieme a D1, in un Phase 21 dedicato.
 
 ### D3 — SOS threshold come costante modulo-level
 
 - **Stato**: `@sos_active_threshold = 0.20` in [mutator.ex:86](../arkea/lib/arkea/sim/mutator.ex#L86); uniforme per tutti i lignaggi.
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva derivazione da `:ligand_sensor` (DNA-damage-like) per-lineage.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva derivazione da `:ligand_sensor` (DNA-damage-like) per-lineage.
 - **Razionale del rinvio**: la costante calibrata in Phase 20 produce dinamiche SOS biologicamente realistiche; la per-lineage variability richiederebbe un nuovo `:reaction_class :dna_damage_sensor` non presente nella tassonomia attuale.
 - **Riapertura**: insieme a D1/D2 o quando si introducono nuovi reaction_class.
 
 ### D4 — Proxy coniugazione: solo `:transmembrane_anchor`
 
 - **Stato**: `HGT.conjugation_strength/1` usa il count di `:transmembrane_anchor` come proxy di pilus-like ([hgt.ex:84](../arkea/lib/arkea/sim/hgt.ex#L84)).
-- **Design originale**: DESIGN.md Blocco 5 prescriveva la triade `pili_like + relaxase_like + oriT_like`.
+- **Design originale**: 01-DESIGN.md Blocco 5 prescriveva la triade `pili_like + relaxase_like + oriT_like`.
 - **Razionale del rinvio**: `:relaxase_like` e `:oriT_like` non sono nella tassonomia degli 11 domini correnti; introdurli richiederebbe espansione coordinata di tassonomia + Phenotype + tutti i Factories nei test. La coniugazione attuale è funzionalmente plausibile (cap 0.30, density-dependent, entry-exclusion via inc_group).
 - **Riapertura**: in un Phase 21 dedicato all'espansione tassonomica dei domini.
 
 ### D5 — Lookup tables ambientali (toxicity_profile, atp_coefficients, aerobic_substrates)
 
 - **Stato**: [`metabolism.ex:81`](../arkea/lib/arkea/sim/metabolism.ex#L81) (`@atp_coefficients`), [`:121`](../arkea/lib/arkea/sim/metabolism.ex#L121) (`@aerobic_substrates`), [`:159`](../arkea/lib/arkea/sim/metabolism.ex#L159) (`@toxicity_profile`) sono parametri ambientali hardcoded.
-- **Decisione**: questi NON sono un debito ma una **decisione di design consolidata** — la chimica dell'ambiente (stechiometria di ATP yield, profilo di tossicità dei metaboliti, set di substrati aerobic-boostable) è un parametro del biotopo, non del genoma. Il principio Blocco 5 "tutto è codificato nel genoma" si applica ai *tratti del lignaggio*, non al modello dell'ambiente. Vedi le "Eccezioni dichiarate" in DESIGN.md Blocco 5.
-- **Aggiornamento**: documentato esplicitamente in DESIGN.md per evitare reinterpretazioni future.
+- **Decisione**: questi NON sono un debito ma una **decisione di design consolidata** — la chimica dell'ambiente (stechiometria di ATP yield, profilo di tossicità dei metaboliti, set di substrati aerobic-boostable) è un parametro del biotopo, non del genoma. Il principio Blocco 5 "tutto è codificato nel genoma" si applica ai *tratti del lignaggio*, non al modello dell'ambiente. Vedi le "Eccezioni dichiarate" in 01-DESIGN.md Blocco 5.
+- **Aggiornamento**: documentato esplicitamente in 01-DESIGN.md per evitare reinterpretazioni future.
 
 ### Errore catastrofica — soglia Eigen come *theoretical ceiling* (non debito)
 
 - Post-Review-2 Task 5: [`Mutator.error_catastrophe_lethality`](../arkea/lib/arkea/sim/mutator.ex) ora segue strettamente Eigen `(1 − µ/L)^L > 1/σ`. La soglia per-cell ≈ ln(σ) è ben sopra il range operativo di Arkea (max `mu_per_cell ≈ 0.04`), quindi l'evento viene emesso *raramente* — coerente con la realtà microbiologica (i batteri operano lontano dalla soglia; solo i virus a RNA ci si avvicinano).
-- Vedi `CALIBRATION.md` § "Error catastrophe — soglia Eigen (post-Review-2)".
+- Vedi `04-CALIBRATION.md` § "Error catastrophe — soglia Eigen (post-Review-2)".

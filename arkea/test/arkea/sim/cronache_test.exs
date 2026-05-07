@@ -3,8 +3,8 @@ defmodule Arkea.Sim.CronacheTest do
   Phase 11 integration test — "Caso d'uso Cronache abbreviato".
 
   Validates that all implemented mechanisms fire in a connected multi-biotope
-  scenario within a realistic number of ticks (IMPLEMENTATION-PLAN.md §5,
-  Blocco 15 of DESIGN.md: "Da seed → resistenza, biofilm, profago,
+  scenario within a realistic number of ticks (03-IMPLEMENTATION-PLAN.md §5,
+  Blocco 15 of 01-DESIGN.md: "Da seed → resistenza, biofilm, profago,
   colonizzazione visibili in qualche ora reale").
 
   All tests use `Tick.tick/1` directly (pure function, no GenServer) so they

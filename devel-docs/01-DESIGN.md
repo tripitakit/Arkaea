@@ -1,4 +1,4 @@
-> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](DESIGN.en.md)
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](01-DESIGN.en.md)
 
 # Arkea — Documento di Inception & Design
 
@@ -222,7 +222,7 @@ Il principio si applica ai **tratti del lignaggio**: ogni capacità del lignaggi
 
 `ribosome_like` è invece **derivato dal genoma** dalla Phase 21 in poi (vedi commit "Phenotype: derive ribosome_like from genome composition") — *non* è un'eccezione, era un bug di hardcoding ora rimosso.
 
-Questa distinzione è esplicita per evitare che future revisioni interpretino "tutto è codificato nel genoma" come applicabile alla chimica dell'environment, e per coordinare la lettura di `IMPLEMENTATION-PLAN.md` § 9 (Debito post-Fase 20, voce D5).
+Questa distinzione è esplicita per evitare che future revisioni interpretino "tutto è codificato nel genoma" come applicabile alla chimica dell'environment, e per coordinare la lettura di `03-IMPLEMENTATION-PLAN.md` § 9 (Debito post-Fase 20, voce D5).
 
 ---
 
@@ -498,7 +498,7 @@ Variabili continue per lignaggio: `membrane_integrity`, `wall_integrity`, `dna_p
 
 ##### Fase 20 — Scientific calibration pass
 
-Indirizza i punti P0/P1 della revisione scientifica post-Fase 19. **Vedi [CALIBRATION.md](CALIBRATION.md)** per la mappatura completa di ogni costante alla letteratura primaria e per le scale temporali / di concentrazione del simulatore.
+Indirizza i punti P0/P1 della revisione scientifica post-Fase 19. **Vedi [04-CALIBRATION.md](04-CALIBRATION.md)** per la mappatura completa di ogni costante alla letteratura primaria e per le scale temporali / di concentrazione del simulatore.
 
 Bug fix:
 - **Receptor matching invertito** (`HGT.Phage.receptor_match?`): il fallback `phenotype.surface_tags == []` accettava infezione su lineage senza tag — il contrario della biologia reale. Phase 20 richiede esplicitamente `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants ora escapano correttamente le infezioni fagiche, come da arms race descritto in Block 8.

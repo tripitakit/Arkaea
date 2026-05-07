@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.MixingEventTest do
   @moduledoc """
-  Tests for Phase 18 Poisson mixing event (DESIGN.md Block 8 Phase 18).
+  Tests for Phase 18 Poisson mixing event (01-DESIGN.md Block 8 Phase 18).
   """
   use ExUnit.Case, async: true
 

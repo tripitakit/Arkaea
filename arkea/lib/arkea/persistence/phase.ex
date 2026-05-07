@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.Phase do
   @moduledoc """
-  Ecto schema per i sotto-ambienti di un biotopo (DESIGN.md Blocco 12).
+  Ecto schema per i sotto-ambienti di un biotopo (01-DESIGN.md Blocco 12).
 
   **Non va confuso con `Arkea.Ecology.Phase`** (struct in-memory).
 

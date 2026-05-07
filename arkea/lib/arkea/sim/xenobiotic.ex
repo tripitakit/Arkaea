@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Xenobiotic do
   @moduledoc """
-  Xenobiotic catalog and target-class taxonomy (Phase 15 — DESIGN.md Block 8).
+  Xenobiotic catalog and target-class taxonomy (Phase 15 — 01-DESIGN.md Block 8).
 
   Xenobiotics are environmental chemicals (antibiotics, biocides, mutagens)
   that interact with cellular machinery. In Arkea every xenobiotic is
@@ -38,7 +38,7 @@ defmodule Arkea.Sim.Xenobiotic do
 
   The catalog ships with one canonical antibiotic — a β-lactam-like
   agent — sufficient for the canonical RAS scenario in
-  `DESIGN_STRESS-TEST.md`. New entries are additive.
+  `02-DESIGN_STRESS-TEST.md`. New entries are additive.
 
   This module is **strictly pure**: no I/O, no OTP calls.
   """

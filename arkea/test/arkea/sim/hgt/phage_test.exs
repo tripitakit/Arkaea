@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.PhageTest do
   @moduledoc """
-  Property and unit tests for the closed phage cycle (Phase 12 — DESIGN.md
+  Property and unit tests for the closed phage cycle (Phase 12 — 01-DESIGN.md
   Block 8). Covers `lytic_burst/5`, `infection_step/4`, and `decay_step/1`.
   """
   use ExUnit.Case, async: true

@@ -1,8 +1,8 @@
-> 🇮🇹 [Italiano](DESIGN_STRESS-TEST.md) · 🇬🇧 English (this page)
+> 🇮🇹 [Italiano](02-DESIGN_STRESS-TEST.md) · 🇬🇧 English (this page)
 
 # Arkea — Tabletop design stress test
 
-**References**: [DESIGN.en.md](DESIGN.en.md) (Blocks 1–14)
+**References**: [01-DESIGN.en.md](01-DESIGN.en.md) (Blocks 1–14)
 **Walk-through date**: 2026-04-26
 **Purpose**: validate the internal coherence of the integral design before the implementation phase, traversing in a continuous scenario all 14 blocks of the design document.
 
@@ -144,7 +144,7 @@ These are not design gaps, but areas that the single walk-through has not exerci
 
 ### 4.3 Design gaps emerged
 
-Unlike the first use case (Block 5 of DESIGN.en.md, which produced 8 design gaps fixed during subsequent iterations), the integral walk-through **does not reveal serious inconsistencies**. Three minor considerations, of balancing/implementation:
+Unlike the first use case (Block 5 of 01-DESIGN.en.md, which produced 8 design gaps fixed during subsequent iterations), the integral walk-through **does not reveal serious inconsistencies**. Three minor considerations, of balancing/implementation:
 
 1. **Intervention budget vs exploratory sessions**. 1 action/30 real min may be tight for those who experiment intensively (e.g. testing different antibiotics in sequence). Possible mitigation: pool accumulable up to N stored actions (e.g. 5), regenerating at the same cadence. **Future balancing decision**, not design.
 2. **Phase distribution for newborn lineage**. When a new lineage is born by mutation/HGT, it inherits the phase distribution of the parent (snapshot at the instant of birth) and recomputes it on the next tick. **To be clarified in implementation**, does not reopen the design decision.

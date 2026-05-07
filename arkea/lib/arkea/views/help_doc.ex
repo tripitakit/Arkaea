@@ -31,25 +31,25 @@ defmodule Arkea.Views.HelpDoc do
     %{
       slug: "design",
       title: "Biological model (DESIGN)",
-      path: Path.join(@doc_root, "devel-docs/DESIGN.md"),
+      path: Path.join(@doc_root, "devel-docs/01-DESIGN.md"),
       summary: "Canonical reference for the biological model — 15 design blocks."
     },
     %{
       slug: "calibration",
       title: "Calibration ranges",
-      path: Path.join(@doc_root, "devel-docs/CALIBRATION.md"),
+      path: Path.join(@doc_root, "devel-docs/04-CALIBRATION.md"),
       summary: "Parameter ranges with primary-literature provenance."
     },
     %{
       slug: "ui-optimization",
       title: "UI optimisation plan",
-      path: Path.join(@doc_root, "UI-OPTIMIZATION-PLAN.md"),
+      path: Path.join(@doc_root, "devel-docs/07-UI-OPTIMIZATION-PLAN.md"),
       summary: "Phased plan A–G to make the UI a scientific bench."
     },
     %{
       slug: "biological-model-review",
       title: "Biological model review",
-      path: Path.join(@doc_root, "devel-docs/BIOLOGICAL-MODEL-REVIEW.md"),
+      path: Path.join(@doc_root, "devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md"),
       summary: "Phase 12–18 plan to close the biological-model gaps."
     }
   ]

@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.SignalingTest do
   @moduledoc """
-  Tests for Arkea.Sim.Signaling — Phase 7 quorum sensing (DESIGN.md Block 9).
+  Tests for Arkea.Sim.Signaling — Phase 7 quorum sensing (01-DESIGN.md Block 9).
 
   Signal identity: "c0,c1,c2,c3" binary key derived from first 4 parameter_codons.
   Gaussian affinity σ = 4.0 in codon space [0..19]^4.

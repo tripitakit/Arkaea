@@ -2,15 +2,15 @@
 
 **Reviewer**: biological-realism-reviewer (microbiologia / biologia molecolare)
 **Data**: 2026-05-06
-**Stato implementativo analizzato**: Fasi 0-20 consolidate, post `CALIBRATION.md`
-**Documenti di riferimento**: `DESIGN.md`, `CALIBRATION.md`, `DESIGN_STRESS-TEST.md`, `BIOLOGICAL-MODEL-REVIEW.md` (round 1, piano)
-**Documento parallelo**: `DESIGN-COHERENCE-REVIEW.md` (coerenza implementazione ↔ design)
+**Stato implementativo analizzato**: Fasi 0-20 consolidate, post `04-CALIBRATION.md`
+**Documenti di riferimento**: `01-DESIGN.md`, `04-CALIBRATION.md`, `02-DESIGN_STRESS-TEST.md`, `05-BIOLOGICAL-MODEL-REVIEW.md` (round 1, piano)
+**Documento parallelo**: `10-DESIGN-COHERENCE-REVIEW.md` (coerenza implementazione ↔ design)
 
 ---
 
 ## 1. Executive summary
 
-Il modello Arkea, alla luce dei documenti di design e dello stato del codice in `arkea/lib/arkea/sim/*`, è **biologicamente difendibile end-to-end** per un pubblico di microbiologi *purché* l'utente entri sapendo che ha davanti un **individual-based evolutionary sandbox a livello di architettura cellulare + metabolismo pathway-level** (la framing di `CALIBRATION.md` è quella giusta). La maggior parte dei meccanismi è generative-only (composizione di domini), i loop chiusi principali (SOS → induction → arms-race; mutator → error catastrophe; cross-feeding → syntrophy) tengono qualitativamente, e le costanti recenti post-Phase-20 si avvicinano molto agli ordini di grandezza in vivo.
+Il modello Arkea, alla luce dei documenti di design e dello stato del codice in `arkea/lib/arkea/sim/*`, è **biologicamente difendibile end-to-end** per un pubblico di microbiologi *purché* l'utente entri sapendo che ha davanti un **individual-based evolutionary sandbox a livello di architettura cellulare + metabolismo pathway-level** (la framing di `04-CALIBRATION.md` è quella giusta). La maggior parte dei meccanismi è generative-only (composizione di domini), i loop chiusi principali (SOS → induction → arms-race; mutator → error catastrophe; cross-feeding → syntrophy) tengono qualitativamente, e le costanti recenti post-Phase-20 si avvicinano molto agli ordini di grandezza in vivo.
 
 **Cosa è solido**: tassonomia degli 11 domini, architettura del genoma, framework R-M con bypass via metilazione (Arber-Dussoix corretto), error catastrophe come barriera Eigen, ciclo fagico chiuso (induction → burst → decay → infection → R-M → lytic/lysogenic), aerobic boost post-Phase-20, ROS-coupled DNA damage, derivazione del repressor_strength.
 
@@ -31,7 +31,7 @@ Voto qualitativo complessivo: **B+/A-**. Pronto a essere mostrato; le criticità
 
 Severity legend:
 - 🔴 **Critical** — errore biologico, viola un principio dichiarato del design o un fatto non controverso della letteratura.
-- 🟡 **Moderate** — semplificazione discutibile da motivare in `CALIBRATION.md` o da raffinare.
+- 🟡 **Moderate** — semplificazione discutibile da motivare in `04-CALIBRATION.md` o da raffinare.
 - 🟢 **Minor** — refinement opportunistico, non urgente.
 
 ### 2.1 HGT — quattro canali
@@ -43,14 +43,14 @@ Il rate `0.005` baseline + `(1.0 + donor_bonus + recipient_bonus)` modulator + `
 **Plausibile**.
 
 **🟡 Concerns**:
-- `recipient_has_plasmid?/2` blocca la coniugazione se il ricevente ha già un plasmide dello *stesso* inc_group del donatore. Biologicamente questa è la semantica di "entry exclusion" (Sf via TraS/TraT), ma in vivo l'entry-exclusion non è inc-driven ma encoded da geni specifici sulle pili. Il modello **collassa due concetti distinti** (incompatibility ≠ entry exclusion). Per il pubblico target è OK in v1, ma meritava una nota in `CALIBRATION.md` (Novick 1987 specifica esplicitamente che incompatibility è solo replication-control, non un blocco di ingresso).
+- `recipient_has_plasmid?/2` blocca la coniugazione se il ricevente ha già un plasmide dello *stesso* inc_group del donatore. Biologicamente questa è la semantica di "entry exclusion" (Sf via TraS/TraT), ma in vivo l'entry-exclusion non è inc-driven ma encoded da geni specifici sulle pili. Il modello **collassa due concetti distinti** (incompatibility ≠ entry exclusion). Per il pubblico target è OK in v1, ma meritava una nota in `04-CALIBRATION.md` (Novick 1987 specifica esplicitamente che incompatibility è solo replication-control, non un blocco di ingresso).
 
 #### 🟡 Trasformazione (`hgt/channel/transformation.ex`)
 
 Triade competence (`:channel_pore + :transmembrane_anchor + :ligand_sensor`) con threshold 0.10 è ben mappata sul circuito ComEC/ComEA + pseudopilus + ComX/cAMP-like (Johnston et al., *Nat Rev Microbiol* 2014). Naïve genomes a 0.0 = competence non default — corretto (Streptococcus, Bacillus, Haemophilus sono naturalmente competenti, E. coli K-12 *non lo è*).
 
 **Concerns**:
-- `@uptake_base = 0.0006` con la nota "calibrato per visibilità in canary" è 2–3 ordini di magnitudine **sopra** il rate biologico (10⁻⁵ a 10⁻⁷ per cell/gen, Johnston 2014). `CALIBRATION.md` lo dichiara onestamente. ✅ accettabile.
+- `@uptake_base = 0.0006` con la nota "calibrato per visibilità in canary" è 2–3 ordini di magnitudine **sopra** il rate biologico (10⁻⁵ a 10⁻⁷ per cell/gen, Johnston 2014). `04-CALIBRATION.md` lo dichiara onestamente. ✅ accettabile.
 - **Ricombinazione strettamente posizionale** (gene a indice *i* del donor sostituisce gene a indice *i* del recipient): è un'ulteriore semplificazione, in vivo la ricombinazione è guidata da omologia di sequenza, non da posizione cromosomale. Per il livello di astrazione B+C va bene, ma ha una **conseguenza non desiderata**: il codice non distingue fra "donor e recipient hanno omologia all'indice i" e "donor e recipient hanno geni completamente diversi all'indice i ma comunque i ranges combaciano". In pratica ogni evento di trasformazione *certamente* sostituisce un gene con un altro che potrebbe non avere alcuna relazione filogenetica. Suggerimento: gating supplementare via codon-Hamming distance fra `donor[i]` e `recipient[i]` per evitare gene-replacement chimerici totali (riproduce minimum-MTF homology length ~30 bp di RecA-like recombinase).
 
 #### 🔴 Trasduzione generalizzata (`phage.ex` + `@transduction_probability`)
@@ -351,14 +351,14 @@ Il `:repair_fidelity` ha sub-tag `repair_class :: :mismatch | :proofreading | :e
 4. 🟡 **Detoxify reaction_class `:reduction` per H₂S/lattato** — terminologicamente fuorviante (SQR ossida sulfide, LDH ossida lattato). Generalize a `:detoxification` or accept any reaction_class on toxic substrate_binding.
 5. 🟡 **Transduction probability default 0.05 per burst** — 50× il rate biologico Chen 2018; sensibile al fact-checking; default 0.005 sarebbe meno controverso.
 6. 🟡 **Plasmid copy_number burden ma no gene-dosage benefit** — selection trade-off mancante per resistance amplification via copy_number alto.
-7. 🟡 **Genoma N=50 geni con µ=0.02 mette il sistema sempre a Eigen threshold** — andrebbe documentato in `CALIBRATION.md` come "Arkea modellizza genome RNA-virus-scale, non bacterial-scale".
+7. 🟡 **Genoma N=50 geni con µ=0.02 mette il sistema sempre a Eigen threshold** — andrebbe documentato in `04-CALIBRATION.md` come "Arkea modellizza genome RNA-virus-scale, non bacterial-scale".
 8. 🟢 **`wall_capability = n_transmembrane / 5`** non distingue PBP da porine — usare il `pbp_count` già calcolato.
 9. 🟢 **DNA damage decay non dipende da repair_efficiency** — repair gene selection sotto SOS non opera realmente.
 10. 🟢 **σ-factor cascade collapsed in unico scalar** — B+C OK ma σS-specific stress response non distinguibile da σ70 housekeeping.
 
 ### Verdetto qualitativo
 
-**Per un microbiologo target Arkea oggi è: scientificamente onesto, dichiaratamente astratto, internamente coerente nei loop chiusi principali, con 3 errori P0 fixabili rapidamente e 7 semplificazioni P1 che meritano nota in `CALIBRATION.md`.** È un sandbox didatticamente difensibile per ricerca qualitativa e formazione, non un pretesto biologico per gameplay. Il fatto che ci sia un `CALIBRATION.md` con citazioni primarie è una scelta che lo distingue positivamente dal panorama (Avida, Aevol, Karr) e che un revisor accademico apprezzerebbe.
+**Per un microbiologo target Arkea oggi è: scientificamente onesto, dichiaratamente astratto, internamente coerente nei loop chiusi principali, con 3 errori P0 fixabili rapidamente e 7 semplificazioni P1 che meritano nota in `04-CALIBRATION.md`.** È un sandbox didatticamente difensibile per ricerca qualitativa e formazione, non un pretesto biologico per gameplay. Il fatto che ci sia un `04-CALIBRATION.md` con citazioni primarie è una scelta che lo distingue positivamente dal panorama (Avida, Aevol, Karr) e che un revisor accademico apprezzerebbe.
 
 Stato implementativo: **A−**. Letteratura citata accuratamente.
 

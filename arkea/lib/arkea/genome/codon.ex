@@ -1,6 +1,6 @@
 defmodule Arkea.Genome.Codon do
   @moduledoc """
-  Logical codon: a single symbol drawn from a fixed 20-element alphabet (DESIGN.md Block 7).
+  Logical codon: a single symbol drawn from a fixed 20-element alphabet (01-DESIGN.md Block 7).
 
   A codon is represented as an integer in `0..19`. The 20-symbol alphabet is named after
   the 20 standard amino acids (e.g. `:ala`, `:arg`, ..., `:val`) — this is a deliberate
@@ -10,7 +10,7 @@ defmodule Arkea.Genome.Codon do
   - the canonical alphabet and per-symbol weights;
   - conversions between integer index and atom symbol;
   - the **weighted sum** primitive used to derive continuous parameters of domains
-    from `parameter_codons` (DESIGN.md Block 7, decision: continuous params via weighted sum).
+    from `parameter_codons` (01-DESIGN.md Block 7, decision: continuous params via weighted sum).
 
   Determinism: the alphabet and weights are compile-time constants. No RNG involvement.
   """
@@ -135,7 +135,7 @@ defmodule Arkea.Genome.Codon do
 
   @doc """
   Weighted sum of a codon list — the **kernel of continuous parameter derivation**
-  (DESIGN.md Block 7).
+  (01-DESIGN.md Block 7).
 
   Sums `Σ_i weight(codons[i]) * codons[i]` for each codon. Pure and deterministic.
   Returns 0.0 for an empty list.

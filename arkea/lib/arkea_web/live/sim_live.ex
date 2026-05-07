@@ -13,7 +13,7 @@ defmodule ArkeaWeb.SimLive do
       U3, no Pixi/canvas/WebGL hop).
 
   No tick logic runs here. The browser scene is a pure visualization derived
-  from per-phase authoritative state, consistent with DESIGN.md Blocks 12 and 14.
+  from per-phase authoritative state, consistent with 01-DESIGN.md Blocks 12 and 14.
   """
 
   use ArkeaWeb, :live_view

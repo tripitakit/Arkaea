@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.DefenseTest do
   @moduledoc """
-  Property and unit tests for Phase 12 R-M defence (DESIGN.md Block 8).
+  Property and unit tests for Phase 12 R-M defence (01-DESIGN.md Block 8).
   """
   use ExUnit.Case, async: true
   use ExUnitProperties

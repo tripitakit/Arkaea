@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.AuditLog do
   @moduledoc """
-  Ecto schema per il log di eventi tipizzati (DESIGN.md Blocco 13).
+  Ecto schema per il log di eventi tipizzati (01-DESIGN.md Blocco 13).
 
   Tabella append-only: nessun UPDATE né DELETE nel flusso normale.
   Usata per anti-griefing, origin tracking degli elementi mobili e

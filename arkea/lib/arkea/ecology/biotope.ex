@@ -1,6 +1,6 @@
 defmodule Arkea.Ecology.Biotope do
   @moduledoc """
-  A biotope is a node in the world graph (DESIGN.md Block 10) and the
+  A biotope is a node in the world graph (01-DESIGN.md Block 10) and the
   authoritative unit of simulation owned by `Arkea.Ecology.Biotope.Server`
   (Phase 2).
 

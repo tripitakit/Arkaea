@@ -1,6 +1,6 @@
 defmodule Arkea.Game.SeedLibraryTest do
   @moduledoc """
-  Tests for Phase 19 Community Mode SeedLibrary (DESIGN.md Block 8 /
+  Tests for Phase 19 Community Mode SeedLibrary (01-DESIGN.md Block 8 /
   Community Mode).
   """
   use ExUnit.Case, async: true

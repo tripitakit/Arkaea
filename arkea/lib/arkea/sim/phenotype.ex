@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.Phenotype do
   @moduledoc """
   Emergent phenotype derived from a genome by aggregating functional domain
-  parameters (Phase 3/5 — IMPLEMENTATION-PLAN.md §6).
+  parameters (Phase 3/5 — 03-IMPLEMENTATION-PLAN.md §6).
 
   This module is **strictly pure**: no OTP, no I/O, no side effects.
 
@@ -54,7 +54,7 @@ defmodule Arkea.Sim.Phenotype do
     domains. Used in Phase 7 to compute the σ-factor QS boost for `step_expression/1`.
 
   - `restriction_profile` — list of `signal_key`s of restriction enzymes
-    encoded by the genome (Phase 12 — DESIGN.md Block 8). A gene is a
+    encoded by the genome (Phase 12 — 01-DESIGN.md Block 8). A gene is a
     restriction enzyme when it contains *both* a `:dna_binding` and a
     `:catalytic_site(reaction_class: :hydrolysis)` domain; the
     catalytic site's `signal_key` is the recognition site. Used by
@@ -72,7 +72,7 @@ defmodule Arkea.Sim.Phenotype do
     that site's restriction enzyme.
 
   - `competence_score` — `0.0..1.0` proxy for the cell's ability to take
-    up free DNA from the environment (Phase 13 — DESIGN.md Block 8).
+    up free DNA from the environment (Phase 13 — 01-DESIGN.md Block 8).
     Naturally competent species (e.g. *Streptococcus*, *Bacillus*,
     *Haemophilus*; Johnston et al. 2014) express a coordinated set of
     machinery: a DNA channel (`:channel_pore`), membrane integration
@@ -83,7 +83,7 @@ defmodule Arkea.Sim.Phenotype do
     three categories sit at zero — competence is *not* the default.
 
   - `detoxify_targets` — set of metabolite atom ids the genome can
-    detoxify (Phase 14 — DESIGN.md Block 8.A.2). A
+    detoxify (Phase 14 — 01-DESIGN.md Block 8.A.2). A
     `:catalytic_site(reaction_class: :reduction)` co-located with a
     `:substrate_binding` whose target is one of the toxic metabolites
     (O₂, H₂S, lactate) protects the cell from that specific stressor.
@@ -93,7 +93,7 @@ defmodule Arkea.Sim.Phenotype do
     activities emerge generatively.
 
   - `target_classes` — `%{atom() => float()}` map of cellular targets
-    that xenobiotics may bind (Phase 15 — DESIGN.md Block 8). Each
+    that xenobiotics may bind (Phase 15 — 01-DESIGN.md Block 8). Each
     entry is a non-negative *abundance index* derived from gene
     composition:
 
@@ -118,7 +118,7 @@ defmodule Arkea.Sim.Phenotype do
     resistance pathways.
 
   - `hydrolase_capacity` — `0.0..∞` proxy for β-lactamase-like
-    enzymatic resistance (Phase 15 — DESIGN.md Block 8). Counts genes
+    enzymatic resistance (Phase 15 — 01-DESIGN.md Block 8). Counts genes
     that co-express `:substrate_binding` and `:catalytic_site` with
     `reaction_class: :hydrolysis`. The scalar feeds
     `Arkea.Sim.Xenobiotic.degradation_amount/3` — a hydrolase-bearing
@@ -132,7 +132,7 @@ defmodule Arkea.Sim.Phenotype do
     `Arkea.Sim.Xenobiotic.intracellular_concentration/2` to scale
     effective drug exposure.
 
-  - `biofilm_capable?` — boolean flag (Phase 18 — DESIGN.md Block 8).
+  - `biofilm_capable?` — boolean flag (Phase 18 — 01-DESIGN.md Block 8).
     `true` when the genome encodes both an adhesion structure (any
     `:surface_tag`) and a matrix-like structural protein (any
     `:structural_fold` with `multimerization_n ≥ 2`). The two-prong

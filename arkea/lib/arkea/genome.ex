@@ -1,7 +1,7 @@
 defmodule Arkea.Genome do
   @moduledoc """
   Container of the complete genetic material of a cell line:
-  chromosome + plasmids + integrated prophages (DESIGN.md Block 4 / Block 5).
+  chromosome + plasmids + integrated prophages (01-DESIGN.md Block 4 / Block 5).
 
   Phase 1: only `chromosome` is populated. `plasmids` and `prophages` are
   empty lists, but already typed and structurally present.
@@ -47,7 +47,7 @@ defmodule Arkea.Genome do
         }
 
   @typedoc """
-  An extra-chromosomal plasmid (Phase 16 — DESIGN.md Block 8).
+  An extra-chromosomal plasmid (Phase 16 — 01-DESIGN.md Block 8).
 
   - `genes` — vertically inherited gene set carried by the plasmid.
   - `inc_group` — `0..@inc_group_modulus-1` integer derived from the
@@ -317,7 +317,7 @@ defmodule Arkea.Genome do
   @doc """
   Wrap a raw gene-list plasmid into a `plasmid()` map by deriving
   `inc_group`, `copy_number`, and `oriT_present` from the genes
-  themselves (Phase 16 — DESIGN.md Block 8).
+  themselves (Phase 16 — 01-DESIGN.md Block 8).
 
   Idempotent on already-shaped maps: passes through `:inc_group` and
   `:copy_number` if the caller supplied them, only filling in defaults

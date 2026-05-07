@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.Biotope.Supervisor do
   @moduledoc """
   `DynamicSupervisor` that owns all `Arkea.Sim.Biotope.Server` processes
-  (IMPLEMENTATION-PLAN.md §4 process tree).
+  (03-IMPLEMENTATION-PLAN.md §4 process tree).
 
   Biotope server processes are started dynamically at runtime (not declared
   statically in the child spec list) because the set of active biotopes is

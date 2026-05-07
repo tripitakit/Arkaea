@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.XenobioticTest do
   @moduledoc """
-  Tests for Phase 15 xenobiotic exposure (DESIGN.md Block 8).
+  Tests for Phase 15 xenobiotic exposure (01-DESIGN.md Block 8).
 
   Coverage:
     - `Xenobiotic.bound_fraction/2`, `intracellular_concentration/2`,

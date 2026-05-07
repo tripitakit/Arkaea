@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Mutator do
   @moduledoc """
-  Pure stochastic mutation generator for Phase 4 (IMPLEMENTATION-PLAN.md §5).
+  Pure stochastic mutation generator for Phase 4 (03-IMPLEMENTATION-PLAN.md §5).
 
   ## Responsibilities
 
@@ -10,7 +10,7 @@ defmodule Arkea.Sim.Mutator do
     produces a mutant offspring.
   - `init_seed/1` — derive a deterministic initial RNG seed from a biotope id.
 
-  ## Mutation type weights (DESIGN.md Block 5)
+  ## Mutation type weights (01-DESIGN.md Block 5)
 
   | Type | Weight |
   |---|---|
@@ -56,7 +56,7 @@ defmodule Arkea.Sim.Mutator do
   @divisor 50.0
   @max_probability 0.95
 
-  # Phase 17 — SOS response and error catastrophe (DESIGN.md Block 8).
+  # Phase 17 — SOS response and error catastrophe (01-DESIGN.md Block 8).
   #
   # `dna_damage` accumulates with every mutational event scaled by the
   # genome size and inverse repair efficiency, mirroring the in vivo
@@ -154,7 +154,7 @@ defmodule Arkea.Sim.Mutator do
   end
 
   @doc """
-  SOS-aware mutation probability (Phase 17 — DESIGN.md Block 8).
+  SOS-aware mutation probability (Phase 17 — 01-DESIGN.md Block 8).
 
   When the lineage's accumulated `dna_damage` crosses `@sos_active_threshold`,
   the per-cell mutation rate is amplified by `@sos_mutation_amplifier`
@@ -192,8 +192,8 @@ defmodule Arkea.Sim.Mutator do
   def ros_damage_max_per_tick, do: @ros_damage_max_per_tick
 
   @doc """
-  Per-tick ROS-coupled DNA damage increment (Phase 20 — DESIGN.md
-  Block 8 / CALIBRATION.md).
+  Per-tick ROS-coupled DNA damage increment (Phase 20 — 01-DESIGN.md
+  Block 8 / 04-CALIBRATION.md).
 
   Argument is the *toxicity factor* `0.0..1.0` produced by
   `Arkea.Sim.Metabolism.toxicity_factor/2`: 1.0 means the cell is

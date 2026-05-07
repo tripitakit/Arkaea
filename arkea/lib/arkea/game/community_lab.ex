@@ -1,6 +1,6 @@
 defmodule Arkea.Game.CommunityLab do
   @moduledoc """
-  Community Mode multi-seed provisioning (Phase 19 — DESIGN.md
+  Community Mode multi-seed provisioning (Phase 19 — 01-DESIGN.md
   Block 8 / Community Mode).
 
   Wraps the Seed Lab single-seed flow with the multi-seed founder

@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.BiotopeState do
   @moduledoc """
   Pure-data struct that `Arkea.Sim.Biotope.Server` holds as its in-memory state
-  (IMPLEMENTATION-PLAN.md §4 — Active Record pattern).
+  (03-IMPLEMENTATION-PLAN.md §4 — Active Record pattern).
 
   This is **not** a GenServer; it is the immutable value that flows through the
   pure tick pipeline `Arkea.Sim.Tick.tick/1 → {BiotopeState.t(), [event()]}`.
@@ -9,7 +9,7 @@ defmodule Arkea.Sim.BiotopeState do
   ## State fields
 
   - `id` — UUID v4, stable for the lifetime of the biotope process.
-  - `archetype` — one of the 8 archetypes (DESIGN.md Block 10).
+  - `archetype` — one of the 8 archetypes (01-DESIGN.md Block 10).
   - `x`, `y` — planar coordinates used by the Phase 8 topology graph.
   - `zone` — coarse environmental region used to bias migration within clusters.
   - `owner_player_id` — `nil` for wild biotopes, or the owning player UUID.

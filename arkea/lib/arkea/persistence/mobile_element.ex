@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.MobileElement do
   @moduledoc """
-  Ecto schema per il registro degli elementi mobili (DESIGN.md Blocco 13).
+  Ecto schema per il registro degli elementi mobili (01-DESIGN.md Blocco 13).
 
   Traccia plasmidi, profagi e fagi liberi con il loro lineage/biotopo di
   origine per il sistema di origin tracking anti-griefing.

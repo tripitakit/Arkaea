@@ -1,4 +1,4 @@
-> [🇮🇹 Italiano](UI-REWRITE-PLAN.md) · 🇬🇧 English (this page)
+> [🇮🇹 Italiano](06-UI-REWRITE-PLAN.md) · 🇬🇧 English (this page)
 
 # Arkea UI/UX Rewrite — Design Plan
 
@@ -91,7 +91,7 @@ Residual JS hook `SvgPanZoom` (≤80 lines): listens for wheel/drag, applies `tr
 | **My Biotopes** | compact list of own biotopes + tick | `/biotopes/:id` |
 | **Community** | top 3 communities from other players (read-only) | `/community` |
 | **Audit / Events** | stream of the last 10 global events | `/audit` |
-| **Calibration** | static links (`CALIBRATION.md`, `DESIGN.md`, `BIOLOGICAL-MODEL-REVIEW.md`) rendered as HTML | `/docs/:slug` |
+| **Calibration** | static links (`04-CALIBRATION.md`, `01-DESIGN.md`, `05-BIOLOGICAL-MODEL-REVIEW.md`) rendered as HTML | `/docs/:slug` |
 
 ### World view (`/world`)
 
@@ -328,10 +328,10 @@ For each phase:
 
 ## Plan persistence in the repository
 
-The plan is reified as a **versioned bilingual document in the project root**, conforming to the existing convention (`DESIGN.md` / `DESIGN.en.md`, `BIOLOGICAL-MODEL-REVIEW.md` / `BIOLOGICAL-MODEL-REVIEW.en.md`, `CALIBRATION.md` / `CALIBRATION.en.md`):
+The plan is reified as a **versioned bilingual document in the project root**, conforming to the existing convention (`01-DESIGN.md` / `01-DESIGN.en.md`, `05-BIOLOGICAL-MODEL-REVIEW.md` / `05-BIOLOGICAL-MODEL-REVIEW.en.md`, `04-CALIBRATION.md` / `04-CALIBRATION.en.md`):
 
-- **`UI-REWRITE-PLAN.md`** — Italian, canonical (source of truth). Header with language switcher.
-- **`UI-REWRITE-PLAN.en.md`** — synchronized English translation. Mirror header.
+- **`06-UI-REWRITE-PLAN.md`** — Italian, canonical (source of truth). Header with language switcher.
+- **`06-UI-REWRITE-PLAN.en.md`** — synchronized English translation. Mirror header.
 
 The English translation is created and kept in sync by the `bilingual-docs-maintainer` agent.
 
@@ -355,4 +355,4 @@ Update of `README.md` and `README.en.md` in the "Documents" section to link the 
 - **DaisyUI removal**: the Tailwind plugin is still loaded (`assets/css/app.css`). It can be removed after migrating `core_components.ex` flashes (`alert-error`, `alert-info`, `text-error`) and the default Phoenix `.input` button (`btn-primary`) to arkea CSS.
 - **Full split of `arkea/inner.css` modules**: the inner panel layer (1468 lines) has been renamed to `arkea-*` but remains in a single file. Splitting per surface (login/biotope-inner/seed-lab-inner) is residual, non-blocking work.
 - View-model layer tested independently from LiveViews.
-- Full coherence with DESIGN.md (Blocks 12 and 14 — visualization and UI).
+- Full coherence with 01-DESIGN.md (Blocks 12 and 14 — visualization and UI).

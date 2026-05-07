@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Tick do
   @moduledoc """
-  Pure tick function for `Arkea.Sim.BiotopeState` (IMPLEMENTATION-PLAN.md §4.1).
+  Pure tick function for `Arkea.Sim.BiotopeState` (03-IMPLEMENTATION-PLAN.md §4.1).
 
   The pipeline after Phase 7 has 7 steps:
 
@@ -41,7 +41,7 @@ defmodule Arkea.Sim.Tick do
       delta = round(base_growth_rate * 100) - round(energy_cost * 10)
 
   `step_cell_events/1` then applies those deltas via `Lineage.apply_growth/2`,
-  which clamps results at 0 (DESIGN.md Block 4 invariant: no negative abundance).
+  which clamps results at 0 (01-DESIGN.md Block 4 invariant: no negative abundance).
 
   Phase 5 will replace the linear model with Michaelis-Menten kinetics driven
   by per-phase metabolite pools.
@@ -223,7 +223,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 1.25 — Xenobiotic exposure and degradation (Phase 15 — DESIGN.md Block 8).
+  Step 1.25 — Xenobiotic exposure and degradation (Phase 15 — 01-DESIGN.md Block 8).
 
   For each phase:
 
@@ -368,7 +368,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 1.5 — Biomass progression and decay (Phase 14 — DESIGN.md Block 8).
+  Step 1.5 — Biomass progression and decay (Phase 14 — 01-DESIGN.md Block 8).
 
   Walks every lineage, derives the per-tick biomass delta from its
   primary phase's environment (osmotic stress, toxicity, elemental
@@ -423,7 +423,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 1.75 — Bacteriocin warfare (Phase 17 — DESIGN.md Block 8).
+  Step 1.75 — Bacteriocin warfare (Phase 17 — 01-DESIGN.md Block 8).
 
   For every phase, accumulates per-producer bacteriocin secretion in
   `Phase.toxin_pool` and applies the resulting wall damage to non-immune
@@ -608,7 +608,7 @@ defmodule Arkea.Sim.Tick do
   1. **Conjugation** (`HGT.step/4`) — for each phase, stochastically transfers
      conjugative plasmids from donor lineages to recipient lineages. New
      transconjugant lineages are appended; recipient abundances are decremented
-     by 1 to conserve population (DESIGN.md Block 5).
+     by 1 to conserve population (01-DESIGN.md Block 5).
 
   2. **Prophage induction** (`HGT.induction_step/4`) — for each lineage
      carrying integrated prophages, rolls a stress-driven lytic burst that
@@ -710,7 +710,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 5 — Phage infection (Phase 12 — DESIGN.md Block 8).
+  Step 5 — Phage infection (Phase 12 — 01-DESIGN.md Block 8).
 
   For each phase, runs `Arkea.Sim.HGT.Phage.infection_step/4`: every free
   virion in the phage_pool attempts to infect any compatible recipient
@@ -825,7 +825,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 4.5 — DNA-damage accumulation and decay (Phase 17 — DESIGN.md Block 8 SOS).
+  Step 4.5 — DNA-damage accumulation and decay (Phase 17 — 01-DESIGN.md Block 8 SOS).
 
   For every lineage with a non-`nil` genome, advance `dna_damage` by
 
@@ -912,7 +912,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 5.5 — Lysis on biomass deficit (Phase 14 — DESIGN.md Block 8.B.4).
+  Step 5.5 — Lysis on biomass deficit (Phase 14 — 01-DESIGN.md Block 8.B.4).
 
   For each lineage, rolls a Bernoulli trial per phase against the
   lysis probability derived from the lineage's biomass profile (see
@@ -968,7 +968,7 @@ defmodule Arkea.Sim.Tick do
   end
 
   @doc """
-  Step 5.75 — Poisson mixing event (Phase 18 — DESIGN.md Block 8).
+  Step 5.75 — Poisson mixing event (Phase 18 — 01-DESIGN.md Block 8).
 
   Each tick rolls a Bernoulli trial against `@mixing_event_probability`.
   On a hit, the biotope's lineages and phase pools are *homogenised*

@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Biomass do
   @moduledoc """
-  Continuous biomass progression and decay (Phase 14 — DESIGN.md Block 8).
+  Continuous biomass progression and decay (Phase 14 — 01-DESIGN.md Block 8).
 
   Each lineage carries `Lineage.biomass :: %{membrane, wall, dna}`, with
   every component in `0.0..1.0`. This module exposes the pure functions

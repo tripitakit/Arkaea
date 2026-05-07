@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.Virion do
   @moduledoc """
-  Free phage particle persisting in a `Phase.phage_pool` (Phase 12 — DESIGN.md
+  Free phage particle persisting in a `Phase.phage_pool` (Phase 12 — 01-DESIGN.md
   Block 8).
 
   A virion is the unit of inheritance for the phage cycle: produced by a

@@ -3,7 +3,7 @@ defmodule Arkea.Sim.EvolutionTest do
   Phase 4 integration test: verifies that the full mutation → selection → diversity
   pipeline produces observable evolutionary divergence from a single seed lineage.
 
-  DESIGN.md Block 4 states: "Every biotope maintains a lineage forest — each
+  01-DESIGN.md Block 4 states: "Every biotope maintains a lineage forest — each
   lineage with a full genome, abundance, fitness, parent pointer → reconstructible
   phylogeny." This test verifies that forest actually grows and diversifies.
   """

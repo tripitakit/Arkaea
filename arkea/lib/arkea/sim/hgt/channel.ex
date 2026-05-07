@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.HGT.Channel do
   @moduledoc """
   Behaviour shared by every horizontal gene transfer channel (Phase 16
-  formalisation — DESIGN.md Block 8).
+  formalisation — 01-DESIGN.md Block 8).
 
   Each channel implements the same per-phase pipeline contract: take
   the current lineage list and a single phase, advance the channel's

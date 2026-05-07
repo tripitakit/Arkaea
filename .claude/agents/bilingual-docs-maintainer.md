@@ -11,8 +11,8 @@ You are the bilingual documentation maintainer for the Arkea project. The projec
 
 See:
 - `/home/patrick/projects/playground/Arkea/README.md` (overview)
-- `/home/patrick/projects/playground/Arkea/devel-docs/DESIGN.md` (15-block design)
-- `/home/patrick/projects/playground/Arkea/devel-docs/IMPLEMENTATION-PLAN.md` (architecture + roadmap)
+- `/home/patrick/projects/playground/Arkea/devel-docs/01-DESIGN.md` (15-block design)
+- `/home/patrick/projects/playground/Arkea/devel-docs/03-IMPLEMENTATION-PLAN.md` (architecture + roadmap)
 
 ## File naming convention
 
@@ -20,7 +20,7 @@ See:
 |---|---|
 | `<NAME>.md` | `<NAME>.en.md` |
 
-Examples: `DESIGN.md` ↔ `DESIGN.en.md`, `README.md` ↔ `README.en.md`.
+Examples: `01-DESIGN.md` ↔ `01-DESIGN.en.md`, `README.md` ↔ `README.en.md`.
 
 The EN file always lives next to its IT sibling.
 
@@ -136,7 +136,7 @@ When a term is missing from this glossary, choose the standard term used in micr
    - Code identifiers (`Biotope.Server`, `tick/1`, `delta_genome`, etc.)
    - Library/tool names (Phoenix, Ecto, Oban, PixiJS, etc.)
    - Domain type names from Block 7 if they're already in English (e.g., `Substrate-binding pocket`)
-3. **Update intra-doc links** to point to the right language version. Example: in `DESIGN.en.md`, a link `[INCEPTION.md](INCEPTION.md)` becomes `[INCEPTION.en.md](INCEPTION.en.md)`.
+3. **Update intra-doc links** to point to the right language version. Example: in `01-DESIGN.en.md`, a link `[INCEPTION.md](INCEPTION.md)` becomes `[INCEPTION.en.md](INCEPTION.en.md)`.
 4. **Preserve technical accuracy at the cost of literary fluency**. The audience is technical; clarity > elegance.
 5. **Italian idioms / colloquialisms**: render in neutral technical English. E.g., "non banalizzare la materia" → "without trivializing the subject matter".
 6. **Tables**: translate cell content but keep the structure verbatim, including alignment markers.

@@ -23,7 +23,7 @@ The genome is a codon sequence parsed into **11 functional domain types** (subst
 - **Continuous biomass** (membrane / wall / DNA progress) → lysis at division → drives the loss-of-receptor arms race naturally.
 - **Intra-biotope phase model**: surface, water column, sediment, biofilm — each with its own chemistry, oxygenation and dilution; stochastic mixing events on a Poisson cadence.
 
-Every numeric constant is anchored to primary literature with an explicit biological range (see [`devel-docs/CALIBRATION.en.md`](devel-docs/CALIBRATION.en.md)).
+Every numeric constant is anchored to primary literature with an explicit biological range (see [`devel-docs/04-CALIBRATION.en.md`](devel-docs/04-CALIBRATION.en.md)).
 
 ## Architecture
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Elixir 1.19 / OTP 28, ExUnit + StreamData, Phoenix LiveView, Ecto. Toolchain via asdf (vedi memoria utente per PATH Erlang/Elixir).
 
-**Riferimenti:** `BIOLOGICAL-MODEL-REVIEW-2.md` (review scientifica 2026-05-06), `DESIGN-COHERENCE-REVIEW.md` (review coerenza implementazione ↔ design 2026-05-06), `DESIGN.md` Blocco 5 (principi generative-only), `BIOLOGICAL-MODEL-REVIEW.md` (piano Fasi 12-19, round 1).
+**Riferimenti:** `09-BIOLOGICAL-MODEL-REVIEW-2.md` (review scientifica 2026-05-06), `10-DESIGN-COHERENCE-REVIEW.md` (review coerenza implementazione ↔ design 2026-05-06), `01-DESIGN.md` Blocco 5 (principi generative-only), `05-BIOLOGICAL-MODEL-REVIEW.md` (piano Fasi 12-19, round 1).
 
 ---
 
@@ -784,7 +784,7 @@ git commit -m "Phage: cassette without dna_binding is obligate lytic (cI-null ph
 
 **Files:**
 - Modify: `lib/arkea/sim/mutator.ex:288-310` — riscrivere `error_catastrophe_lethality/2`
-- Modify: `devel-docs/CALIBRATION.md` — sezione su Eigen threshold con citazione Bull et al. 2007
+- Modify: `devel-docs/04-CALIBRATION.md` — sezione su Eigen threshold con citazione Bull et al. 2007
 - Test: `test/arkea/sim/mutator_test.exs` — proprietà di transizione smooth
 
 #### Sub-task 5.1: test transizione smooth
@@ -797,7 +797,7 @@ git commit -m "Phage: cassette without dna_binding is obligate lytic (cI-null ph
 > sotto la formula Eigen-aderente Arkea opera molto sotto soglia
 > (`mu_per_cell ≤ 0.04` vs threshold ≈ 0.69) — l'event è ora un *theoretical
 > ceiling*. La copertura del payload audit resta su `audit_writer_test.exs:221`.
-> Vedi `CALIBRATION.md` per dettagli.
+> Vedi `04-CALIBRATION.md` per dettagli.
 
 - [x] **Step 1: test — falla**
 
@@ -895,7 +895,7 @@ Atteso: il `sos_test.exs:113` (monotonic in genome_size) deve continuare a passa
 > usati nei test pre-esistenti (0.05, 0.5) sono stati alzati a (2.0, 10.0)
 > per restare sopra la nuova soglia ≈ ln(σ).
 
-- [x] **Step 4: aggiornare CALIBRATION.md**
+- [x] **Step 4: aggiornare 04-CALIBRATION.md**
 
 Aggiungere sezione:
 
@@ -919,7 +919,7 @@ Nota: Arkea modellizza un genoma RNA-virus-scale (L≈50 geni), non bacterial-sc
 - [ ] **Step 5: commit**
 
 ```bash
-git add arkea/lib/arkea/sim/mutator.ex arkea/test/arkea/sim/mutator_test.exs devel-docs/CALIBRATION.md
+git add arkea/lib/arkea/sim/mutator.ex arkea/test/arkea/sim/mutator_test.exs devel-docs/04-CALIBRATION.md
 git commit -m "Mutator: Eigen-derived error_catastrophe_lethality + CALIBRATION update"
 ```
 
@@ -931,7 +931,7 @@ git commit -m "Mutator: Eigen-derived error_catastrophe_lethality + CALIBRATION 
 
 **Files:**
 - Modify: `lib/arkea/sim/hgt/phage.ex:75` — default `0.005`
-- Modify: `devel-docs/CALIBRATION.md` — nota su scelta calibrativa
+- Modify: `devel-docs/04-CALIBRATION.md` — nota su scelta calibrativa
 - Test: nessun nuovo test (la prob è settabile via `Application.put_env`; i test esistenti che la usano lo settano esplicitamente)
 
 #### Sub-task 6.1
@@ -944,7 +944,7 @@ In `lib/arkea/sim/hgt/phage.ex:75`:
 @transduction_probability Application.compile_env(:arkea, :transduction_probability, 0.005)
 ```
 
-- [x] **Step 2: aggiornare CALIBRATION.md**
+- [x] **Step 2: aggiornare 04-CALIBRATION.md**
 
 - [x] **Step 3: regression — controllare che i canary tests che si aspettano transduction-driven phenomena continuino a passare**
 
@@ -956,7 +956,7 @@ In `lib/arkea/sim/hgt/phage.ex:75`:
 - [ ] **Step 4: commit**
 
 ```bash
-git add arkea/lib/arkea/sim/hgt/phage.ex devel-docs/CALIBRATION.md
+git add arkea/lib/arkea/sim/hgt/phage.ex devel-docs/04-CALIBRATION.md
 git commit -m "Phage: transduction_probability default 0.005 (closer to Chen 2018)"
 ```
 
@@ -964,18 +964,18 @@ git commit -m "Phage: transduction_probability default 0.005 (closer to Chen 201
 
 ## Blocco C — Documentazione
 
-### Task 7: Sezione "Debito documentato post-Fase 20" in IMPLEMENTATION-PLAN.md
+### Task 7: Sezione "Debito documentato post-Fase 20" in 03-IMPLEMENTATION-PLAN.md
 
-**Razionale:** 4 feature documentate in `BIOLOGICAL-MODEL-REVIEW.md` (round 1) hanno il campo dati ma non il runtime: operoni con expression coordinata, regulator_output in sigma, SOS threshold genome-derived, coniugazione triade `pili_like + relaxase_like + oriT_like`. Senza una sezione esplicita di "debito", future sessioni Claude/Codex possono inavvertitamente ri-aprire questi piani come "fasi nuove".
+**Razionale:** 4 feature documentate in `05-BIOLOGICAL-MODEL-REVIEW.md` (round 1) hanno il campo dati ma non il runtime: operoni con expression coordinata, regulator_output in sigma, SOS threshold genome-derived, coniugazione triade `pili_like + relaxase_like + oriT_like`. Senza una sezione esplicita di "debito", future sessioni Claude/Codex possono inavvertitamente ri-aprire questi piani come "fasi nuove".
 
 **Files:**
-- Modify: `devel-docs/IMPLEMENTATION-PLAN.md` — nuova sezione finale
-- Modify: `devel-docs/DESIGN.md` — note Blocco 5 sulle eccezioni accettate (toxicity profile, ATP coefficients, aerobic substrates come parametri di biotopo)
-- Sync: `bilingual-docs-maintainer` agent per `IMPLEMENTATION-PLAN.en.md`, `DESIGN.en.md`
+- Modify: `devel-docs/03-IMPLEMENTATION-PLAN.md` — nuova sezione finale
+- Modify: `devel-docs/01-DESIGN.md` — note Blocco 5 sulle eccezioni accettate (toxicity profile, ATP coefficients, aerobic substrates come parametri di biotopo)
+- Sync: `bilingual-docs-maintainer` agent per `03-IMPLEMENTATION-PLAN.en.md`, `01-DESIGN.en.md`
 
 #### Sub-task 7.1: sezione "Debito post-Fase 20"
 
-- [x] **Step 1: aggiungere a IMPLEMENTATION-PLAN.md**
+- [x] **Step 1: aggiungere a 03-IMPLEMENTATION-PLAN.md**
 
 Aggiungere alla fine del file:
 
@@ -989,28 +989,28 @@ Le seguenti feature hanno **schema dati implementato** ma **runtime non implemen
 ### D1 — Operoni runtime non implementato
 
 - **Stato**: `Arkea.Genome.Gene` ha campo `operon_id :: binary | nil`; `Arkea.Genome.Operon` non esiste; nessun modulo runtime usa `operon_id`.
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva espressione coordinata operonica con `kcat × shared_sigma`.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva espressione coordinata operonica con `kcat × shared_sigma`.
 - **Razionale del rinvio**: l'expression attuale (sigma derivato da binding_affinity media) è funzionalmente equivalente al livello di astrazione B+C. Operoni-as-runtime aggiungerebbe complessità con beneficio fenomenologico marginale.
 - **Riapertura**: solo se un canary scenario produce comportamenti di expression che un microbiologo riconosce come "operone-mancante" (es. geni co-regolati che non si attivano in coordinazione).
 
 ### D2 — `regulator_output` parsato ma non aggregato in sigma
 
 - **Stato**: `Phenotype.from_genome` parsa `:regulator_output` ma non lo aggrega (commento esplicito a `phenotype.ex:521-523`).
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 18 prescriveva participation in sigma del gene/operon target.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 18 prescriveva participation in sigma del gene/operon target.
 - **Razionale del rinvio**: ridondante con `dna_binding_affinity` per il livello di expression attuale. La meccanica targeted-regulator richiederebbe operoni runtime (D1).
 - **Riapertura**: insieme a D1, in un Phase 21 dedicato.
 
 ### D3 — SOS threshold come costante modulo-level
 
 - **Stato**: `@sos_active_threshold = 0.20` in `mutator.ex:80`; uniforme per tutti i lignaggi.
-- **Design originale**: `BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva derivazione da `:ligand_sensor` (DNA-damage-like) per-lineage.
+- **Design originale**: `05-BIOLOGICAL-MODEL-REVIEW.md` Fase 17 prescriveva derivazione da `:ligand_sensor` (DNA-damage-like) per-lineage.
 - **Razionale del rinvio**: la costante calibrata in Phase 20 produce dinamiche SOS biologicamente realistiche; la per-lineage variability richiederebbe un nuovo `:reaction_class :dna_damage_sensor` non presente nella tassonomia attuale.
 - **Riapertura**: insieme a D1/D2 o quando si introducono nuovi reaction_class.
 
 ### D4 — Proxy coniugazione: solo `:transmembrane_anchor`
 
 - **Stato**: `hgt.ex:62-84` usa solo `:transmembrane_anchor` come gating per coniugazione.
-- **Design originale**: DESIGN.md Blocco 5 prescriveva la triade `pili_like + relaxase_like + oriT_like`.
+- **Design originale**: 01-DESIGN.md Blocco 5 prescriveva la triade `pili_like + relaxase_like + oriT_like`.
 - **Razionale del rinvio**: `:relaxase_like` e `:oriT_like` non sono nella tassonomia degli 11 domini correnti; introdurli richiederebbe espansione coordinata di tassonomia + Phenotype + tutti i Factories nei test. La coniugazione attuale è funzionalmente plausibile (cap 0.30, density-dependent).
 - **Riapertura**: in un Phase 21 dedicato all'espansione tassonomica dei domini.
 
@@ -1018,14 +1018,14 @@ Le seguenti feature hanno **schema dati implementato** ma **runtime non implemen
 
 - **Stato**: `metabolism.ex:81-95` (`@atp_coefficients`), `:121` (`@aerobic_substrates`), `:159-163` (`@toxicity_profile`) sono parametri ambientali hardcoded.
 - **Decisione**: questi NON sono un debito ma una **decisione di design consolidata**: la chimica dell'ambiente (stechiometria di ATP yield, profilo di tossicità dei metaboliti) è un parametro del biotopo, non del genoma. Il principio Blocco 5 "tutto è codificato nel genoma" si applica ai *tratti del lignaggio*, non al modello dell'ambiente.
-- **Aggiornamento DESIGN.md**: documentare esplicitamente questa distinzione in Blocco 5 (vedi sotto).
+- **Aggiornamento 01-DESIGN.md**: documentare esplicitamente questa distinzione in Blocco 5 (vedi sotto).
 
 ---
 ```
 
-- [x] **Step 2: aggiornare DESIGN.md Blocco 5**
+- [x] **Step 2: aggiornare 01-DESIGN.md Blocco 5**
 
-In `devel-docs/DESIGN.md`, alla fine del Blocco 5, aggiungere:
+In `devel-docs/01-DESIGN.md`, alla fine del Blocco 5, aggiungere:
 
 ```markdown
 #### Eccezioni dichiarate al principio "tutto è codificato nel genoma"
@@ -1044,7 +1044,7 @@ Questa distinzione è esplicita per evitare che future revisioni interpretino "t
 - [ ] **Step 3: commit (italiano canonico)**
 
 ```bash
-git add devel-docs/IMPLEMENTATION-PLAN.md devel-docs/DESIGN.md
+git add devel-docs/03-IMPLEMENTATION-PLAN.md devel-docs/01-DESIGN.md
 git commit -m "Docs: post-Phase-20 explicit debt section + Block 5 environment exceptions"
 ```
 
@@ -1055,12 +1055,12 @@ git commit -m "Docs: post-Phase-20 explicit debt section + Block 5 environment e
 Eseguire dal terminale di Claude:
 
 ```
-Aggiornare i file inglesi `devel-docs/IMPLEMENTATION-PLAN.en.md` e
-`devel-docs/DESIGN.en.md` per riflettere le modifiche italiane appena committate
+Aggiornare i file inglesi `devel-docs/03-IMPLEMENTATION-PLAN.en.md` e
+`devel-docs/01-DESIGN.en.md` per riflettere le modifiche italiane appena committate
 (commit più recente: "Docs: post-Phase-20 explicit debt section + Block 5 environment
 exceptions"). Aggiungere anche le nuove versioni inglesi di
-`BIOLOGICAL-MODEL-REVIEW-2.en.md`, `DESIGN-COHERENCE-REVIEW.en.md`,
-`REMEDIATION-PLAN.en.md` se mancanti. Mantenere terminologia tecnica/biologica
+`09-BIOLOGICAL-MODEL-REVIEW-2.en.md`, `10-DESIGN-COHERENCE-REVIEW.en.md`,
+`11-REMEDIATION-PLAN.en.md` se mancanti. Mantenere terminologia tecnica/biologica
 consistente con il resto della documentazione (cfr. terminology.md o glossary se
 esistente).
 ```
@@ -1072,21 +1072,21 @@ Prima del commit, leggere il diff e verificare che la terminologia (mutator stra
 - [ ] **Step 3: commit dei file inglesi**
 
 ```bash
-git add devel-docs/IMPLEMENTATION-PLAN.en.md devel-docs/DESIGN.en.md \
-        devel-docs/BIOLOGICAL-MODEL-REVIEW-2.en.md \
-        devel-docs/DESIGN-COHERENCE-REVIEW.en.md \
-        devel-docs/REMEDIATION-PLAN.en.md
+git add devel-docs/03-IMPLEMENTATION-PLAN.en.md devel-docs/01-DESIGN.en.md \
+        devel-docs/09-BIOLOGICAL-MODEL-REVIEW-2.en.md \
+        devel-docs/10-DESIGN-COHERENCE-REVIEW.en.md \
+        devel-docs/11-REMEDIATION-PLAN.en.md
 git commit -m "Docs: sync English mirrors for post-Phase-20 debt + reviews"
 ```
 
 ---
 
-### Task 8: Aggiornamento `CALIBRATION.md` finale per consistency
+### Task 8: Aggiornamento `04-CALIBRATION.md` finale per consistency
 
-**Razionale:** dopo i fix biologici di Blocco B, alcuni numeri citati in `CALIBRATION.md` sono cambiati. Garantire che il documento citi i valori effettivamente in codice.
+**Razionale:** dopo i fix biologici di Blocco B, alcuni numeri citati in `04-CALIBRATION.md` sono cambiati. Garantire che il documento citi i valori effettivamente in codice.
 
 **Files:**
-- Modify: `devel-docs/CALIBRATION.md` — aggiornamento valori
+- Modify: `devel-docs/04-CALIBRATION.md` — aggiornamento valori
 - Sync: `bilingual-docs-maintainer` per `.en.md`
 
 #### Sub-task 8.1
@@ -1094,17 +1094,17 @@ git commit -m "Docs: sync English mirrors for post-Phase-20 debt + reviews"
 - [x] **Step 1: audit dei valori citati**
 
 ```bash
-grep -n "0.05\|0.005\|0.40\|0.50\|repressor_strength\|error_catastrophe" devel-docs/CALIBRATION.md
+grep -n "0.05\|0.005\|0.40\|0.50\|repressor_strength\|error_catastrophe" devel-docs/04-CALIBRATION.md
 ```
 
-Per ogni valore, verificare che il file Elixir corrispondente abbia lo stesso numero. Se non match, aggiornare CALIBRATION.md.
+Per ogni valore, verificare che il file Elixir corrispondente abbia lo stesso numero. Se non match, aggiornare 04-CALIBRATION.md.
 
 - [x] **Step 2: aggiornare le citazioni di file:linea**
 
-CALIBRATION.md cita spesso `phenotype.ex:281-294` (target_classes), `phage.ex:565-580` (derive_repressor_strength), `mutator.ex:289-300` (error_catastrophe_lethality). Dopo i refactor, questi range potrebbero essere shiftati. Verificare con:
+04-CALIBRATION.md cita spesso `phenotype.ex:281-294` (target_classes), `phage.ex:565-580` (derive_repressor_strength), `mutator.ex:289-300` (error_catastrophe_lethality). Dopo i refactor, questi range potrebbero essere shiftati. Verificare con:
 
 ```bash
-grep -n "phenotype.ex:\|phage.ex:\|mutator.ex:" devel-docs/CALIBRATION.md
+grep -n "phenotype.ex:\|phage.ex:\|mutator.ex:" devel-docs/04-CALIBRATION.md
 ```
 
 E confermare ogni linea con `grep -n` nel file di codice corrispondente.
@@ -1112,11 +1112,11 @@ E confermare ogni linea con `grep -n` nel file di codice corrispondente.
 - [x] **Step 3: commit + bilingual sync**
 
 ```bash
-git add devel-docs/CALIBRATION.md
+git add devel-docs/04-CALIBRATION.md
 git commit -m "Calibration: align cited values and line refs with post-remediation code"
 ```
 
-Poi dispacciare `bilingual-docs-maintainer` per `CALIBRATION.en.md`.
+Poi dispacciare `bilingual-docs-maintainer` per `04-CALIBRATION.en.md`.
 
 ---
 
@@ -1157,7 +1157,7 @@ Visualizzare in `/sim` che:
 Dispacciare `biological-realism-reviewer` agent sul diff complessivo del branch:
 
 ```
-Verifica che i fix dei finding 🔴 in BIOLOGICAL-MODEL-REVIEW-2.md siano stati
+Verifica che i fix dei finding 🔴 in 09-BIOLOGICAL-MODEL-REVIEW-2.md siano stati
 applicati correttamente. Controlla in particolare: ribosome_like generative,
 repressor_strength default 0.0, error_catastrophe Eigen formula, transduction
 default 0.005. Segnala eventuali regressioni o nuove discrepanze rispetto a
@@ -1169,7 +1169,7 @@ letteratura primaria.
 Dispacciare `design-coherence-reviewer` agent:
 
 ```
-Verifica che i 3 deviation P0 in DESIGN-COHERENCE-REVIEW.md siano stati chiusi:
+Verifica che i 3 deviation P0 in 10-DESIGN-COHERENCE-REVIEW.md siano stati chiusi:
 1. Audit log per-canale events emessi e persistiti
 2. HGT.Channel behaviour conformance per coniugazione
 3. ribosome_like derivato da genoma

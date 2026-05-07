@@ -1,7 +1,7 @@
 defmodule Arkea.Game.CommunityLabTest do
   @moduledoc """
   Tests for Phase 19 Community Mode multi-seed provisioning
-  (DESIGN.md Block 8 / Community Mode).
+  (01-DESIGN.md Block 8 / Community Mode).
   """
   use ExUnit.Case, async: true
 

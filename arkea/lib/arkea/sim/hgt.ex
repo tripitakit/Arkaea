@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT do
   @moduledoc """
-  Pure horizontal gene transfer (HGT) logic for Phase 6 (DESIGN.md Block 5).
+  Pure horizontal gene transfer (HGT) logic for Phase 6 (01-DESIGN.md Block 5).
 
   Implements two HGT mechanisms:
 
@@ -74,7 +74,7 @@ defmodule Arkea.Sim.HGT do
 
   Accepts either a `Genome.plasmid()` map or a raw gene list (legacy).
   A plasmid is conjugative when it contains at least one gene with at
-  least one `:transmembrane_anchor` domain (pilus-like proxy, DESIGN.md
+  least one `:transmembrane_anchor` domain (pilus-like proxy, 01-DESIGN.md
   Block 5).
   """
   @spec conjugative?(Genome.plasmid() | [Gene.t()]) :: boolean()
@@ -166,7 +166,7 @@ defmodule Arkea.Sim.HGT do
   end
 
   @doc """
-  Prophage induction step (Phase 12 — DESIGN.md Block 8).
+  Prophage induction step (Phase 12 — 01-DESIGN.md Block 8).
 
   For each lineage with at least one integrated prophage cassette in
   `:lysogenic` state, compute a per-cassette induction probability driven

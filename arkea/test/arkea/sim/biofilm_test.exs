@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.BiofilmTest do
   @moduledoc """
   Tests for Phase 18 biofilm capability and dilution discount
-  (DESIGN.md Block 8 Phase 18).
+  (01-DESIGN.md Block 8 Phase 18).
   """
   use ExUnit.Case, async: true
 

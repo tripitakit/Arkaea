@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Metabolism do
   @moduledoc """
-  Pure metabolic-kinetics module for Phase 5 (IMPLEMENTATION-PLAN.md §5 — Phase 5).
+  Pure metabolic-kinetics module for Phase 5 (03-IMPLEMENTATION-PLAN.md §5 — Phase 5).
 
   Three responsibilities:
 
@@ -94,8 +94,8 @@ defmodule Arkea.Sim.Metabolism do
     po4: 0.0
   }
 
-  # Phase 20 — Aerobic respiration upregulation (DESIGN.md Block 8 /
-  # CALIBRATION.md).
+  # Phase 20 — Aerobic respiration upregulation (01-DESIGN.md Block 8 /
+  # 04-CALIBRATION.md).
   #
   # Pre-Phase-20 ATP coefficients were anaerobic baselines
   # (glucose 2.0 ≈ mixed-acid fermentation). When oxygen is co-
@@ -120,7 +120,7 @@ defmodule Arkea.Sim.Metabolism do
   @aerobic_boost 7.0
   @aerobic_substrates [:glucose, :acetate, :lactate, :ch4]
 
-  # Phase 14 — Metabolite toxicity profile (DESIGN.md Block 8.A.2).
+  # Phase 14 — Metabolite toxicity profile (01-DESIGN.md Block 8.A.2).
   #
   # Each entry maps a metabolite id to `{threshold, scale}`:
   #
@@ -162,7 +162,7 @@ defmodule Arkea.Sim.Metabolism do
     lactate: {30.0, 100.0}
   }
 
-  # Phase 18 — Cross-feeding closure (DESIGN.md Block 8 Phase 18).
+  # Phase 18 — Cross-feeding closure (01-DESIGN.md Block 8 Phase 18).
   #
   # Each metabolite consumed produces stoichiometric by-products that
   # are returned to `Phase.metabolite_pool`. The map below collapses
@@ -201,7 +201,7 @@ defmodule Arkea.Sim.Metabolism do
     no3: %{nh3: 0.5, co2: 0.3}
   }
 
-  # Phase 14 — Elemental floors (DESIGN.md Block 8.A.3).
+  # Phase 14 — Elemental floors (01-DESIGN.md Block 8.A.3).
   #
   # Each elemental nutrient (P, N, Fe, S) must be taken up at a minimum
   # per-cell rate. Below the floor the cell cannot synthesise its
@@ -235,7 +235,7 @@ defmodule Arkea.Sim.Metabolism do
 
   Ordering matches the integer id convention (index 0 = `:glucose`, … ,
   index 12 = `:po4`), which corresponds to the canonical metabolite table in
-  DESIGN.md Block 6.
+  01-DESIGN.md Block 6.
   """
   @spec canonical_metabolites() :: [atom()]
   def canonical_metabolites, do: @metabolites

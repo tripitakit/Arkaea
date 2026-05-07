@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.Biotope do
   @moduledoc """
-  Ecto schema per i nodi del world graph (DESIGN.md Blocco 10).
+  Ecto schema per i nodi del world graph (01-DESIGN.md Blocco 10).
 
   **Non va confuso con `Arkea.Ecology.Biotope`** che è la struct in-memory
   usata durante la simulazione. Questo modulo riguarda solo la persistenza.

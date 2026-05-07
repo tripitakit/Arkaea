@@ -4,7 +4,7 @@
 
 Benvenuto in **Arkea**, una sandbox evolutiva persistente per organismi proto-batterici. Questo manuale ti guida da zero (registrazione del player) fino a osservare arms race ospite-fago, displacement plasmidico, error catastrophe e cycle closure metabolica nei tuoi biotopi.
 
-Il manuale presuppone solide basi di **microbiologia / biologia molecolare**. Non aspettarti shortcut narrativi: ogni meccanismo riflette una controparte biologica reale, calibrata e documentata in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md). Se vuoi i numeri esatti, tienilo aperto a fianco.
+Il manuale presuppone solide basi di **microbiologia / biologia molecolare**. Non aspettarti shortcut narrativi: ogni meccanismo riflette una controparte biologica reale, calibrata e documentata in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md). Se vuoi i numeri esatti, tienilo aperto a fianco.
 
 > **Cosa Arkea NON è**: un game competitivo. Niente scoreboard, niente loop di vittoria. Il fenomeno osservabile *è* la ricompensa.
 
@@ -54,7 +54,7 @@ Conseguenze pratiche:
 | Emergenza di mutator strain | 50–200 tick | 100–1000 generazioni Lenski-style |
 | Cycle closure cross-feeding | 100–500 tick | giorni in chemostat |
 
-Quindi **un'ora di runtime ≈ 12 generazioni**, e una giornata di simulazione ≈ 288 generazioni: comparabile a un esperimento Lenski settimanale. Eventi rari in vivo (transduzione, hypermutazione SOS) sono **amplificati per visibilità nei tempi di gioco**; per benchmark scientifici esistono override (vedi `devel-docs/CALIBRATION.md`).
+Quindi **un'ora di runtime ≈ 12 generazioni**, e una giornata di simulazione ≈ 288 generazioni: comparabile a un esperimento Lenski settimanale. Eventi rari in vivo (transduzione, hypermutazione SOS) sono **amplificati per visibilità nei tempi di gioco**; per benchmark scientifici esistono override (vedi `devel-docs/04-CALIBRATION.md`).
 
 ### 1.3 Ownership e visibilità
 
@@ -170,7 +170,7 @@ Sopra i campi del form, una riga di **chip** offre tre scenari pre-confezionati.
 
 Dopo il click puoi comunque modificare ogni campo: il preset è un punto di partenza, non un commit.
 
-> **Nota di calibrazione (2026-05-05)**: archetipi estremi come `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment` e il `marine_layer` del `saline_estuary` sono **nicchie chemiolitotrofiche reali** dove il founder default — la cui cassette `balanced/thrifty/bloom` lega solo glucosio — non riesce a sopravvivere lungo termine. Sono comunque selezionabili dal form principale: per portare un seed alla maturità in queste niche serve costruire **gene custom** che leghino i substrati locali (Fe²⁺, H₂, H₂S, SO₄²⁻) via il gene designer. Il `regulation_profile = mutator` resta disponibile ma non figura nei preset perché in oligotrofi precipita in error catastrophe prima che la founder si stabilizzi: per esibirlo, accoppia con `bloom` cassette in eutrofici. Il piano `BIOLOGICAL-MODEL-REVIEW.md` Phase 14-15 aggiungerà profili metabolici chemiolitotrofici nativi.
+> **Nota di calibrazione (2026-05-05)**: archetipi estremi come `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment` e il `marine_layer` del `saline_estuary` sono **nicchie chemiolitotrofiche reali** dove il founder default — la cui cassette `balanced/thrifty/bloom` lega solo glucosio — non riesce a sopravvivere lungo termine. Sono comunque selezionabili dal form principale: per portare un seed alla maturità in queste niche serve costruire **gene custom** che leghino i substrati locali (Fe²⁺, H₂, H₂S, SO₄²⁻) via il gene designer. Il `regulation_profile = mutator` resta disponibile ma non figura nei preset perché in oligotrofi precipita in error catastrophe prima che la founder si stabilizzi: per esibirlo, accoppia con `bloom` cassette in eutrofici. Il piano `05-BIOLOGICAL-MODEL-REVIEW.md` Phase 14-15 aggiungerà profili metabolici chemiolitotrofici nativi.
 
 #### Modalità community (multi-founder)
 
@@ -208,7 +208,7 @@ Identificativo umano del blueprint nel sistema di provisioning. Visibile in Audi
 - **Hydrothermal Vent** — gradiente termico/redox sharp (vent core ~75°C, mixing zone ~35°C), H₂S e Fe²⁺ abbondanti. Termofili + chemiolitotrofi.
 - **Acid Mine Drainage** — pH ~3, ferro alto, ossigeno disponibile. Nicchia per acidofili e ossidatori del ferro.
 
-Ogni archetipo carica un **starting pool** di metaboliti dedicato (vedi `devel-docs/DESIGN.md` Block 6 per la lista completa) e un `inflow_profile` continuo che simula il flusso ambientale di sostanze.
+Ogni archetipo carica un **starting pool** di metaboliti dedicato (vedi `devel-docs/01-DESIGN.md` Block 6 per la lista completa) e un `inflow_profile` continuo che simula il flusso ambientale di sostanze.
 
 #### Cassette metabolica (`metabolism_profile`)
 
@@ -294,7 +294,7 @@ Click su un gene → il gene si highlighta (outline solido visibile) e popola l'
 
 ### 4.3 I 11 domini funzionali
 
-Block 7 di `DESIGN.md`. Ogni gene è una sequenza di codoni; il parser estrae uno o più *domini* sulla base di un `type_tag` di 3 codoni che indicizza in `0..10`. Ogni dominio ha 20 `parameter_codons` che, sommati con pesi log-normal, producono i parametri derivati.
+Block 7 di `01-DESIGN.md`. Ogni gene è una sequenza di codoni; il parser estrae uno o più *domini* sulla base di un `type_tag` di 3 codoni che indicizza in `0..10`. Ogni dominio ha 20 `parameter_codons` che, sommati con pesi log-normal, producono i parametri derivati.
 
 | Tipo | Tag | Cosa fa | Parametri tipici |
 |---|---|---|---|
@@ -724,7 +724,7 @@ Le intervention sono il tuo modo di **perturbare** un sistema in pseudo-stato. B
 
 ## 9. Audit — il log degli eventi
 
-`/audit` espone il **log persistito** degli eventi tipizzati (Block 13 di `DESIGN.md`). Append-only, sopravvive alla rimozione dei biotopi (tombstone IDs).
+`/audit` espone il **log persistito** degli eventi tipizzati (Block 13 di `01-DESIGN.md`). Append-only, sopravvive alla rimozione dei biotopi (tombstone IDs).
 
 ### 9.1 Tipi di evento
 
@@ -806,7 +806,7 @@ Una riga di chip in alto filtra per tipo di evento. Filtri attualmente esposti:
 - `plasmid_displaced` — plasmide spiazzato per incompatibilità inc-group.
 - `phage_burst`, `phage_infection` — emissione e infezione fagiche.
 
-> **Nota**: alcuni canali (R-M, transformation, transduction) richiedono che il sim emetta esplicitamente l'evento. La pipeline è cablata (`Arkea.Persistence.AuditLog`), ma l'emissione vera è graduale: i canali ancora silenziosi mostreranno conteggio 0. Vedi `BIOLOGICAL-MODEL-REVIEW.md` Phase 12-16 per il roadmap di emissione.
+> **Nota**: alcuni canali (R-M, transformation, transduction) richiedono che il sim emetta esplicitamente l'evento. La pipeline è cablata (`Arkea.Persistence.AuditLog`), ma l'emissione vera è graduale: i canali ancora silenziosi mostreranno conteggio 0. Vedi `05-BIOLOGICAL-MODEL-REVIEW.md` Phase 12-16 per il roadmap di emissione.
 
 Il filtro selezionato è **deep-linkable**: l'URL include `?kind=<tipo>` quindi può essere bookmarkato o condiviso.
 
@@ -819,7 +819,7 @@ Il filtro selezionato è **deep-linkable**: l'URL include `?kind=<tipo>` quindi 
 ### 11.4 Limiti correnti
 
 - La query carica gli ultimi 500 eventi del biotope. Per finestre più lunghe, esporta CSV via `/api/biotopes/:id/audit` (vedi §13).
-- Non c'è ancora un Sankey diagram visuale: la rappresentazione resta tabulare. Il Sankey è in roadmap (`UI-OPTIMIZATION-PLAN.md` Phase E).
+- Non c'è ancora un Sankey diagram visuale: la rappresentazione resta tabulare. Il Sankey è in roadmap (`07-UI-OPTIMIZATION-PLAN.md` Phase E).
 
 ---
 
@@ -1079,7 +1079,7 @@ Setup di base + intervention sequence:
 | **Glossary term** | Componente UI con tooltip + link a `/help` per i termini biologici densi. |
 | **Scenario chip** | Preset cliccabile in Seed Lab che pre-popola il form con una combinazione "interessante". |
 
-Per il glossario completo del modello biologico, vedi [`devel-docs/DESIGN.md`](devel-docs/DESIGN.md) (15 blocks) e [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md) (range numerici).
+Per il glossario completo del modello biologico, vedi [`devel-docs/01-DESIGN.md`](devel-docs/01-DESIGN.md) (15 blocks) e [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md) (range numerici).
 
 ---
 
@@ -1137,7 +1137,7 @@ Sì, ~50 KB minified. Tutta la grafica è SVG nativo renderizzato server-side vi
 
 #### Dove trovo le costanti del modello?
 
-Tutte le costanti chiave + range biologico di letteratura sono in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md). Override per benchmark scientifici sono nella stessa sezione.
+Tutte le costanti chiave + range biologico di letteratura sono in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md). Override per benchmark scientifici sono nella stessa sezione.
 
 #### Come sapere se la mia hypothesis è "originale"?
 
@@ -1222,6 +1222,6 @@ Non c'è un sistema di lookup. Confronta il tuo seed con quelli in `/community` 
 
 ## Feedback e contributi
 
-Bug, suggerimenti, walkthrough scientifici da validare → vedi [README.md](README.md) per i canali del progetto. Il modello biologico è in evoluzione: la roadmap è in [`devel-docs/BIOLOGICAL-MODEL-REVIEW.md`](devel-docs/BIOLOGICAL-MODEL-REVIEW.md).
+Bug, suggerimenti, walkthrough scientifici da validare → vedi [README.md](README.md) per i canali del progetto. Il modello biologico è in evoluzione: la roadmap è in [`devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md`](devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md).
 
-Se trovi una calibrazione che non quadra con la tua intuizione di microbiologo, apri un issue con una citazione di letteratura primaria. Tutti i parametri chiave sono già mappati al range biologico in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md), quindi possiamo confrontare e correggere.
+Se trovi una calibrazione che non quadra con la tua intuizione di microbiologo, apri un issue con una citazione di letteratura primaria. Tutti i parametri chiave sono già mappati al range biologico in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md), quindi possiamo confrontare e correggere.

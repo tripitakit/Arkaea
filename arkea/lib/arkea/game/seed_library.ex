@@ -1,6 +1,6 @@
 defmodule Arkea.Game.SeedLibrary do
   @moduledoc """
-  Player-side seed library (Phase 19 — DESIGN.md Block 8 / Community Mode).
+  Player-side seed library (Phase 19 — 01-DESIGN.md Block 8 / Community Mode).
 
   Each `entry` in a library captures one designed Arkeon seed:
 
@@ -15,7 +15,7 @@ defmodule Arkea.Game.SeedLibrary do
 
   This module ships a **pure in-memory** library. The Ecto-backed
   persistence schema (`player_seeds` table — see
-  `BIOLOGICAL-MODEL-REVIEW.md` Phase 19) is reserved for the runtime
+  `05-BIOLOGICAL-MODEL-REVIEW.md` Phase 19) is reserved for the runtime
   PR that wires a `Phoenix.LiveView` Seed Lab page; the simulation
   core only needs the value type + the validation invariants.
 

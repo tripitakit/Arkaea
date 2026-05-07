@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Signaling do
   @moduledoc """
-  Pure quorum sensing logic for Phase 7 (DESIGN.md Block 9).
+  Pure quorum sensing logic for Phase 7 (01-DESIGN.md Block 9).
 
   Signal identity: a 4-codon signature encoded as "c0,c1,c2,c3" (binary key).
   The four integers are in 0..19, derived from the first four parameter_codons

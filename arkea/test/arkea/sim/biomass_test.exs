@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.BiomassTest do
   @moduledoc """
-  Property + unit tests for Phase 14 biomass and toxicity (DESIGN.md
+  Property + unit tests for Phase 14 biomass and toxicity (01-DESIGN.md
   Block 8).
   """
   use ExUnit.Case, async: true

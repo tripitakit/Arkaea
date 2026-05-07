@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.CronacheScenario do
   @moduledoc """
-  End-to-end "Cronache" scenario for Phase 11 (IMPLEMENTATION-PLAN.md §5).
+  End-to-end "Cronache" scenario for Phase 11 (03-IMPLEMENTATION-PLAN.md §5).
 
   Builds two connected biotopes that exercise all implemented mechanisms
   within a few dozen ticks:
@@ -30,7 +30,7 @@ defmodule Arkea.Sim.CronacheScenario do
 
     - Inherits the founder chromosome and prophage
     - Extra plasmid: 1 `:transmembrane_anchor` gene [0,0,2] → pilus-like
-      proxy for conjugative transfer (DESIGN.md Block 5 / Phase 6)
+      proxy for conjugative transfer (01-DESIGN.md Block 5 / Phase 6)
 
   Both biotopes are seeded with the founder genome. The pond additionally
   carries the conjugative carrier as a second seed lineage.

@@ -1,7 +1,7 @@
 defmodule Arkea.Genome.Mutation.Applicator do
   @moduledoc """
   Pure function `apply/2` that applies any of the five mutation types to a
-  genome (Phase 4 — IMPLEMENTATION-PLAN.md §5, Phase 4 deliverable).
+  genome (Phase 4 — 03-IMPLEMENTATION-PLAN.md §5, Phase 4 deliverable).
 
   ## Phase 1 grammar invariant
 

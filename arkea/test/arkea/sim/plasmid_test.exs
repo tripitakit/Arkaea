@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.PlasmidTest do
   @moduledoc """
-  Tests for Phase 16 plasmid traits (DESIGN.md Block 8).
+  Tests for Phase 16 plasmid traits (01-DESIGN.md Block 8).
 
   Coverage:
     - `Genome.normalize_plasmid/1` derivations (inc_group, copy_number,

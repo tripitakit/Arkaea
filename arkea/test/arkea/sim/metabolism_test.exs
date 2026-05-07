@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.MetabolismTest do
   @moduledoc """
   Tests for `Arkea.Sim.Metabolism` — Michaelis-Menten kinetics and ATP yield
-  (Phase 5, IMPLEMENTATION-PLAN.md §5).
+  (Phase 5, 03-IMPLEMENTATION-PLAN.md §5).
 
   Coverage:
   - Unit tests for `uptake_rate/3` boundary conditions and the MM definition.

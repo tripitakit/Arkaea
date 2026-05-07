@@ -1,7 +1,7 @@
 defmodule Arkea.Ecology.Lineage do
   @moduledoc """
   A lineage is the atomic unit of evolution: one distinct genotype + its
-  per-phase abundance (DESIGN.md Block 4 — lineage-based modeling, cap 1.000
+  per-phase abundance (01-DESIGN.md Block 4 — lineage-based modeling, cap 1.000
   per biotope at production scale, 100 in prototype).
 
   ## Identity and ancestry

@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.BacteriocinTest do
   @moduledoc """
-  Tests for Phase 17 bacteriocin warfare (DESIGN.md Block 8).
+  Tests for Phase 17 bacteriocin warfare (01-DESIGN.md Block 8).
   """
   use ExUnit.Case, async: true
 

@@ -4,7 +4,7 @@
 
 Welcome to **Arkea**, a persistent evolutionary sandbox for proto-bacterial organisms. This manual takes you from zero (player registration) to observing host-phage arms races, plasmid displacement, error catastrophe, and metabolic cycle closure in your biotopes.
 
-The manual assumes a solid background in **microbiology / molecular biology**. Do not expect narrative shortcuts: every mechanism reflects a real biological counterpart, calibrated and documented in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md). If you want the exact numbers, keep it open alongside.
+The manual assumes a solid background in **microbiology / molecular biology**. Do not expect narrative shortcuts: every mechanism reflects a real biological counterpart, calibrated and documented in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md). If you want the exact numbers, keep it open alongside.
 
 > **What Arkea is NOT**: a competitive game. No scoreboard, no victory loop. The observable phenomenon *is* the reward.
 
@@ -54,7 +54,7 @@ Practical consequences:
 | Mutator strain emergence | 50–200 ticks | 100–1000 Lenski-style generations |
 | Cross-feeding cycle closure | 100–500 ticks | days in chemostat |
 
-So **one hour of runtime ≈ 12 generations**, and one simulation day ≈ 288 generations: comparable to a weekly Lenski experiment. Rare in-vivo events (transduction, SOS hypermutation) are **amplified for visibility within game time scales**; overrides for scientific benchmarks exist (see `devel-docs/CALIBRATION.md`).
+So **one hour of runtime ≈ 12 generations**, and one simulation day ≈ 288 generations: comparable to a weekly Lenski experiment. Rare in-vivo events (transduction, SOS hypermutation) are **amplified for visibility within game time scales**; overrides for scientific benchmarks exist (see `devel-docs/04-CALIBRATION.md`).
 
 ### 1.3 Ownership and visibility
 
@@ -170,7 +170,7 @@ Above the form fields, a row of **chips** offers three pre-packaged scenarios. C
 
 After clicking you can still edit any field: the preset is a starting point, not a commit.
 
-> **Calibration note (2026-05-05)**: extreme archetypes like `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment`, and the `marine_layer` of `saline_estuary` are **real chemolithotrophic niches** where the default founder — whose `balanced/thrifty/bloom` cassette only binds glucose — cannot sustain itself long-term. They remain selectable from the main form: to grow a seed to maturity in those niches you have to build **custom genes** in the gene designer that bind the local substrates (Fe²⁺, H₂, H₂S, SO₄²⁻). The `regulation_profile = mutator` is also still available but does not appear among the presets because in oligotrophic phases it collapses into error catastrophe before the founder can stabilise: pair it with a `bloom` cassette in eutrophic settings to study it. The `BIOLOGICAL-MODEL-REVIEW.md` Phase 14–15 work will add native chemolithotrophic metabolism profiles.
+> **Calibration note (2026-05-05)**: extreme archetypes like `acid_mine_drainage`, `hydrothermal_vent`, `methanogenic_bog`, `marine_sediment`, and the `marine_layer` of `saline_estuary` are **real chemolithotrophic niches** where the default founder — whose `balanced/thrifty/bloom` cassette only binds glucose — cannot sustain itself long-term. They remain selectable from the main form: to grow a seed to maturity in those niches you have to build **custom genes** in the gene designer that bind the local substrates (Fe²⁺, H₂, H₂S, SO₄²⁻). The `regulation_profile = mutator` is also still available but does not appear among the presets because in oligotrophic phases it collapses into error catastrophe before the founder can stabilise: pair it with a `bloom` cassette in eutrophic settings to study it. The `05-BIOLOGICAL-MODEL-REVIEW.md` Phase 14–15 work will add native chemolithotrophic metabolism profiles.
 
 #### Community mode (multi-founder)
 
@@ -208,7 +208,7 @@ Human-readable identifier of the blueprint in the provisioning system. Visible i
 - **Hydrothermal Vent** — sharp thermal/redox gradient (vent core ~75 °C, mixing zone ~35 °C), abundant H₂S and Fe²⁺. Thermophiles + chemolithotrophs.
 - **Acid Mine Drainage** — pH ~3, high iron, oxygen available. Niche for acidophiles and iron oxidisers.
 
-Each archetype loads a dedicated **starting metabolite pool** (see `devel-docs/DESIGN.md` Block 6 for the complete list) and a continuous `inflow_profile` simulating the ambient flux of substances.
+Each archetype loads a dedicated **starting metabolite pool** (see `devel-docs/01-DESIGN.md` Block 6 for the complete list) and a continuous `inflow_profile` simulating the ambient flux of substances.
 
 #### Metabolic cassette (`metabolism_profile`)
 
@@ -294,7 +294,7 @@ Click on a gene → the gene is highlighted (solid outline visible) and populate
 
 ### 4.3 The 11 functional domains
 
-Block 7 of `DESIGN.md`. Each gene is a sequence of codons; the parser extracts one or more *domains* based on a 3-codon `type_tag` that indexes into `0..10`. Each domain has 20 `parameter_codons` that, summed with log-normal weights, produce the derived parameters.
+Block 7 of `01-DESIGN.md`. Each gene is a sequence of codons; the parser extracts one or more *domains* based on a 3-codon `type_tag` that indexes into `0..10`. Each domain has 20 `parameter_codons` that, summed with log-normal weights, produce the derived parameters.
 
 | Type | Tag | What it does | Typical parameters |
 |---|---|---|---|
@@ -724,7 +724,7 @@ Interventions are your way to **perturb** a system in pseudo-equilibrium. Good m
 
 ## 9. Audit — the event log
 
-`/audit` exposes the **persisted log** of typed events (Block 13 of `DESIGN.md`). Append-only, survives biotope removal (tombstone IDs).
+`/audit` exposes the **persisted log** of typed events (Block 13 of `01-DESIGN.md`). Append-only, survives biotope removal (tombstone IDs).
 
 ### 9.1 Event types
 
@@ -806,7 +806,7 @@ A row of chips at the top filters by event type. Currently exposed filters:
 - `plasmid_displaced` — plasmid displaced due to inc-group incompatibility.
 - `phage_burst`, `phage_infection` — phage emission and infection.
 
-> **Note**: some channels (R-M, transformation, transduction) require the sim to explicitly emit the event. The pipeline is wired (`Arkea.Persistence.AuditLog`), but actual emission is gradual: channels not yet active will show a count of 0. See `BIOLOGICAL-MODEL-REVIEW.md` Phases 12–16 for the emission roadmap.
+> **Note**: some channels (R-M, transformation, transduction) require the sim to explicitly emit the event. The pipeline is wired (`Arkea.Persistence.AuditLog`), but actual emission is gradual: channels not yet active will show a count of 0. See `05-BIOLOGICAL-MODEL-REVIEW.md` Phases 12–16 for the emission roadmap.
 
 The selected filter is **deep-linkable**: the URL includes `?kind=<type>` and can therefore be bookmarked or shared.
 
@@ -819,7 +819,7 @@ The selected filter is **deep-linkable**: the URL includes `?kind=<type>` and ca
 ### 11.4 Current limits
 
 - The query loads the last 500 events for the biotope. For longer windows, export CSV via `/api/biotopes/:id/audit` (see §13).
-- There is no visual Sankey diagram yet: the representation remains tabular. The Sankey is on the roadmap (`UI-OPTIMIZATION-PLAN.md` Phase E).
+- There is no visual Sankey diagram yet: the representation remains tabular. The Sankey is on the roadmap (`07-UI-OPTIMIZATION-PLAN.md` Phase E).
 
 ---
 
@@ -1079,7 +1079,7 @@ Basic setup + intervention sequence:
 | **Glossary term** | UI component with tooltip + link to `/help` for dense biological terms. |
 | **Scenario chip** | Clickable preset in the Seed Lab that pre-populates the form with an "interesting" combination. |
 
-For the complete glossary of the biological model, see [`devel-docs/DESIGN.md`](devel-docs/DESIGN.md) (15 blocks) and [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md) (numerical ranges).
+For the complete glossary of the biological model, see [`devel-docs/01-DESIGN.md`](devel-docs/01-DESIGN.md) (15 blocks) and [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md) (numerical ranges).
 
 ---
 
@@ -1137,7 +1137,7 @@ Yes, ~50 KB minified. All graphics are native SVG rendered server-side via Phoen
 
 #### Where do I find the model constants?
 
-All key constants + biological literature ranges are in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md). Overrides for scientific benchmarks are in the same section.
+All key constants + biological literature ranges are in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md). Overrides for scientific benchmarks are in the same section.
 
 #### How do I know if my hypothesis is "original"?
 
@@ -1222,6 +1222,6 @@ There is no lookup system. Compare your seed with those in `/community` if any e
 
 ## Feedback and contributions
 
-Bugs, suggestions, scientific walkthroughs to validate → see [README.en.md](README.en.md) for project channels. The biological model is evolving: the roadmap is in [`devel-docs/BIOLOGICAL-MODEL-REVIEW.md`](devel-docs/BIOLOGICAL-MODEL-REVIEW.md).
+Bugs, suggestions, scientific walkthroughs to validate → see [README.en.md](README.en.md) for project channels. The biological model is evolving: the roadmap is in [`devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md`](devel-docs/05-BIOLOGICAL-MODEL-REVIEW.md).
 
-If you find a calibration that does not match your intuition as a microbiologist, open an issue with a primary literature citation. All key parameters are already mapped to the biological range in [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md), so we can compare and correct.
+If you find a calibration that does not match your intuition as a microbiologist, open an issue with a primary literature citation. All key parameters are already mapped to the biological range in [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md), so we can compare and correct.

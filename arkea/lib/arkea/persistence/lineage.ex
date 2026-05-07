@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.Lineage do
   @moduledoc """
-  Ecto schema per i lignaggi attivi (DESIGN.md Blocco 4).
+  Ecto schema per i lignaggi attivi (01-DESIGN.md Blocco 4).
 
   Riflesso DB della foresta in-memory di lignaggi. Non va confuso con
   `Arkea.Ecology.Lineage` (struct di dominio usata durante la simulazione).

@@ -23,7 +23,7 @@ Il genoma è una sequenza di codoni parsata in **11 tipi di domini funzionali** 
 - **Biomassa continua** (membrane / wall / DNA progress) → lisi alla divisione → produce automaticamente l'arms race loss-of-receptor.
 - **Phase model intra-biotopo**: surface, water column, sediment, biofilm — ognuno con chimica, ossigenazione e dilution propri; mixing events stocastici a cadenza Poissoniana.
 
-Ogni costante numerica è ancorata alla letteratura primaria con range biologico esplicito (vedi [`devel-docs/CALIBRATION.md`](devel-docs/CALIBRATION.md)).
+Ogni costante numerica è ancorata alla letteratura primaria con range biologico esplicito (vedi [`devel-docs/04-CALIBRATION.md`](devel-docs/04-CALIBRATION.md)).
 
 ## Architettura
 

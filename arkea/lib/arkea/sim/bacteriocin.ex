@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.Bacteriocin do
   @moduledoc """
-  Bacteriocin warfare (Phase 17 — DESIGN.md Block 8).
+  Bacteriocin warfare (Phase 17 — 01-DESIGN.md Block 8).
 
   Bacteriocins are narrow-spectrum proteinaceous toxins secreted by
   one bacterial population to kill close relatives. The producing

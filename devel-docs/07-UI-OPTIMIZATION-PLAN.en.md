@@ -1,4 +1,4 @@
-> 🇮🇹 [Italiano](UI-OPTIMIZATION-PLAN.md) · 🇬🇧 English (this page)
+> 🇮🇹 [Italiano](07-UI-OPTIMIZATION-PLAN.md) · 🇬🇧 English (this page)
 
 # Arkea UI Optimization — Phased plan for UX, usability, and scientific investigation
 
@@ -45,7 +45,7 @@ Expected outcome at plan completion: a microbiologist opens Arkea and can
 ### Key changes
 - `lib/arkea_web/components/shell.ex` — single `nav_items/1` that accepts `active`; all live views call it. Resolves the documented inconsistencies.
 - New `lib/arkea_web/components/help.ex` — `<.glossary_term term="kcat" />` with tooltip + link to lateral panel `/help#kcat` (sections from USER-MANUAL.md). Extensible to 30+ biological terms.
-- New `lib/arkea_web/live/help_live.ex` — static render of USER-MANUAL.md (and then DESIGN.md) with anchors; replaces the Docs placeholder in the Dashboard.
+- New `lib/arkea_web/live/help_live.ex` — static render of USER-MANUAL.md (and then 01-DESIGN.md) with anchors; replaces the Docs placeholder in the Dashboard.
 - Keyboard shortcuts: minimal JS hook in `components/shortcuts.ex`:
   - `/` global search focus; `g d/w/s/c/a` go-to view; `?` cheatsheet.
   - In SimLive: `j/k` lineage prev/next; `1..4` switch tab; `e` events; `i` interventions.
@@ -244,7 +244,7 @@ Expected outcome at plan completion: a microbiologist opens Arkea and can
 
 ### Scenario presets
 - `Arkea.Game.Scenarios` with pre-loaded presets:
-  - "Contested estuary" (narrative from DESIGN_STRESS-TEST.md)
+  - "Contested estuary" (narrative from 02-DESIGN_STRESS-TEST.md)
   - "Mutator vs steady" (two twin homes for A/B)
   - "Antibiotic challenge" (requires BIO Phase 15)
   - "Cross-feeding bloom"

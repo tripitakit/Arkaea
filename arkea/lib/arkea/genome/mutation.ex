@@ -1,7 +1,7 @@
 defmodule Arkea.Genome.Mutation do
   @moduledoc """
   Tagged union of all mutation events that can be appended to a lineage's
-  `delta` (DESIGN.md Block 5 / Block 7).
+  `delta` (01-DESIGN.md Block 5 / Block 7).
 
   Phase 1 declares the structs only; the application logic (`apply/2`) and
   generation logic (`Mutator`) arrive in Phase 4.

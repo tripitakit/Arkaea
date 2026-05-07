@@ -10,7 +10,7 @@ defmodule Arkea.Sim.SeedScenario do
 
   ## Seed genome composition
 
-  The seed genome encodes four functional domains (DESIGN.md Block 7):
+  The seed genome encodes four functional domains (01-DESIGN.md Block 7):
 
     - `:substrate_binding` — targets glucose (low Km ≈ 5, high affinity)
     - `:catalytic_site` — moderate kcat; also seeds the QS signal pool
@@ -139,7 +139,7 @@ defmodule Arkea.Sim.SeedScenario do
     # Seed abundance distributed across the three eutrophic_pond phases.
     # Surface and water_column get most of the population; sediment gets a
     # small fraction. This matches the expected distribution for a plankton-
-    # like aerobic heterotroph at inoculation time (DESIGN.md Block 12).
+    # like aerobic heterotroph at inoculation time (01-DESIGN.md Block 12).
     abundances = %{surface: 200, water_column: 250, sediment: 50}
 
     Lineage.new_founder(genome, abundances, 0)

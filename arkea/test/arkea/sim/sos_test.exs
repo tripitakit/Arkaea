@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.SosTest do
   @moduledoc """
   Property + unit tests for Phase 17 SOS response and error
-  catastrophe (DESIGN.md Block 8).
+  catastrophe (01-DESIGN.md Block 8).
   """
   use ExUnit.Case, async: true
   use ExUnitProperties

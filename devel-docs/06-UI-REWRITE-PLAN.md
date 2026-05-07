@@ -1,4 +1,4 @@
-> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](UI-REWRITE-PLAN.en.md)
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](06-UI-REWRITE-PLAN.en.md)
 
 # Riscrittura UI/UX di Arkea — Piano di design
 
@@ -91,7 +91,7 @@ Griglia 2×3 di pannelli "card-link" (al click → vista dedicata):
 | **My Biotopes** | lista compatta dei propri biotopi + tick | `/biotopes/:id` |
 | **Community** | top 3 community di altri player (read-only) | `/community` |
 | **Audit / Events** | stream ultimi 10 eventi globali | `/audit` |
-| **Calibration** | link statici (`CALIBRATION.md`, `DESIGN.md`, `BIOLOGICAL-MODEL-REVIEW.md`) renderizzati come HTML | `/docs/:slug` |
+| **Calibration** | link statici (`04-CALIBRATION.md`, `01-DESIGN.md`, `05-BIOLOGICAL-MODEL-REVIEW.md`) renderizzati come HTML | `/docs/:slug` |
 
 ### World view (`/world`)
 
@@ -328,10 +328,10 @@ Per ogni fase:
 
 ## Persistenza del piano nel repository
 
-Il piano è reificato come **documento bilingue versionato nella root del progetto**, conforme alla convenzione esistente (`DESIGN.md` / `DESIGN.en.md`, `BIOLOGICAL-MODEL-REVIEW.md` / `BIOLOGICAL-MODEL-REVIEW.en.md`, `CALIBRATION.md` / `CALIBRATION.en.md`):
+Il piano è reificato come **documento bilingue versionato nella root del progetto**, conforme alla convenzione esistente (`01-DESIGN.md` / `01-DESIGN.en.md`, `05-BIOLOGICAL-MODEL-REVIEW.md` / `05-BIOLOGICAL-MODEL-REVIEW.en.md`, `04-CALIBRATION.md` / `04-CALIBRATION.en.md`):
 
-- **`UI-REWRITE-PLAN.md`** — italiano, canonico (sorgente di verità). Header con language switcher.
-- **`UI-REWRITE-PLAN.en.md`** — traduzione inglese sincronizzata. Header speculare.
+- **`06-UI-REWRITE-PLAN.md`** — italiano, canonico (sorgente di verità). Header con language switcher.
+- **`06-UI-REWRITE-PLAN.en.md`** — traduzione inglese sincronizzata. Header speculare.
 
 La traduzione inglese è creata e mantenuta sincronizzata via il `bilingual-docs-maintainer` agent.
 
@@ -355,4 +355,4 @@ Aggiornamento di `README.md` e `README.en.md` nella sezione "Documenti" per link
 - **Rimozione DaisyUI**: il plugin Tailwind è ancora caricato (`assets/css/app.css`). Lo si può eliminare dopo aver migrato `core_components.ex` flashes (`alert-error`, `alert-info`, `text-error`) e il default Phoenix `.input` button (`btn-primary`) a CSS arkea.
 - **Migrazione completa dei moduli `arkea/inner.css`**: l'inner panel layer (1468 righe) è stato rinominato a `arkea-*` ma rimane in un file unico. Lo split per surface (login/biotope-inner/seed-lab-inner) è lavoro residuo non bloccante.
 - View-model layer testato indipendentemente dai LiveView.
-- Coerenza piena con DESIGN.md (Blocchi 12 e 14 — visualizzazione e UI).
+- Coerenza piena con 01-DESIGN.md (Blocchi 12 e 14 — visualizzazione e UI).

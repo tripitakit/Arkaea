@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.SelectionTest do
   @moduledoc """
-  Phase 5 selection criterion test (IMPLEMENTATION-PLAN.md §5, Phase 5).
+  Phase 5 selection criterion test (03-IMPLEMENTATION-PLAN.md §5, Phase 5).
 
   Verifies that Michaelis-Menten metabolic kinetics produce ecologically
   meaningful selection: lineages specialised for their biotope's chemistry

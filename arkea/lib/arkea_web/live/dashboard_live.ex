@@ -8,7 +8,7 @@ defmodule ArkeaWeb.DashboardLive do
 
   Three panels carry live data (`World`, `Seed Lab`, `My Biotopes`); the
   remaining three (`Community`, `Audit`, `Docs`) are placeholders pointing at
-  later phases of the rewrite. Migration plan: UI-REWRITE-PLAN.md.
+  later phases of the rewrite. Migration plan: 06-UI-REWRITE-PLAN.md.
   """
   use ArkeaWeb, :live_view
 
@@ -185,7 +185,7 @@ defmodule ArkeaWeb.DashboardLive do
         <:body>
           <p class="arkea-dashboard__copy">
             Browse biotopes that received a community-mode inoculation
-            (BIOLOGICAL-MODEL-REVIEW.md Phase 19). Founder lists are
+            (05-BIOLOGICAL-MODEL-REVIEW.md Phase 19). Founder lists are
             reconstructed from persisted audit events.
           </p>
           <div class="arkea-dashboard__cta">Browse runs</div>

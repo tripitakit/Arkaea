@@ -1,4 +1,4 @@
-> [🇮🇹 Italiano](CALIBRATION.md) · 🇬🇧 English (this page)
+> [🇮🇹 Italiano](04-CALIBRATION.md) · 🇬🇧 English (this page)
 
 # Arkea biological model calibration
 
@@ -6,7 +6,7 @@ This document is the calibration appendix of the biological model, recommended b
 
 **Without this appendix, a professional microbiologist opening the code will find constants that "look" too low or too high and will ask embarrassing questions** (verbatim from the scientific review). With this appendix the model is defensible as an *individual-based evolutionary sandbox with generative-grammar genomes and pathway-level Michaelis-Menten metabolism, with parameter regimes calibrated for phenomenon visibility within the simulator's in-silico time-scales rather than fitted to organism-specific kinetics* — a framing the computational microbiology community recognises for educational sandboxes and qualitative research.
 
-> **Terminology note**: internal project docs (DESIGN.md "decision 2026-04-25", BIOLOGICAL-MODEL-REVIEW.md) refer to "level B+C" as shorthand for "cellular-architecture (B) + pathway-level metabolism (C)". That shorthand is internal to the project scoping brainstorm, **not** a published taxonomy; for external communication use the full description above. Landscape comparison: more abstract than Karr (whole-cell), more detailed than Avida on the metabolic side, comparable to Aevol on the genome side.
+> **Terminology note**: internal project docs (01-DESIGN.md "decision 2026-04-25", 05-BIOLOGICAL-MODEL-REVIEW.md) refer to "level B+C" as shorthand for "cellular-architecture (B) + pathway-level metabolism (C)". That shorthand is internal to the project scoping brainstorm, **not** a published taxonomy; for external communication use the full description above. Landscape comparison: more abstract than Karr (whole-cell), more detailed than Avida on the metabolic side, comparable to Aevol on the genome side.
 
 ## Calibration principles
 

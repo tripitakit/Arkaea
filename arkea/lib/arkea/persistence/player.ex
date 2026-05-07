@@ -1,6 +1,6 @@
 defmodule Arkea.Persistence.Player do
   @moduledoc """
-  Ecto schema per l'account giocatore (DESIGN.md Blocco 11).
+  Ecto schema per l'account giocatore (01-DESIGN.md Blocco 11).
 
   Questo modulo rappresenta la persistenza. Non va confuso con eventuali
   struct di dominio lato giocatore che arriveranno in fasi successive.

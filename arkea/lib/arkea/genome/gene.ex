@@ -2,7 +2,7 @@ defmodule Arkea.Genome.Gene do
   @moduledoc """
   A gene is an ordered sequence of logical codons (50–200 symbols) organised
   into a `promoter_block` (optional), a `regulatory_block` (optional), and
-  one or more `domains` (DESIGN.md Block 7).
+  one or more `domains` (01-DESIGN.md Block 7).
 
   ## Source of truth
 

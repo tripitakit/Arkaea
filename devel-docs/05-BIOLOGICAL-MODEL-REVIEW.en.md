@@ -1,4 +1,4 @@
-> [🇮🇹 Italiano](BIOLOGICAL-MODEL-REVIEW.md) · 🇬🇧 English (this page)
+> [🇮🇹 Italiano](05-BIOLOGICAL-MODEL-REVIEW.md) · 🇬🇧 English (this page)
 
 # Arkea biological model — Scientific review and intervention plan
 
@@ -6,7 +6,7 @@
 
 Arkea is a persistent simulation of proto-bacterial evolution targeted at a biologist/microbiologist audience (target: genuine scientific accuracy, not mere flavour). Phases 0–11 + UI Evolution are complete: the genetic infrastructure (5 mutation types, 11 functional domains, lineage tracking, delta encoding), Michaelis-Menten metabolism over 13 metabolites, 4D Gaussian quorum sensing, intra-biotope phases, inter-biotope migration, and a **first HGT implementation** (plasmid conjugation + stress-driven prophage induction) are all operational.
 
-A thorough scientific review has identified gaps that prevent the model from expressing its full design (DESIGN.md Blocks 5, 7, 8, 13). The gaps fall into three families:
+A thorough scientific review has identified gaps that prevent the model from expressing its full design (01-DESIGN.md Blocks 5, 7, 8, 13). The gaps fall into three families:
 
 1. **Incomplete HGT**: natural transformation and transduction entirely absent; phage cycle only half-implemented (induction yes, but no free virion release nor infection chain); R-M encodable as domains but not integrated as gating on HGT channels; plasmids without `inc_group` or `copy_number`; audit log schema present but write path missing.
 2. **Weak selective pressures**: specific toxicities (O₂ on anaerobes, H₂S on cytochromes, lactate) absent; elemental deficiencies (P/N/Fe/S) non-constraining; xenobiotics/antibiotics absent — without these, RAS is not observable end-to-end and the 11 metabolic strategies of Block 6 do not produce distinct niches.
@@ -27,7 +27,7 @@ The expected outcome of the plan: close all gaps while preserving the principles
 - **Generative-only**: every new trait derives from existing genome codons or from co-occurrences of already-defined domains. No explicit flag that cannot be derived from the genome.
 - **Mandatory property tests**: for each new mechanism at least (a) a *conservation test*, (b) a *monotonicity test*, (c) a *no-special-case test* (random genome without the key domains never triggers the mechanism).
 - **`biological-realism-reviewer` validation**: before consolidation (squash onto master) of each phase, parametric ranges must be validated against primary literature; if a test passes only because of a magic number without derivation → stop on merge.
-- **DESIGN.md coherence**: every change to the biological architecture must be annotated in DESIGN.md (and DESIGN.en.md via `bilingual-docs-maintainer`).
+- **01-DESIGN.md coherence**: every change to the biological architecture must be annotated in 01-DESIGN.md (and 01-DESIGN.en.md via `bilingual-docs-maintainer`).
 
 ---
 
@@ -425,9 +425,9 @@ For each phase:
    - Average time per tick < 5× pre-phase baseline.
    - Memory does not grow (no leak).
    - Expected events from the new mechanism > 0 and < N (no zeros, no spam).
-3. **Canary scenario**: re-run the "Chronicles of a contested estuary" scenario (DESIGN_STRESS-TEST.md) and verify that the expected narrative phenomena are observable with the new implementation (mutator strain, prophage induction + RM/loss-of-receptor defenses, anti-griefing dilution of burdened plasmids, chimera via translocation).
+3. **Canary scenario**: re-run the "Chronicles of a contested estuary" scenario (02-DESIGN_STRESS-TEST.md) and verify that the expected narrative phenomena are observable with the new implementation (mutator strain, prophage induction + RM/loss-of-receptor defenses, anti-griefing dilution of burdened plasmids, chimera via translocation).
 4. **Realism validation**: manual invocation of the `biological-realism-reviewer` agent on the phase diff, before consolidation. Stop on merge if: (a) a mechanism is observationally "special" and does not emerge from the genome, (b) parametric ranges outside biologically known orders of magnitude, (c) a test passes only because of a magic number without derivation.
-5. **Documentation**: update DESIGN.md with the evolution of the biological model; synchronize DESIGN.en.md via `bilingual-docs-maintainer` agent.
+5. **Documentation**: update 01-DESIGN.md with the evolution of the biological model; synchronize 01-DESIGN.en.md via `bilingual-docs-maintainer` agent.
 6. **Audit log integrity**: after Phase 16, verify via Postgres query that every HGT event from a channel produces exactly one `mobile_elements` row with `origin_lineage_id`, `origin_biotope_id`, `created_at_tick` populated.
 
 ---
@@ -454,7 +454,7 @@ For each phase:
 - SOS response as emergent trait from DNA damage.
 - Inc-group and copy_number enabling plasmid coexistence/displacement.
 - Audit log populated for every HGT event, with complete origin tracking.
-- Full coherence with DESIGN.md Blocks 5, 7, 8, 13.
+- Full coherence with 01-DESIGN.md Blocks 5, 7, 8, 13.
 
 ### Additional output Phase 19 (Community Mode)
 

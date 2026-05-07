@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.WorldClock do
   @moduledoc """
-  GenServer that drives the global simulation clock (DESIGN.md Block 11,
-  IMPLEMENTATION-PLAN.md §4).
+  GenServer that drives the global simulation clock (01-DESIGN.md Block 11,
+  03-IMPLEMENTATION-PLAN.md §4).
 
   Behaviour:
   - Beats a `:tick` every `@tick_interval_ms` milliseconds of wall-clock time.
@@ -19,7 +19,7 @@ defmodule Arkea.Sim.WorldClock do
       config :arkea, :tick_interval_ms, 0          # test: tick immediately
 
   The default when no config entry is present is 300_000 (5 real minutes per
-  tick as per DESIGN.md Block 11).
+  tick as per 01-DESIGN.md Block 11).
 
   ## State
 

@@ -1,8 +1,8 @@
-> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](DESIGN_STRESS-TEST.en.md)
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](02-DESIGN_STRESS-TEST.en.md)
 
 # Arkea — Stress test del design "a tavolino"
 
-**Riferimenti**: [DESIGN.md](DESIGN.md) (Blocchi 1–14)
+**Riferimenti**: [01-DESIGN.md](01-DESIGN.md) (Blocchi 1–14)
 **Data del walk-through**: 2026-04-26
 **Scopo**: validare la coerenza interna del design integrale prima della fase implementativa, attraversando in uno scenario continuo tutti i 14 blocchi del documento di design.
 
@@ -144,7 +144,7 @@ Non sono lacune del design, ma ambiti che il singolo walk-through non ha esercit
 
 ### 4.3 Buchi nel design emersi
 
-A differenza del primo caso d'uso (Blocco 5 di DESIGN.md, che produsse 8 gap di design corretti durante le iterazioni successive), il walk-through integrale **non rivela inconsistenze gravi**. Tre considerazioni minori, di balancing/implementazione:
+A differenza del primo caso d'uso (Blocco 5 di 01-DESIGN.md, che produsse 8 gap di design corretti durante le iterazioni successive), il walk-through integrale **non rivela inconsistenze gravi**. Tre considerazioni minori, di balancing/implementazione:
 
 1. **Intervention budget vs sessioni esplorative**. 1 azione/30 min reali può essere stretto per chi sperimenta intensivamente (es. testare in sequenza diversi antibiotici). Possibile mitigazione: pool accumulabile fino a N azioni stoccate (es. 5), che si rigenera con la stessa cadenza. **Decisione di balancing futura**, non di design.
 2. **Distribuzione di fase per nuovo lignaggio neonato**. Quando un nuovo lignaggio nasce per mutazione/HGT, eredita la distribuzione di fase del parent (snapshot all'istante di nascita) e la ricomputa al tick successivo. **Da chiarire nell'implementazione**, non riapre la decisione di design.

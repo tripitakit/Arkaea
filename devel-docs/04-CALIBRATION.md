@@ -1,4 +1,4 @@
-> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](CALIBRATION.en.md)
+> 🇮🇹 Italiano (questa pagina) · [🇬🇧 English](04-CALIBRATION.en.md)
 
 # Calibrazione del modello biologico Arkea
 
@@ -6,7 +6,7 @@ Questo documento è l'appendice di calibrazione del modello biologico, raccomand
 
 **Senza questa appendice un microbiologo professionista che apre il codice troverà costanti che "sembrano" troppo basse o troppo alte e farà domande imbarazzanti** (testuale dalla revisione scientifica). Con questa appendice il modello è difendibile come *individual-based evolutionary sandbox con generative-grammar genomes e pathway-level Michaelis-Menten metabolism, con regimi parametrici calibrati per visibilità di fenomeno entro le time-scale in-silico del simulatore piuttosto che fitted a kinetics organism-specific* — framing che la community computazionale microbiologica riconosce per sandbox didattici e ricerca qualitativa.
 
-> **Nota terminologica**: nei documenti interni di progetto (DESIGN.md "decisione 2026-04-25", BIOLOGICAL-MODEL-REVIEW.md) si fa riferimento a "livello B+C" come shorthand per "cellular-architecture (B) + pathway-level metabolism (C)". Quella sigla è interna al brainstorm di scoping del progetto, **non** una tassonomia pubblicata; per comunicazione esterna usare la descrizione completa sopra. Confronto con il landscape: più astratto di Karr (whole-cell), più dettagliato di Avida sul versante metabolico, comparabile ad Aevol sul versante genome.
+> **Nota terminologica**: nei documenti interni di progetto (01-DESIGN.md "decisione 2026-04-25", 05-BIOLOGICAL-MODEL-REVIEW.md) si fa riferimento a "livello B+C" come shorthand per "cellular-architecture (B) + pathway-level metabolism (C)". Quella sigla è interna al brainstorm di scoping del progetto, **non** una tassonomia pubblicata; per comunicazione esterna usare la descrizione completa sopra. Confronto con il landscape: più astratto di Karr (whole-cell), più dettagliato di Avida sul versante metabolico, comparabile ad Aevol sul versante genome.
 
 ## Principi di calibrazione
 

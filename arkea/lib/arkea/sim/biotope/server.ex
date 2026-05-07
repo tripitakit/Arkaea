@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.Biotope.Server do
   @moduledoc """
   GenServer that owns the in-memory state of one biotope and drives its
-  simulation tick (IMPLEMENTATION-PLAN.md §4, Active Record pattern).
+  simulation tick (03-IMPLEMENTATION-PLAN.md §4, Active Record pattern).
 
   ## State
 

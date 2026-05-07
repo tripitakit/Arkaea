@@ -1,6 +1,6 @@
 defmodule Arkea.Ecology.Phase do
   @moduledoc """
-  A phase is a sub-environment of a biotope (DESIGN.md Block 12).
+  A phase is a sub-environment of a biotope (01-DESIGN.md Block 12).
 
   Each biotope has 2–3 phases (e.g. `:surface`, `:water_column`, `:sediment`)
   with their own metabolite pools, signal pools, free-phage abundances, and

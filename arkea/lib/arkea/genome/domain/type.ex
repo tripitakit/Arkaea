@@ -1,6 +1,6 @@
 defmodule Arkea.Genome.Domain.Type do
   @moduledoc """
-  Closed enum of the 11 functional domain types (DESIGN.md Block 7).
+  Closed enum of the 11 functional domain types (01-DESIGN.md Block 7).
 
   A protein domain belongs to exactly one type. Types are categorical (atoms),
   not parametric — the parametric continuous values live in the domain's

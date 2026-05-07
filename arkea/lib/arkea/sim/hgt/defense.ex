@@ -1,7 +1,7 @@
 defmodule Arkea.Sim.HGT.Defense do
   @moduledoc """
   Restriction-Modification (R-M) defence as a uniform gating step on every
-  HGT channel (Phase 12 — DESIGN.md Block 8).
+  HGT channel (Phase 12 — 01-DESIGN.md Block 8).
 
   This module is **strictly pure**: no I/O, no OTP calls. All stochasticity
   is driven by the `:rand` state passed as an argument.

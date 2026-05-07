@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.Phage do
   @moduledoc """
-  The closed phage cycle (Phase 12 — DESIGN.md Block 8).
+  The closed phage cycle (Phase 12 — 01-DESIGN.md Block 8).
 
   This module is **strictly pure**: no I/O, no OTP calls, no PubSub, no
   DB. All stochasticity is driven by the `:rand` state passed as an
@@ -96,7 +96,7 @@ defmodule Arkea.Sim.HGT.Phage do
   # instead of lysogenic integration. The decision is biased by the cassette
   # `repressor_strength`: a strong repressor steers the cell toward lysogeny.
   #
-  # Sub-task 4.1 (BIOLOGICAL-MODEL-REVIEW-2.md finding #2): raised from 0.40
+  # Sub-task 4.1 (09-BIOLOGICAL-MODEL-REVIEW-2.md finding #2): raised from 0.40
   # to 0.50 so `p_lytic` saturates at 1.0 when `repressor_strength = 0.0`,
   # matching the docstring intent ("low repression → total lysis"). Combined
   # with `derive_repressor_strength([]) = 0.0`, a cI-null cassette is now
@@ -747,7 +747,7 @@ defmodule Arkea.Sim.HGT.Phage do
   `p_lytic = 1.0` — i.e. the cassette is **obligate lytic**, reproducing
   the in vivo λ cI⁻ phenotype.
 
-  Sub-task 4.1 (BIOLOGICAL-MODEL-REVIEW-2.md finding #2) flipped the empty
+  Sub-task 4.1 (09-BIOLOGICAL-MODEL-REVIEW-2.md finding #2) flipped the empty
   default from `0.5` (which yielded ~60% lysogenization for cI-null
   cassettes — biologically incorrect) to `0.0`.
 
@@ -773,7 +773,7 @@ defmodule Arkea.Sim.HGT.Phage do
   # at least one `:phage_receptor` surface tag. Loss-of-receptor
   # mutants (chromosomal `:surface_tag` flipped away from
   # `:phage_receptor`) escape infection — the canonical Phase 12
-  # arms-race mechanism described in DESIGN.md Block 8.
+  # arms-race mechanism described in 01-DESIGN.md Block 8.
   #
   # Pre-Phase-20 the fallback `phenotype.surface_tags == []`
   # (no surface tags at all) erroneously *granted* infection,

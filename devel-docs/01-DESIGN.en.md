@@ -1,4 +1,4 @@
-> 🇮🇹 [Italiano](DESIGN.md) · 🇬🇧 English (this page)
+> 🇮🇹 [Italiano](01-DESIGN.md) · 🇬🇧 English (this page)
 
 # Arkea — Inception & Design Document
 
@@ -222,7 +222,7 @@ The principle applies to **lineage traits**: every capability of the lineage (up
 
 `ribosome_like` is instead **derived from the genome** from Phase 21 onwards (see commit "Phenotype: derive ribosome_like from genome composition") — it is *not* an exception; it was a hardcoding bug now removed.
 
-This distinction is made explicit to prevent future revisions from interpreting "everything is encoded in the genome" as applying to environmental chemistry, and to coordinate the reading of `IMPLEMENTATION-PLAN.en.md` § 9 (Post-Phase-20 documented debt, item D5).
+This distinction is made explicit to prevent future revisions from interpreting "everything is encoded in the genome" as applying to environmental chemistry, and to coordinate the reading of `03-IMPLEMENTATION-PLAN.en.md` § 9 (Post-Phase-20 documented debt, item D5).
 
 ---
 
@@ -498,7 +498,7 @@ Continuous variables per lineage: `membrane_integrity`, `wall_integrity`, `dna_p
 
 ##### Phase 20 — Scientific calibration pass
 
-Addresses the P0/P1 points of the post-Phase 19 scientific review. **See [CALIBRATION.en.md](CALIBRATION.en.md)** for the full mapping of each constant to the primary literature and for the simulator's temporal / concentration scales.
+Addresses the P0/P1 points of the post-Phase 19 scientific review. **See [04-CALIBRATION.en.md](04-CALIBRATION.en.md)** for the full mapping of each constant to the primary literature and for the simulator's temporal / concentration scales.
 
 Bug fix:
 - **Inverted receptor matching** (`HGT.Phage.receptor_match?`): the fallback `phenotype.surface_tags == []` accepted infection on lineages without tags — the opposite of real biology. Phase 20 explicitly requires `:phage_receptor` in `surface_tags`. Loss-of-receptor mutants now correctly escape phage infection, consistent with the arms race described in Block 8.

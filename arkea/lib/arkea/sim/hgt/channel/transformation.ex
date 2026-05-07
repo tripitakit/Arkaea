@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.Channel.Transformation do
   @moduledoc """
-  Natural transformation channel (Phase 13 — DESIGN.md Block 8).
+  Natural transformation channel (Phase 13 — 01-DESIGN.md Block 8).
 
   A *competent* recipient lineage takes up free DNA from its phase
   `dna_pool` and integrates a donor gene into its chromosome via simple

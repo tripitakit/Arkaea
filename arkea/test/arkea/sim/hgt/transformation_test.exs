@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.Channel.TransformationTest do
   @moduledoc """
-  Tests for natural transformation (Phase 13 — DESIGN.md Block 8).
+  Tests for natural transformation (Phase 13 — 01-DESIGN.md Block 8).
   """
   use ExUnit.Case, async: true
 

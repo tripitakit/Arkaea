@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.CrossFeedingTest do
   @moduledoc """
-  Tests for Phase 18 cross-feeding closure (DESIGN.md Block 8 Phase 18).
+  Tests for Phase 18 cross-feeding closure (01-DESIGN.md Block 8 Phase 18).
 
   The metabolite pool acts as a *closed* C/N/S/Fe/H₂ cycle: each
   consumed substrate releases a stoichiometric by-product back into

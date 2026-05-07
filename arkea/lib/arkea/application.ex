@@ -26,7 +26,7 @@ defmodule Arkea.Application do
         [ArkeaWeb.Endpoint]
 
     # :one_for_one — each child is independent. A crashing Biotope.Server or
-    # WorldClock does not affect sibling processes (DESIGN.md §14 rationale).
+    # WorldClock does not affect sibling processes (01-DESIGN.md §14 rationale).
     opts = [strategy: :one_for_one, name: Arkea.Supervisor]
     Supervisor.start_link(children, opts)
   end

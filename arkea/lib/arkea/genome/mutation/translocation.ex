@@ -5,7 +5,7 @@ defmodule Arkea.Genome.Mutation.Translocation do
 
   Translocation is the principal driver of "composed innovation" — fusing
   domains from two genes into a chimeric protein with a genuinely new
-  function (DESIGN.md Block 7).
+  function (01-DESIGN.md Block 7).
   """
 
   use TypedStruct

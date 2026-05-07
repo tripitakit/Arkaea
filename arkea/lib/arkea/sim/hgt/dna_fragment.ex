@@ -1,6 +1,6 @@
 defmodule Arkea.Sim.HGT.DnaFragment do
   @moduledoc """
-  Free DNA fragment persisting in a `Phase.dna_pool` (Phase 13 — DESIGN.md
+  Free DNA fragment persisting in a `Phase.dna_pool` (Phase 13 — 01-DESIGN.md
   Block 8).
 
   A fragment is the unit of substrate for natural transformation: produced
