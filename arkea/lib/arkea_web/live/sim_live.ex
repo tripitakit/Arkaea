@@ -54,6 +54,8 @@ defmodule ArkeaWeb.SimLive do
        selected_lineage_id: nil,
        trends_samples: [],
        trends_audit: [],
+       trends_trait_samples: [],
+       selected_trait: nil,
        phylogeny_model: nil,
        page_title: "Arkea Biotope"
      )}
@@ -88,12 +90,21 @@ defmodule ArkeaWeb.SimLive do
   # crosses a sampling boundary, re-load the time-series + audit so the
   # chart updates in near-real time.
   defp maybe_refresh_trends(socket, %{tick_count: tick}) do
-    period = Arkea.Persistence.TimeSeries.sampling_period()
+    pop_period = Arkea.Persistence.TimeSeries.sampling_period()
+    trait_period = Arkea.Persistence.TimeSeries.cell_sampling_period()
 
-    if socket.assigns.bottom_tab == :trends and rem(tick, period) == 0 do
-      maybe_load_trends_data(socket, :trends)
-    else
-      socket
+    cond do
+      socket.assigns.bottom_tab != :trends ->
+        socket
+
+      # Refresh on either sampling boundary so both the population
+      # series (every `sampling_period`) and the phenotype-trait
+      # series (every `cell_sampling_period`) stay near-real-time.
+      rem(tick, pop_period) == 0 or rem(tick, trait_period) == 0 ->
+        maybe_load_trends_data(socket, :trends)
+
+      true ->
+        socket
     end
   end
 
@@ -198,6 +209,17 @@ defmodule ArkeaWeb.SimLive do
       |> assign(bottom_tab: tab_atom)
       |> maybe_load_trends_data(tab_atom)
       |> maybe_load_phylogeny_data(tab_atom)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_trait", %{"trait" => trait}, socket) do
+    selected = if trait == "" or trait == "abundance", do: nil, else: trait
+
+    socket =
+      socket
+      |> assign(:selected_trait, selected)
+      |> maybe_load_trends_data(:trends)
 
     {:noreply, socket}
   end
@@ -374,7 +396,9 @@ defmodule ArkeaWeb.SimLive do
                   <% :trends -> %>
                     <.trends_panel
                       samples={@trends_samples}
+                      trait_samples={@trends_trait_samples}
                       audit={@trends_audit}
+                      selected_trait={@selected_trait}
                     />
                   <% :phylogeny -> %>
                     <.phylogeny_panel model={@phylogeny_model} />
@@ -1141,26 +1165,60 @@ defmodule ArkeaWeb.SimLive do
   end
 
   attr :samples, :list, required: true
+  attr :trait_samples, :list, default: []
   attr :audit, :list, required: true
+  attr :selected_trait, :any, default: nil
 
   defp trends_panel(assigns) do
     ~H"""
     <div class="arkea-trends">
       <div class="arkea-trends__intro">
-        <span class="arkea-card__eyebrow">Population trajectory</span>
+        <span class="arkea-card__eyebrow">
+          <%= if @selected_trait do %>
+            Trait trajectory · <code>{@selected_trait}</code>
+          <% else %>
+            Population trajectory
+          <% end %>
+        </span>
         <p class="arkea-muted">
-          Per-lineage abundance sampled every {Arkea.Persistence.TimeSeries.sampling_period()} ticks.
-          Vertical markers flag <code>mass_lysis</code>, <code>mutation_notable</code>, <code>phage_burst</code>,
-          <code>colonization</code>
+          <%= if @selected_trait do %>
+            Per-lineage <code>{@selected_trait}</code>
+            sampled every {Arkea.Persistence.TimeSeries.cell_sampling_period()} ticks.
+          <% else %>
+            Per-lineage abundance sampled every {Arkea.Persistence.TimeSeries.sampling_period()} ticks.
+          <% end %>
+          Vertical markers flag <code>mass_lysis</code>, <code>mutation_notable</code>, <code>phage_burst</code>, <code>colonization</code>, <code>sos_active</code>, <code>mutator_emergence</code>, <code>biofilm_formation</code>/<code>_dispersal</code>,
           and player <code>intervention</code>
           events.
         </p>
       </div>
 
-      <Chart.population_trajectory_from_samples
-        samples={@samples}
-        audit={@audit}
-      />
+      <form phx-change="select_trait" class="arkea-trends__trait-picker">
+        <label for="trait-select" class="arkea-muted" style="margin-right: 0.5rem;">
+          Series:
+        </label>
+        <select id="trait-select" name="trait">
+          <option value="abundance" selected={is_nil(@selected_trait)}>
+            abundance (population)
+          </option>
+          <%= for trait <- Arkea.Views.PopulationTrajectory.trait_keys() do %>
+            <option value={trait} selected={@selected_trait == trait}>{trait}</option>
+          <% end %>
+        </select>
+      </form>
+
+      <%= if @selected_trait do %>
+        <Chart.trait_trajectory_from_samples
+          samples={@trait_samples}
+          audit={@audit}
+          trait={@selected_trait}
+        />
+      <% else %>
+        <Chart.population_trajectory_from_samples
+          samples={@samples}
+          audit={@audit}
+        />
+      <% end %>
     </div>
     """
   end
@@ -1551,8 +1609,23 @@ defmodule ArkeaWeb.SimLive do
     samples =
       Arkea.Persistence.TimeSeries.list(biotope_id, kind: "abundance")
 
+    # Phase 21 Top 5 #4 — phenotype trait samples are loaded only when
+    # a trait is selected. Lazily fetched to avoid hitting Postgres for
+    # the (default) population view.
+    trait_samples =
+      if socket.assigns[:selected_trait] do
+        Arkea.Persistence.TimeSeries.list(biotope_id, kind: "phenotype_trait")
+      else
+        []
+      end
+
     audit = recent_audit(biotope_id)
-    assign(socket, trends_samples: samples, trends_audit: audit)
+
+    assign(socket,
+      trends_samples: samples,
+      trends_audit: audit,
+      trends_trait_samples: trait_samples
+    )
   end
 
   defp maybe_load_trends_data(socket, _other), do: socket

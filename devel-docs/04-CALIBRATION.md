@@ -218,7 +218,7 @@ Solo 4 interventi disponibili in `Intervention.apply/2`, tutti a livello di fase
 
 I dati esistono in `phenotype.ex` e nel snapshot export, ma **mancano viste live**:
 
-- Trait tracker time-series per fenotipo macro (uno o più lineage selezionati) — Fase 22
+- ✅ **Trait tracker time-series** per fenotipo macro (uno o più lineage selezionati) — *Closed Phase 21 Top 5 #4*: `kind: "phenotype_trait"` samples persistiti ogni `cell_sampling_period` tick (default 10), payload con 10 tratti scalari/booleani (`base_growth_rate`, `repair_efficiency`, `energy_cost`, `dna_binding_affinity`, `competence_score`, `hydrolase_capacity`, `efflux_capacity`, `structural_stability`, `n_transmembrane`, `biofilm_capable`); `Arkea.Views.PopulationTrajectory.build_trait/3` produce la serie multi-lineage; UI `SimLive` Trends tab espone selettore di tratto.
 - Espressione per-gene per-tick (oggi `Phenotype.from_genome/1` aggrega tutto in scalari globali) — Fase 25
 - Diff genoma fra due lineage (selezione multipla nel dendrogramma) — Fase 22 (macro) + Fase 26 (codonico)
 - Mappa metabolica del biotopo (heatmap / network 13 metaboliti × fasi, flussi inter-lineage) — Fase 22

@@ -80,6 +80,72 @@ defmodule Arkea.Persistence.TimeSeriesTest do
     end
   end
 
+  describe "phenotype_trait samples (Phase 21 Top 5 #4)" do
+    test "tick 10 emits one phenotype_trait row per genome-bearing lineage" do
+      occurred_at = DateTime.utc_now()
+      state = state_with_genome_at_tick(10)
+      samples = TimeSeries.extract_samples(state, occurred_at)
+
+      trait_samples = Enum.filter(samples, &(&1.kind == "phenotype_trait"))
+      assert length(trait_samples) == 1
+
+      [s] = trait_samples
+      payload = s.payload
+      # Canonical scalar fields hoisted by `trait_payload/1`. Some
+      # fields (`energy_cost`, `dna_binding_affinity`) start as the
+      # integer literal `0` for genomes without the contributing
+      # domains; the chart layer casts those to float on plot, so
+      # accepting `is_number/1` here matches the runtime contract.
+      assert is_number(payload["base_growth_rate"])
+      assert is_number(payload["repair_efficiency"])
+      assert is_number(payload["energy_cost"])
+      assert is_integer(payload["n_transmembrane"])
+      assert is_boolean(payload["biofilm_capable"])
+    end
+
+    test "tick 5 (population-only boundary) emits NO phenotype_trait rows" do
+      occurred_at = DateTime.utc_now()
+      state = state_with_genome_at_tick(5)
+      samples = TimeSeries.extract_samples(state, occurred_at)
+      trait_samples = Enum.filter(samples, &(&1.kind == "phenotype_trait"))
+      assert trait_samples == []
+    end
+
+    test "lineages with genome=nil are skipped" do
+      occurred_at = DateTime.utc_now()
+      # Default fixture has genome=nil — no trait rows should appear.
+      state = state_at_tick(10)
+      samples = TimeSeries.extract_samples(state, occurred_at)
+      trait_samples = Enum.filter(samples, &(&1.kind == "phenotype_trait"))
+      assert trait_samples == []
+    end
+  end
+
+  defp state_with_genome_at_tick(tick) do
+    phases = [Arkea.Ecology.Phase.new(:water_column)]
+
+    # Minimal viable genome with at least one gene — enough for
+    # `Phenotype.from_genome/1` to derive the canonical scalars.
+    param_codons = List.duplicate(10, 20)
+    domain = Arkea.Genome.Domain.new([0, 0, 1], param_codons)
+    gene = Arkea.Genome.Gene.from_domains([domain])
+    genome = Arkea.Genome.new([gene])
+
+    lineage =
+      Arkea.Ecology.Lineage.new_founder(genome, %{water_column: 100}, 0)
+
+    BiotopeState.new_from_opts(
+      id: Arkea.UUID.v4(),
+      archetype: :eutrophic_pond,
+      x: 0.0,
+      y: 0.0,
+      phases: phases,
+      dilution_rate: 0.05,
+      tick_count: tick,
+      lineages: [lineage]
+    )
+  end
+
   defp state_at_tick(tick) do
     phases = [Arkea.Ecology.Phase.new(:water_column)]
 

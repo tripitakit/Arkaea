@@ -21,9 +21,18 @@ defmodule Arkea.Persistence.TimeSeries do
     dna}`. `scope_id` is the lineage uuid.
   - `"dna_damage"` — one row per lineage with non-zero damage. Payload
     is `%{value: float}`.
+  - `"phenotype_trait"` — one row per lineage (Phase 21 Top 5 #4 — trait
+    tracker), payload carries the scalar+boolean phenotype fields
+    derived from `Phenotype.from_genome/1` (`base_growth_rate`,
+    `repair_efficiency`, `energy_cost`, `dna_binding_affinity`,
+    `competence_score`, `hydrolase_capacity`, `efflux_capacity`,
+    `n_transmembrane`, `biofilm_capable?`). The view layer slices a
+    single trait out of the payload to render its per-lineage time
+    series in the Trends tab.
 
   Lineages with `genome: nil` (delta-encoded descendants) are skipped
-  for biomass / dna_damage samples since those fields are inherited.
+  for biomass / dna_damage / phenotype_trait samples since those
+  fields are inherited.
 
   ## Cadence
 
@@ -49,6 +58,7 @@ defmodule Arkea.Persistence.TimeSeries do
   alias Arkea.Ecology.Phase
   alias Arkea.Persistence.TimeSeriesSample
   alias Arkea.Sim.BiotopeState
+  alias Arkea.Sim.Phenotype
 
   @sampling_period Application.compile_env(:arkea, :time_series_sampling_period, 5)
   @cell_sampling_period Application.compile_env(:arkea, :time_series_cell_sampling_period, 10)
@@ -86,7 +96,9 @@ defmodule Arkea.Persistence.TimeSeries do
 
     cell_samples =
       if rem(tick, @cell_sampling_period) == 0 do
-        biomass_samples(state, occurred_at) ++ dna_damage_samples(state, occurred_at)
+        biomass_samples(state, occurred_at) ++
+          dna_damage_samples(state, occurred_at) ++
+          phenotype_trait_samples(state, occurred_at)
       else
         []
       end
@@ -259,6 +271,45 @@ defmodule Arkea.Persistence.TimeSeries do
         inserted_at: occurred_at
       }
     end)
+  end
+
+  # Phase 21 Top 5 #4 — per-lineage trait tracker. One row per lineage
+  # with `genome != nil`; payload carries every scalar / boolean field
+  # of the derived `Phenotype` so the view layer can slice a single
+  # trait out for the Trends tab. Non-scalar fields (`surface_tags`,
+  # `qs_produces`, `restriction_profile`, …) are intentionally excluded
+  # — they have shape-not-magnitude semantics and are surfaced via the
+  # snapshot export, not the per-tick chart.
+  defp phenotype_trait_samples(%BiotopeState{} = state, occurred_at) do
+    state.lineages
+    |> Enum.filter(fn l -> l.genome != nil end)
+    |> Enum.map(fn %Lineage{} = lineage ->
+      phenotype = Phenotype.from_genome(lineage.genome)
+
+      %{
+        biotope_id: state.id,
+        tick: state.tick_count,
+        kind: "phenotype_trait",
+        scope_id: lineage.id,
+        payload: trait_payload(phenotype),
+        inserted_at: occurred_at
+      }
+    end)
+  end
+
+  defp trait_payload(%Phenotype{} = phenotype) do
+    %{
+      "base_growth_rate" => phenotype.base_growth_rate,
+      "repair_efficiency" => phenotype.repair_efficiency,
+      "energy_cost" => phenotype.energy_cost,
+      "dna_binding_affinity" => phenotype.dna_binding_affinity,
+      "competence_score" => phenotype.competence_score,
+      "hydrolase_capacity" => phenotype.hydrolase_capacity,
+      "efflux_capacity" => phenotype.efflux_capacity,
+      "structural_stability" => phenotype.structural_stability,
+      "n_transmembrane" => phenotype.n_transmembrane,
+      "biofilm_capable" => phenotype.biofilm_capable?
+    }
   end
 
   defp stringify_keys(map) when is_map(map) do

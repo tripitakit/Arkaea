@@ -11,7 +11,13 @@ defmodule Arkea.Persistence.TimeSeriesSample do
 
   import Ecto.Changeset
 
-  @type kind :: :abundance | :metabolite_pool | :signal_pool | :biomass | :dna_damage
+  @type kind ::
+          :abundance
+          | :metabolite_pool
+          | :signal_pool
+          | :biomass
+          | :dna_damage
+          | :phenotype_trait
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,

@@ -218,7 +218,7 @@ Only 4 interventions are available in `Intervention.apply/2`, all at the phase l
 
 Data exist in `phenotype.ex` and in the snapshot export, but **live views are absent**:
 
-- Trait tracker time-series for macro phenotype (one or more selected lineages) — Phase 22
+- ✅ **Trait tracker time-series** for macro phenotype (one or more selected lineages) — *Closed Phase 21 Top 5 #4*: `kind: "phenotype_trait"` samples persisted every `cell_sampling_period` ticks (default 10), payload carries 10 scalar/boolean traits (`base_growth_rate`, `repair_efficiency`, `energy_cost`, `dna_binding_affinity`, `competence_score`, `hydrolase_capacity`, `efflux_capacity`, `structural_stability`, `n_transmembrane`, `biofilm_capable`); `Arkea.Views.PopulationTrajectory.build_trait/3` builds the multi-lineage series; UI `SimLive` Trends tab exposes a trait selector.
 - Per-gene per-tick expression (today `Phenotype.from_genome/1` aggregates everything into global scalars) — Phase 25
 - Genome diff between two lineages (multi-select in the dendrogram) — Phase 22 (macro) + Phase 26 (codon-level)
 - Metabolic map of the biotope (heatmap / network of 13 metabolites × phases, inter-lineage fluxes) — Phase 22

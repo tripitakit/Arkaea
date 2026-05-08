@@ -211,6 +211,188 @@ defmodule ArkeaWeb.Components.Chart do
     """
   end
 
+  attr :model, :map,
+    required: true,
+    doc: "PopulationTrajectory.trait_t() built by Arkea.Views.PopulationTrajectory.build_trait/3"
+
+  attr :class, :string, default: nil
+  attr :height, :integer, default: @viewport_h
+
+  @doc """
+  Render an overlaid-line chart of per-lineage trait values over time
+  (Phase 21 Top 5 #4 — trait tracker). Same layout primitives as
+  `population_trajectory/1` but the Y axis is a continuous float
+  domain derived from `model.value_domain`.
+  """
+  def trait_trajectory(assigns) do
+    %{model: model} = assigns
+
+    {min_t, max_t} = model.tick_domain
+    {min_y, max_y} = padded_value_domain(model.value_domain)
+
+    inner_w = @viewport_w - @padding_left - @padding_right
+    inner_h = assigns.height - @padding_top - @padding_bottom
+
+    x_scale =
+      ChartLib.linear_scale({min_t, max_t}, {@padding_left, @padding_left + inner_w})
+
+    y_scale =
+      ChartLib.linear_scale({min_y, max_y}, {@padding_top + inner_h, @padding_top})
+
+    lineage_paths =
+      Enum.map(model.lineages, fn series ->
+        %{
+          id: series.id,
+          max: series.max,
+          path: ChartLib.path_for_series(series.points, x_scale, y_scale),
+          color: lineage_color(series.id)
+        }
+      end)
+
+    x_ticks = ChartLib.axis_ticks(min_t, max_t, target: 6)
+    y_ticks = ChartLib.axis_ticks(min_y, max_y, target: 5)
+
+    has_data? = lineage_paths != [] and max_t > min_t
+
+    assigns =
+      assigns
+      |> assign(:has_data?, has_data?)
+      |> assign(:lineage_paths, lineage_paths)
+      |> assign(:x_scale, x_scale)
+      |> assign(:y_scale, y_scale)
+      |> assign(:x_ticks, x_ticks)
+      |> assign(:y_ticks, y_ticks)
+      |> assign(:width, @viewport_w)
+      |> assign(:padding_left, @padding_left)
+      |> assign(:padding_top, @padding_top)
+      |> assign(:padding_bottom, @padding_bottom)
+      |> assign(:inner_h, inner_h)
+      |> assign(:markers, model.markers)
+      |> assign(:trait, model.trait)
+
+    ~H"""
+    <div class={["arkea-chart", @class]}>
+      <%= cond do %>
+        <% not @has_data? -> %>
+          <div class="arkea-chart__empty">
+            No phenotype-trait samples yet — trait trajectory will populate as
+            the simulation accumulates ticks (every {Arkea.Persistence.TimeSeries.cell_sampling_period()} ticks).
+          </div>
+        <% true -> %>
+          <svg
+            class="arkea-chart__svg"
+            viewBox={"0 0 #{@width} #{@height}"}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={"Phenotype trait '#{@trait}' over time per lineage"}
+          >
+            <rect
+              x={@padding_left}
+              y={@padding_top}
+              width={@width - @padding_left - 12}
+              height={@inner_h}
+              class="arkea-chart__panel"
+            />
+
+            <g class="arkea-chart__axis arkea-chart__axis--y">
+              <%= for t <- @y_ticks do %>
+                <line
+                  x1={@padding_left}
+                  x2={@width - 12}
+                  y1={@y_scale.(t)}
+                  y2={@y_scale.(t)}
+                  class="arkea-chart__grid-line"
+                />
+                <text
+                  x={@padding_left - 6}
+                  y={@y_scale.(t) + 4}
+                  text-anchor="end"
+                  class="arkea-chart__tick-label"
+                >
+                  {format_trait_value(t)}
+                </text>
+              <% end %>
+            </g>
+
+            <g class="arkea-chart__axis arkea-chart__axis--x">
+              <%= for t <- @x_ticks do %>
+                <text
+                  x={@x_scale.(t)}
+                  y={@height - 8}
+                  text-anchor="middle"
+                  class="arkea-chart__tick-label"
+                >
+                  {round(t)}
+                </text>
+              <% end %>
+            </g>
+
+            <%= for line <- @lineage_paths do %>
+              <path
+                d={line.path}
+                fill="none"
+                stroke={line.color}
+                stroke-width="1.5"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+                opacity="0.85"
+              >
+                <title>Lineage {short_id(line.id)} · max {format_trait_value(line.max)}</title>
+              </path>
+            <% end %>
+
+            <g class="arkea-chart__markers">
+              <%= for marker <- @markers do %>
+                <line
+                  x1={@x_scale.(marker.tick)}
+                  x2={@x_scale.(marker.tick)}
+                  y1={@padding_top}
+                  y2={@height - @padding_bottom}
+                  class={"arkea-chart__marker arkea-chart__marker--#{marker.type}"}
+                  stroke-dasharray={marker_dash(marker.type)}
+                >
+                  <title>{marker.type} @ tick {marker.tick}</title>
+                </line>
+              <% end %>
+            </g>
+
+            <line
+              x1={@padding_left}
+              x2={@padding_left}
+              y1={@padding_top}
+              y2={@height - @padding_bottom}
+              class="arkea-chart__axis-line"
+            />
+            <line
+              x1={@padding_left}
+              x2={@width - 12}
+              y1={@height - @padding_bottom}
+              y2={@height - @padding_bottom}
+              class="arkea-chart__axis-line"
+            />
+          </svg>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :samples, :list, default: []
+  attr :audit, :list, default: []
+  attr :trait, :string, required: true
+  attr :class, :string, default: nil
+
+  @doc """
+  Convenience wrapper that builds a trait trajectory model and renders it.
+  """
+  def trait_trajectory_from_samples(assigns) do
+    model = PopulationTrajectory.build_trait(assigns.samples, assigns.audit, assigns.trait)
+    assigns = assign(assigns, :model, model)
+
+    ~H"""
+    <.trait_trajectory model={@model} class={@class} />
+    """
+  end
+
   # ---------------------------------------------------------------------------
   # Private helpers
 
@@ -235,6 +417,23 @@ defmodule ArkeaWeb.Components.Chart do
 
   defp format_count(n) when is_integer(n), do: Integer.to_string(n)
   defp format_count(n) when is_float(n), do: format_count(round(n))
+
+  defp format_trait_value(n) when is_integer(n), do: Integer.to_string(n)
+  defp format_trait_value(n) when is_float(n), do: Float.to_string(Float.round(n, 3))
+  defp format_trait_value(_), do: ""
+
+  # Pad the value domain for trait charts so lines never sit flush with
+  # the panel edge. A degenerate domain (`{x, x}` — single sample, or a
+  # constant trait) becomes `{x - 1, x + 1}` so the chart still draws.
+  defp padded_value_domain({lo, hi}) when is_number(lo) and is_number(hi) do
+    cond do
+      lo == hi and lo == 0.0 -> {0.0, 1.0}
+      lo == hi -> {lo - abs(lo) * 0.1 - 0.001, hi + abs(hi) * 0.1 + 0.001}
+      true -> {lo - (hi - lo) * 0.05, hi + (hi - lo) * 0.05}
+    end
+  end
+
+  defp padded_value_domain(_), do: {0.0, 1.0}
 
   defp short_id(nil), do: ""
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)

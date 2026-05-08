@@ -94,7 +94,7 @@ Arkea v1 ha gap dichiarati tra ciò che il design (`devel-docs/01-DESIGN.md`) pr
 - **SOS threshold**: costante globale, non evolve con la sensibilità del lignaggio.
 - **Audit eventi**: 12/14 categorie emesse e visibili nel ledger / audit log. Chiuse in Fase 21: `conjugation` (kind promosso da `hgt_transfer`), `sos_active`, `mutator_emergence`, `biofilm_formation`/`_dispersal`, `migration_pulse`. Già emesse pre-Fase 21: `transformation_event`, `transduction_event`, `phage_infection`, `rm_digestion`, `plasmid_displaced`, `bacteriocin_kill`, `error_catastrophe_death`. Restano da chiudere `domain_flip`, `gene_chimera_birth` in Fase 26 (codon-level events).
 - **Interventi player**: solo 4 tipi a livello di fase, niente mutagenesi guidata / KO / KD / heterologous expression / pulse mutageno fino a Fase 27.
-- **Strumenti di analisi**: niente trait tracker time-series, niente diff genoma fra lineage, niente codon-level viewer, niente network regolatorio fino a Fase 22+25+26.
+- **Strumenti di analisi**: ✅ trait tracker time-series chiuso in Fase 21 #4 (selettore tratto nel Trends tab; 10 tratti scalari/booleani campionati ogni 10 tick). Restano da chiudere: diff genoma fra lineage (Fase 22 macro / Fase 26 codonico), mappa metabolica (Fase 22), distribuzione fenotipica violin (Fase 22), espressione per-gene + network regolatorio (Fase 25), codon-level viewer + mutation hotspot + landscape kcat×Km (Fase 26).
 - **Lab notebook**: niente annotazioni, permalink temporali, replay scrubbing, export FASTA/GFF fino a Fase 24+27.
 
 **Cosa NON è una limitazione** (precisazioni di scope, vedi calibrazione completa):
