@@ -70,6 +70,18 @@ defmodule ArkeaWeb.SimLive do
   end
 
   @impl Phoenix.LiveView
+  # Phase 24 / 6.4 — when the user is viewing a pinned historical
+  # tick, ignore live tick broadcasts so the scene stays frozen.
+  # The pin is cleared by clicking "Jump to live" → patches the
+  # URL → `handle_params/3` re-loads the live state.
+  def handle_info(
+        {:biotope_tick, _new_state, _events},
+        %{assigns: %{pinned_tick: pinned}} = socket
+      )
+      when not is_nil(pinned) do
+    {:noreply, socket}
+  end
+
   def handle_info({:biotope_tick, new_state, events}, socket) do
     cache = update_phenotype_cache(socket.assigns.phenotype_cache, new_state)
     log = prepend_events(socket.assigns.event_log, events)
@@ -153,15 +165,33 @@ defmodule ArkeaWeb.SimLive do
       Phoenix.PubSub.subscribe(Arkea.PubSub, "biotope:#{biotope_id}")
     end
 
-    {sim_state, phenotype_cache} = load_initial_state(biotope_id)
-    selected_phase_name = resolve_selected_phase(nil, sim_state)
-
-    # Phase 24 / 6.2 — time-anchored permalink: `?at=N` opens the
-    # biotope with a non-mutating banner that flags the pinned tick
-    # and lists the bookmarks / annotations attached to it. v1
-    # surfaces the *context* of the pinned tick; the historical
-    # state replay of that tick lands in 6.4 (replay scrubbing).
+    # Phase 24 / 6.2 + 6.4 — time-anchored permalink. When `?at=N`
+    # is present the viewport rebuilds the historical `BiotopeState`
+    # at-or-before tick N from `BiotopeSnapshot` / `BiotopeWalEntry`
+    # via `Arkea.History.fetch_state_at/2`. The PubSub subscription
+    # for live ticks stays in place; `handle_info({:biotope_tick,
+    # …})` skips refresh while pinned (read-only freeze).
     pinned_tick = parse_pinned_tick(params)
+
+    {sim_state, phenotype_cache} =
+      case pinned_tick do
+        nil ->
+          load_initial_state(biotope_id)
+
+        n ->
+          case Arkea.History.fetch_state_at(biotope_id, n) do
+            nil ->
+              # No historical row available — fall back to the live
+              # state so the user still sees a non-empty view; the
+              # banner will explain the situation.
+              load_initial_state(biotope_id)
+
+            %Arkea.Sim.BiotopeState{} = historical ->
+              {historical, phenotype_cache_from_state(historical)}
+          end
+      end
+
+    selected_phase_name = resolve_selected_phase(nil, sim_state)
 
     pinned_annotations =
       case pinned_tick do
@@ -515,6 +545,7 @@ defmodule ArkeaWeb.SimLive do
               :if={@pinned_tick}
               biotope_id={@biotope_id}
               tick={@pinned_tick}
+              sim_state={@sim_state}
               annotations={@pinned_annotations}
             />
 
@@ -1509,35 +1540,41 @@ defmodule ArkeaWeb.SimLive do
 
   attr :biotope_id, :string, required: true
   attr :tick, :integer, required: true
+  attr :sim_state, :any, default: nil
   attr :annotations, :list, default: []
 
-  # Phase 24 / 6.2 — banner shown when the user opens the biotope
-  # via a `?at=N` permalink. Surfaces the pinned tick + the
-  # annotations attached to it; "Jump to live" clears the pin and
-  # returns to the live view (no historical state replay yet — that
-  # ships in 6.4).
+  # Phase 24 / 6.2 + 6.4 — banner shown when the user opens the
+  # biotope via a `?at=N` permalink. Surfaces the pinned tick, the
+  # actual tick of the rebuilt historical state (snapshots are
+  # coarse so it can be ≤ N when no exact WAL row exists), the
+  # annotations attached to N, and the "live updates paused" hint.
+  # "Jump to live" navigates back to `/biotopes/:id` which
+  # re-resumes live tick processing.
   defp pinned_tick_banner(assigns) do
+    actual_tick = if assigns.sim_state, do: assigns.sim_state.tick_count, else: nil
+
+    assigns = assign(assigns, :actual_tick, actual_tick)
+
     ~H"""
     <div class="arkea-pinned-tick" role="status">
       <div class="arkea-pinned-tick__head">
         <span class="arkea-pinned-tick__pin" aria-hidden="true">📌</span>
-        <span class="arkea-pinned-tick__label">Pinned at tick {@tick}</span>
+        <span class="arkea-pinned-tick__label">
+          Pinned at tick {@tick}
+          <%= if @actual_tick && @actual_tick != @tick do %>
+            · viewport rebuilt from snapshot at tick {@actual_tick}
+          <% end %>
+          · live updates paused
+        </span>
         <.link navigate={~p"/biotopes/#{@biotope_id}"} class="arkea-pinned-tick__exit">
           Jump to live
         </.link>
       </div>
-      <%= if @annotations != [] do %>
-        <ul class="arkea-pinned-tick__notes">
-          <li :for={a <- @annotations}>
-            {if a.bookmark, do: "★ ", else: ""}{a.body}
-          </li>
-        </ul>
-      <% else %>
-        <p class="arkea-pinned-tick__empty">
-          No notes attached to this tick. The viewport still shows live state —
-          the historical replay of tick {@tick} ships in Phase 24 / 6.4.
-        </p>
-      <% end %>
+      <ul :if={@annotations != []} class="arkea-pinned-tick__notes">
+        <li :for={a <- @annotations}>
+          {if a.bookmark, do: "★ ", else: ""}{a.body}
+        </li>
+      </ul>
     </div>
     """
   end
@@ -1727,6 +1764,13 @@ defmodule ArkeaWeb.SimLive do
     {state, cache}
   rescue
     _ -> {nil, %{}}
+  end
+
+  # Phase 24 / 6.4 — historical state replay never goes through the
+  # `BiotopeServer` (it might not even be alive), so the phenotype
+  # cache must be rebuilt from the deserialised lineages directly.
+  defp phenotype_cache_from_state(%BiotopeState{lineages: lineages}) do
+    build_phenotype_cache(lineages)
   end
 
   defp page_title(nil, biotope_id), do: "Arkea Biotope · #{short_id(biotope_id || "")}"
