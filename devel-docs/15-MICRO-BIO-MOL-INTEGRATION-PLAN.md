@@ -224,48 +224,39 @@ Il piano sotto organizza queste lacune in 8 tracce indipendenti con dipendenze e
 
 Sequenza che bilancia *quick wins ad alta visibilità* (Fase 21–22), *fondamenta strutturali* (Fase 25), e *capabilities profonde* (Fase 26–28). Ogni fase è autonoma e mergiabile.
 
-### Fase 21 — Visibilità + onestà del manuale
+> **Note di riordinamento (2026-05-08, dopo merge Fase 22)**: la Fase 23 (Onboarding) era originariamente in posizione 3, subito dopo Fase 22. È stata **spostata in coda** (post-Fase 29) perché tutti i suoi contenuti dipendono direttamente dalle fasi successive: i quick-start scenari ipotesi-driven richiedono interventi avanzati (Fase 27) e σ runtime (Fase 25); il tutorial "anatomia di un gene" richiede il codon-level viewer (Fase 26); la mappa dominio→funzione dà il suo meglio con la cascata regolatoria runtime (Fase 25). Scrivere Fase 23 in posizione 3 avrebbe richiesto 5 round di rework. La sequenza riveduta:
+>
+> ```
+> 21 ✅ → 22 ✅ → 24 → 25 → 26 → 27 → 28 → 29 → 23
+> ```
+>
+> Polish incrementale di onboarding (glossario, tooltip, in-line help dei nuovi pannelli) viene fatto comunque in ogni fase per la sua superficie specifica; la *Fase 23 vera e propria* (tutorial guidati, scenari ipotesi-driven, cheat-sheet completo) si scrive una volta sola, alla fine, sul prodotto v1 stabilizzato.
+
+### Fase 21 — Visibilità + onestà del manuale ✅ DONE (tag `phase-21`)
 
 **Goal**: l'app smette di "promettere e tacere".
 
-- Traccia 1 (tutti i 14 audit events mancanti)
-- Traccia 7.8 (sezione "Limitazioni note v1" nel manuale) → **rilascio prima di tutto il resto**
-- Traccia 7.1 (aggregare `:regulator_output` in σ multi-componente) — abilita 2.5 e 7.3
-
-**Effort stimato**: ~1 settimana di lavoro concentrato. **Rischio**: basso (eventi audit sono additivi).
+- Traccia 1 (tutti i 14 audit events mancanti) — **12/14 chiusi**, restano L2.13/L2.14 → Fase 26
+- Traccia 7.8 (sezione "Limitazioni note v1" nel manuale)
+- Traccia 7.1 (aggregare `:regulator_output` strutturalmente) — wiring runtime σ deferred a Fase 25
+- Plus: HGT ledger channel disambiguation, trait tracker time-series, smoke test E2E
 
 ---
 
-### Fase 22 — Analisi base + polish
+### Fase 22 — Analisi base + polish ✅ DONE (tag `phase-22`)
 
 **Goal**: i 3 strumenti più richiesti, e un'app che "sembra finita" nei primi 5 minuti.
 
-- Traccia 2.1 (trait tracker time-series macro)
-- Traccia 2.3a (diff genoma macroscopico)
-- Traccia 2.4 (mappa metabolica del biotopo)
-- Traccia 2.8 (distribuzione fenotipica violin)
-- Traccia 8 (polish trasversale: countdown tick, indicatore stress, unità, formati, zero-state, skeletons, responsive)
-
-**Effort**: ~1.5 settimane. **Rischio**: basso (estensioni di componenti esistenti).
-
----
-
-### Fase 23 — Onboarding
-
-**Goal**: utente nuovo produttivo in 30 minuti.
-
-- Traccia 4.1 (quick-start scenari ipotesi-driven, +5 sopra i 3 esistenti)
-- Traccia 4.2a + 4.2b (tutorial guidati biotopo + anatomia gene)
-- Traccia 4.3 (cheat-sheet metaboliti × archetipi)
-- Traccia 4.4 (glossario espanso a campi panel + termini molecolari)
-- Traccia 4.5 (help context-sensitive con "?")
-- Traccia 4.6 (mappa dominio → funzione reale)
-
-**Effort**: ~1 settimana, prevalentemente UI + scrittura.
+- Traccia 2.1 (trait tracker time-series macro) — *anticipato in Fase 21 #4*
+- Traccia 2.3a (diff genoma macroscopico) ✅
+- Traccia 2.4 (mappa metabolica del biotopo) ✅
+- Traccia 2.8 (distribuzione fenotipica strip plot) ✅
+- Traccia 8 (polish trasversale: stress chip, Tailwind canonical) ✅
+- Plus: smoke test E2E
 
 ---
 
-### Fase 24 — Lab notebook
+### Fase 24 — Lab notebook ◀ NEXT
 
 **Goal**: il sistema diventa uno strumento di studio condivisibile.
 
@@ -348,6 +339,23 @@ Sequenza che bilancia *quick wins ad alta visibilità* (Fase 21–22), *fondamen
 - Traccia 7.4 (ribosome derivato dai domini, non hardcoded)
 
 **Effort**: ~3 giorni se delegato a un sotto-modello semplice, fino a 1 settimana se modellato come operone rRNA-like + r-protein-like.
+
+---
+
+### Fase 23 — Onboarding (LAST — sequenza riveduta)
+
+**Goal**: utente nuovo produttivo in 30 minuti **sul prodotto v1 stabilizzato**.
+
+Spostata in coda perché tutti i suoi sotto-item dipendono dalle fasi precedenti:
+
+- Traccia 4.1 (quick-start scenari ipotesi-driven) — richiede `:xenobiotic_pulse` schedulato (Fase 27) e σ runtime (Fase 25) per produrre scenari completi anziché monchi.
+- Traccia 4.2a + 4.2b (tutorial guidati biotopo + anatomia gene) — il tutorial molecolare richiede il codon-level viewer (Fase 26) per chiudere il loop didattico.
+- Traccia 4.3 (cheat-sheet metaboliti × archetipi) — l'unico item *parzialmente* indipendente; può essere anticipato come quick win se serve.
+- Traccia 4.4 (glossario espanso a campi panel + termini molecolari) — accumulato in modo incrementale dalle fasi precedenti; alla Fase 23 si rivede e completa.
+- Traccia 4.5 (help context-sensitive con "?") — UI infrastruttura.
+- Traccia 4.6 (mappa dominio → funzione reale) — gli esempi danno il loro meglio con la cascata regolatoria runtime (Fase 25) attiva.
+
+**Effort**: ~1 settimana, prevalentemente UI + scrittura. Eccezione: polish di onboarding incrementale (glossario/tooltip della feature corrente) viene fatto comunque in ogni fase per la sua superficie specifica — la *Fase 23 vera e propria* si scrive una volta sola sul prodotto completo.
 
 ---
 
