@@ -225,7 +225,7 @@ I dati esistono in `phenotype.ex` e nel snapshot export, ma **mancano viste live
 - Network regolatorio molecolare (`:dna_binding` + `:regulator_output` → target promoter) — Fase 25
 - Codon-level viewer (zoom: cromosoma → operone → gene → 50–200 codoni alfabeto 20) — Fase 26
 - Mutation hotspot map per gene — Fase 26
-- Distribuzione fenotipica del biotopo (violin plot di un tratto across lineage, pesato per abbondanza) — Fase 22
+- ✅ **Distribuzione fenotipica del biotopo** (strip plot pesato per abbondanza con linea di centro-di-massa) — *Closed Phase 22 / 2.8*: `Arkea.Views.PhenotypeDistribution.build/3` produce un modello scatter `{tick, x_domain, y_domain, weighted_mean, total_abundance, points}` per il tratto selezionato all'ultimo tick campionato; `Chart.phenotype_distribution` lo renderizza nel Trends tab sotto la time-series. Booleani mappati a 0/1, raggio ∝ √abbondanza, linea verticale tratteggiata sulla media pesata. Sostituisce semanticamente il violin plot tradizionale (no kernel density estimation) con una vista più diretta per il pubblico target — due cluster visibili sull'asse X = polarizzazione/speciazione incipiente.
 - Landscape struttura-funzione di un dominio (scatter 2D `kcat × Km` di tutte le varianti) — Fase 26
 
 ### L5. Filogenesi — capacità mancanti

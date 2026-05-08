@@ -408,6 +408,7 @@ defmodule ArkeaWeb.SimLive do
                       trait_samples={@trends_trait_samples}
                       audit={@trends_audit}
                       selected_trait={@selected_trait}
+                      sim_state={@sim_state}
                     />
                   <% :phylogeny -> %>
                     <.phylogeny_panel model={@phylogeny_model} />
@@ -1177,8 +1178,11 @@ defmodule ArkeaWeb.SimLive do
   attr :trait_samples, :list, default: []
   attr :audit, :list, required: true
   attr :selected_trait, :any, default: nil
+  attr :sim_state, :any, default: nil
 
   defp trends_panel(assigns) do
+    assigns = assign(assigns, :abundances, lineage_abundances(assigns.sim_state))
+
     ~H"""
     <div class="arkea-trends">
       <div class="arkea-trends__intro">
@@ -1222,6 +1226,24 @@ defmodule ArkeaWeb.SimLive do
           audit={@audit}
           trait={@selected_trait}
         />
+
+        <div class="arkea-trends__intro" style="margin-top: 1.25rem;">
+          <span class="arkea-card__eyebrow">
+            Distribution at latest tick · <code>{@selected_trait}</code>
+          </span>
+          <p class="arkea-muted">
+            One circle per lineage: x = trait value, y = abundance, radius ∝ √abundance.
+            Dashed yellow line = abundance-weighted mean (centre of mass). Two visible
+            clusters on the x-axis suggest incipient speciation; a single tight cluster
+            = a stable population.
+          </p>
+        </div>
+
+        <Chart.phenotype_distribution_from_samples
+          samples={@trait_samples}
+          abundances={@abundances}
+          trait={@selected_trait}
+        />
       <% else %>
         <Chart.population_trajectory_from_samples
           samples={@samples}
@@ -1230,6 +1252,14 @@ defmodule ArkeaWeb.SimLive do
       <% end %>
     </div>
     """
+  end
+
+  defp lineage_abundances(nil), do: %{}
+
+  defp lineage_abundances(state) do
+    Map.new(state.lineages, fn l ->
+      {l.id, Arkea.Ecology.Lineage.total_abundance(l)}
+    end)
   end
 
   attr :model, :any, required: true

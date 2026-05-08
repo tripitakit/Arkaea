@@ -12,6 +12,7 @@ defmodule ArkeaWeb.Components.Chart do
   use Phoenix.Component
 
   alias Arkea.Views.Chart, as: ChartLib
+  alias Arkea.Views.PhenotypeDistribution
   alias Arkea.Views.PopulationTrajectory
 
   @viewport_w 800
@@ -390,6 +391,223 @@ defmodule ArkeaWeb.Components.Chart do
 
     ~H"""
     <.trait_trajectory model={@model} class={@class} />
+    """
+  end
+
+  attr :model, :map,
+    required: true,
+    doc: "PhenotypeDistribution.t() built by Arkea.Views.PhenotypeDistribution.build/3"
+
+  attr :class, :string, default: nil
+  attr :height, :integer, default: 220
+
+  @doc """
+  Render a per-lineage strip plot of the population's distribution
+  on a phenotype trait at the latest sampled tick (Phase 22 / 2.8).
+
+  Each lineage is a circle: x = trait value, y = abundance, radius
+  ∝ √abundance. A vertical reference line marks the abundance-
+  weighted mean (centre of mass). Two visible clusters on the x-axis
+  flag incipient speciation / polarisation; a single tight cluster
+  with a small vertical spread = stable population.
+  """
+  def phenotype_distribution(assigns) do
+    %{model: model} = assigns
+
+    {min_x, max_x} = padded_value_domain(model.x_domain)
+    {_min_y, max_y} = model.y_domain
+
+    inner_w = @viewport_w - @padding_left - @padding_right
+    inner_h = assigns.height - @padding_top - @padding_bottom
+
+    x_scale =
+      ChartLib.linear_scale({min_x, max_x}, {@padding_left, @padding_left + inner_w})
+
+    y_scale =
+      ChartLib.linear_scale({0, max(max_y, 1)}, {@padding_top + inner_h, @padding_top})
+
+    # Radius scale: the largest lineage gets a 14px circle; smaller
+    # lineages scale down by √abundance share. The view emits raw √
+    # in `point.radius`; here we map to pixel space.
+    max_radius_raw = model.points |> Enum.map(& &1.radius) |> Enum.max(fn -> 1.0 end)
+    px_radius = fn r -> max(2.0, r / max_radius_raw * 14.0) end
+
+    points =
+      Enum.map(model.points, fn p ->
+        %{
+          id: p.id,
+          cx: x_scale.(p.x),
+          cy: y_scale.(p.y),
+          r: px_radius.(p.radius),
+          x: p.x,
+          y: p.y,
+          color: lineage_color(p.id)
+        }
+      end)
+
+    x_ticks = ChartLib.axis_ticks(min_x, max_x, target: 5)
+    y_ticks = ChartLib.axis_ticks(0, max_y, target: 4)
+
+    has_data? = points != [] and max_x > min_x
+
+    mean_x =
+      case model.weighted_mean do
+        nil -> nil
+        m -> x_scale.(m)
+      end
+
+    assigns =
+      assigns
+      |> assign(:has_data?, has_data?)
+      |> assign(:points, points)
+      |> assign(:x_scale, x_scale)
+      |> assign(:y_scale, y_scale)
+      |> assign(:x_ticks, x_ticks)
+      |> assign(:y_ticks, y_ticks)
+      |> assign(:width, @viewport_w)
+      |> assign(:padding_left, @padding_left)
+      |> assign(:padding_top, @padding_top)
+      |> assign(:padding_bottom, @padding_bottom)
+      |> assign(:inner_h, inner_h)
+      |> assign(:trait, model.trait)
+      |> assign(:tick, model.tick)
+      |> assign(:weighted_mean, model.weighted_mean)
+      |> assign(:mean_x, mean_x)
+      |> assign(:total_abundance, model.total_abundance)
+
+    ~H"""
+    <div class={["arkea-chart arkea-chart--distribution", @class]}>
+      <%= cond do %>
+        <% not @has_data? -> %>
+          <div class="arkea-chart__empty">
+            No phenotype-trait samples for trait <code>{@trait}</code>
+            yet — distribution will populate once
+            the cellular sampling boundary fires.
+          </div>
+        <% true -> %>
+          <svg
+            class="arkea-chart__svg"
+            viewBox={"0 0 #{@width} #{@height}"}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={"Distribution of '#{@trait}' across lineages at tick #{@tick}"}
+          >
+            <rect
+              x={@padding_left}
+              y={@padding_top}
+              width={@width - @padding_left - 12}
+              height={@inner_h}
+              class="arkea-chart__panel"
+            />
+
+            <g class="arkea-chart__axis arkea-chart__axis--y">
+              <%= for t <- @y_ticks do %>
+                <line
+                  x1={@padding_left}
+                  x2={@width - 12}
+                  y1={@y_scale.(t)}
+                  y2={@y_scale.(t)}
+                  class="arkea-chart__grid-line"
+                />
+                <text
+                  x={@padding_left - 6}
+                  y={@y_scale.(t) + 4}
+                  text-anchor="end"
+                  class="arkea-chart__tick-label"
+                >
+                  {format_count(t)}
+                </text>
+              <% end %>
+            </g>
+
+            <g class="arkea-chart__axis arkea-chart__axis--x">
+              <%= for t <- @x_ticks do %>
+                <text
+                  x={@x_scale.(t)}
+                  y={@height - 8}
+                  text-anchor="middle"
+                  class="arkea-chart__tick-label"
+                >
+                  {format_trait_value(t)}
+                </text>
+              <% end %>
+            </g>
+
+            <%!-- Lineage markers --%>
+            <g class="arkea-chart__points">
+              <%= for p <- @points do %>
+                <circle
+                  cx={p.cx}
+                  cy={p.cy}
+                  r={p.r}
+                  fill={p.color}
+                  fill-opacity="0.55"
+                  stroke={p.color}
+                  stroke-width="1"
+                >
+                  <title>
+                    Lineage {short_id(p.id)} · {@trait}={format_trait_value(p.x)} · N={p.y}
+                  </title>
+                </circle>
+              <% end %>
+            </g>
+
+            <%!-- Centre-of-mass reference line + label --%>
+            <%= if @mean_x do %>
+              <g class="arkea-chart__mean">
+                <line
+                  x1={@mean_x}
+                  x2={@mean_x}
+                  y1={@padding_top}
+                  y2={@height - @padding_bottom}
+                  class="arkea-chart__mean-line"
+                  stroke-dasharray="4 3"
+                />
+                <text
+                  x={@mean_x + 4}
+                  y={@padding_top + 12}
+                  class="arkea-chart__mean-label"
+                >
+                  μ̄ = {format_trait_value(@weighted_mean)}
+                </text>
+              </g>
+            <% end %>
+
+            <line
+              x1={@padding_left}
+              x2={@padding_left}
+              y1={@padding_top}
+              y2={@height - @padding_bottom}
+              class="arkea-chart__axis-line"
+            />
+            <line
+              x1={@padding_left}
+              x2={@width - 12}
+              y1={@height - @padding_bottom}
+              y2={@height - @padding_bottom}
+              class="arkea-chart__axis-line"
+            />
+          </svg>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :samples, :list, default: []
+  attr :abundances, :map, default: %{}
+  attr :trait, :string, required: true
+  attr :class, :string, default: nil
+
+  @doc """
+  Convenience wrapper that builds a phenotype-distribution model and
+  renders it.
+  """
+  def phenotype_distribution_from_samples(assigns) do
+    model = PhenotypeDistribution.build(assigns.samples, assigns.trait, assigns.abundances)
+    assigns = assign(assigns, :model, model)
+
+    ~H"""
+    <.phenotype_distribution model={@model} class={@class} />
     """
   end
 

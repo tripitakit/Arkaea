@@ -225,7 +225,7 @@ Data exist in `phenotype.ex` and in the snapshot export, but **live views are ab
 - Molecular regulatory network (`:dna_binding` + `:regulator_output` → target promoter) — Phase 25
 - Codon-level viewer (zoom: chromosome → operon → gene → 50–200 codons on alphabet-20) — Phase 26
 - Mutation hotspot map per gene — Phase 26
-- Phenotypic distribution of the biotope (violin plot of a trait across lineages, weighted by abundance) — Phase 22
+- ✅ **Phenotypic distribution of the biotope** (abundance-weighted strip plot with centre-of-mass line) — *Closed Phase 22 / 2.8*: `Arkea.Views.PhenotypeDistribution.build/3` produces a scatter model `{tick, x_domain, y_domain, weighted_mean, total_abundance, points}` for the selected trait at the latest sampled tick; `Chart.phenotype_distribution` renders it in the Trends tab beneath the time-series. Booleans plot at 0/1, radius ∝ √abundance, dashed vertical line at the abundance-weighted mean. Replaces the canonical violin plot (no kernel density estimation) with a more direct view for the target audience — two visible clusters on the x-axis flag incipient speciation / polarisation.
 - Structure–function landscape of a domain (2D scatter `kcat × Km` of all variants) — Phase 26
 
 ### L5. Phylogeny — missing capabilities
