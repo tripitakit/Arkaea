@@ -81,6 +81,28 @@ So **one hour of runtime ≈ 12 generations**, and one simulation day ≈ 288 ge
 
 You design **the starting point**. The system evolves everything else.
 
+### 1.6 Known v1 model limitations
+
+Arkea v1 has declared gaps between what the design (`devel-docs/01-DESIGN.en.md`) promises and what the code does. These are *honesty markers*: openly documented, closed phase by phase, never hidden behind marketing.
+
+**Quick summary** (full detail in [`devel-docs/04-CALIBRATION.en.md` § Known v1 model limitations](devel-docs/04-CALIBRATION.en.md#known-v1-model-limitations)):
+
+- **Regulation**: `promoter_block` and `regulatory_block` are not parsed in v1; `:regulator_output` is parsed but not aggregated into σ; operons are not yet a runtime expression unit. The advertised "regulation" is reduced to a global scalar until Phase 25.
+- **Ribosome**: `ribosome_like = 1.0` hardcoded in v1 (not derived from domains); closure Phase 29.
+- **Conjugation**: uses only `:transmembrane_anchor` count as a proxy for the sex pilus; explicit `pili_like + relaxase_like + oriT_like` absent until Phase 28.
+- **R-M**: recognition sites opaque at 4 codons, no modelled DNA recognition sequence.
+- **SOS threshold**: global constant, does not evolve with lineage sensitivity.
+- **Silent audit events**: 14 event categories (HGT split by channel, R-M digestion, bacteriocin kill, SOS, mutator emergence, error catastrophe, biofilm, migration, domain flip, gene chimera) are not yet emitted — closure **in Phase 21**.
+- **Player interventions**: only 4 types at the phase level, no guided mutagenesis / KO / KD / heterologous expression / mutagenic pulse until Phase 27.
+- **Analysis tools**: no trait tracker time-series, no genome diff between lineages, no codon-level viewer, no regulatory network until Phase 22+25+26.
+- **Lab notebook**: no annotations, time-anchored permalinks, replay scrubbing, FASTA/GFF export until Phase 24+27.
+
+**What is NOT a limitation** (scope clarifications, see full calibration doc):
+
+- No real ATGC DNA, no real ribosome, no CRISPR in v1, no senescence — *deliberate design choices*, not implementation gaps.
+
+Full closure roadmap in [`devel-docs/15-MICRO-BIO-MOL-INTEGRATION-PLAN.md`](devel-docs/15-MICRO-BIO-MOL-INTEGRATION-PLAN.md). Origin in `13-MICROBIOLOGIST-PERSPECTIVE-REVIEW.md` and `14-BIOMOL-PERSPECTIVE-REVIEW.md`.
+
 ---
 
 ## 2. First access

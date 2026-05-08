@@ -81,6 +81,28 @@ Le `intervention` (nutrient pulse, plasmid inoculation, mixing event) consumano 
 
 Tu progetti **il punto di partenza**. Il sistema fa evolvere tutto il resto.
 
+### 1.6 Limitazioni note del modello v1
+
+Arkea v1 ha gap dichiarati tra ciò che il design (`devel-docs/01-DESIGN.md`) promette e ciò che il codice fa. Sono *honesty marker*: documentati apertamente, chiusi fase per fase, mai nascosti dietro il marketing.
+
+**Sintesi rapida** (dettaglio completo in [`devel-docs/04-CALIBRATION.md` § Limitazioni note del modello v1](devel-docs/04-CALIBRATION.md#limitazioni-note-del-modello-v1)):
+
+- **Regolazione**: `promoter_block` e `regulatory_block` non sono parsati in v1; `:regulator_output` è parsato ma non aggregato in σ; operoni non sono ancora un'unità di espressione runtime. La "regolazione" pubblicizzata è ridotta a uno scalare globale fino a Fase 25.
+- **Ribosoma**: `ribosome_like = 1.0` hardcoded in v1 (non deriva dai domini); chiusura Fase 29.
+- **Coniugazione**: usa solo conteggio `:transmembrane_anchor` come proxy del pilo sex; mancano `pili_like + relaxase_like + oriT_like` espliciti fino a Fase 28.
+- **R-M**: siti di riconoscimento opachi a 4 codoni, no recognition sequence DNA modellata.
+- **SOS threshold**: costante globale, non evolve con la sensibilità del lignaggio.
+- **Audit muti**: 14 categorie di evento (HGT split per canale, R-M digestion, bacteriocin kill, SOS, mutator emergence, error catastrophe, biofilm, migrazione, domain flip, gene chimera) non sono ancora emesse — chiusura **in Fase 21**.
+- **Interventi player**: solo 4 tipi a livello di fase, niente mutagenesi guidata / KO / KD / heterologous expression / pulse mutageno fino a Fase 27.
+- **Strumenti di analisi**: niente trait tracker time-series, niente diff genoma fra lineage, niente codon-level viewer, niente network regolatorio fino a Fase 22+25+26.
+- **Lab notebook**: niente annotazioni, permalink temporali, replay scrubbing, export FASTA/GFF fino a Fase 24+27.
+
+**Cosa NON è una limitazione** (precisazioni di scope, vedi calibrazione completa):
+
+- Niente DNA reale ATGC, niente ribosoma reale, niente CRISPR in v1, niente senescence — *scelte di design deliberate*, non gap di implementazione.
+
+Roadmap completa di chiusura in [`devel-docs/15-MICRO-BIO-MOL-INTEGRATION-PLAN.md`](devel-docs/15-MICRO-BIO-MOL-INTEGRATION-PLAN.md). Origine in `13-MICROBIOLOGIST-PERSPECTIVE-REVIEW.md` e `14-BIOMOL-PERSPECTIVE-REVIEW.md`.
+
 ---
 
 ## 2. Primo accesso

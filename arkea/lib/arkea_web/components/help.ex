@@ -123,6 +123,13 @@ defmodule ArkeaWeb.Components.Help do
          "Origin of transfer: intergenic motif marking a plasmid as conjugatively mobilizable.",
        doc: "design",
        section: "coniugazione-gene-encoded"
+     }},
+    {"v1 limits",
+     %{
+       summary:
+         "Known v1 model limitations: declared gaps between design promises and current code, closed phase by phase.",
+       doc: "calibration",
+       section: "limitazioni-note-del-modello-v1"
      }}
   ]
 

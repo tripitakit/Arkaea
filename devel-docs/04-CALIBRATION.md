@@ -160,6 +160,110 @@ biological macromolecules*. Naturwissenschaften 1971.
 config :arkea, :transduction_probability, 0.001  # rate biologico realistico
 ```
 
+## Limitazioni note del modello v1
+
+Questa sezione **dichiara onestamente i gap tra ciò che il design promette (`01-DESIGN.md`) e ciò che il codice fa attualmente**. Origine: review utente da prospettiva microbiologo (`13-MICROBIOLOGIST-PERSPECTIVE-REVIEW.md`) e biologo molecolare (`14-BIOMOL-PERSPECTIVE-REVIEW.md`); piano di chiusura in `15-MICRO-BIO-MOL-INTEGRATION-PLAN.md`.
+
+**Razionale**: il pubblico target — microbiologi e biologi molecolari professionisti — preferisce limitazioni dichiarate apertamente a meccanismi pubblicizzati che non funzionano. Ogni voce sotto è un *honesty marker*: rimossa quando la fase corrispondente viene mergiata.
+
+### L1. Modello molecolare semplificato
+
+| ID | Limitazione | Conseguenza per l'utente | Fase di chiusura |
+|---|---|---|---|
+| **L1.1** | `Gene.promoter_block` e `Gene.regulatory_block` sono `nil` in Phase 1 (parsing differito a Phase 3 generativa). | Promotori e riboswitch non sono ispezionabili, non mutano, non guidano l'espressione. La "regolazione" promessa nel manuale è ridotta a uno scalare globale. | Fase 25 (Operoni e regolazione) |
+| **L1.2** | `:regulator_output` è parsato (mode `:activator`/`:repressor`, cooperativity, target) ma **non aggregato** in un σ-factor multi-componente (commento esplicito in `phenotype.ex:521-523`). | Le mutazioni in `:regulator_output` non hanno effetto osservabile sull'espressione del target. | Fase 21 (Top 5 azione #5) |
+| **L1.3** | `Gene.operon_id` è un campo dato (UUID) ma **non esiste il modulo `Arkea.Genome.Operon`** né runtime di espressione coordinata. Geni sotto stesso operone non sono trascritti insieme. | L'operone come unità di regolazione non funziona; il manuale non deve usarlo come concetto operativo. | Fase 25 |
+| **L1.4** | `ribosome_like = 1.0` è **hardcoded** in `phenotype.ex:291`, in violazione del principio Blocco 5 ("tutto è genoma"). | Tutti i lignaggi hanno la stessa "macchina di traduzione" a prescindere dal genoma; nessuna evoluzione del macchinario ribosomiale. | Fase 29 |
+| **L1.5** | Coniugazione: `hgt.ex` usa solo conteggio di `:transmembrane_anchor` come proxy del pilo sex. **Manca la triade prescritta** `pili_like + relaxase_like + oriT_like`. | Non si distinguono plasmidi mobilizable (richiedono relaxase ma non pili) da quelli auto-coniugativi; entry exclusion e compatibility groups non hanno base molecolare. | Fase 28 |
+| **L1.6** | SOS: `@sos_active_threshold = 0.20` è una costante **modulo-level** in `mutator.ex:86`, non derivata da domini `:ligand_sensor(target: :dna_damage)` espressi nel lignaggio. | La sensibilità al DNA damage non evolve; tutti i lignaggi hanno la stessa soglia. Anti-realistico per chi conosce la regolazione LexA/RecA. | Fase 25 |
+| **L1.7** | R-M (`defense.ex`): `signal_key` opachi a 4 codoni rappresentano i siti di riconoscimento. **Nessuna sequenza di nucleotidi modello**, nessuna distinzione tra Type I / II / III. Methylation tracciata come lista di chiavi (no per-nucleotide). | La specificità delle restrittasi non è ispezionabile a livello di sequenza; metilazione non visualizzabile come pattern. | Fase 28 (parziale: tag-sequence di N codoni) |
+
+### L2. Eventi audit mancanti (meccanismi muti)
+
+I seguenti meccanismi sono già implementati nel sim core ma **non emettono eventi audit identificabili**, quindi `HGTLedgerLive` e `AuditLive` mostrano una superficie ridotta.
+
+| ID | Evento atteso | File emittente | Visibilità attuale |
+|---|---|---|---|
+| **L2.1** | `:conjugation_event` (canale coniugazione) | `hgt.ex` | Solo `:hgt_transfer` generico — il canale non è distinguibile |
+| **L2.2** | `:transformation_event` | `hgt/channel/transformation.ex` | Atteso da `HGTLedgerLive`, non emesso |
+| **L2.3** | `:transduction_event` | `hgt/phage.ex` | Atteso, non emesso |
+| **L2.4** | `:phage_infection` (adsorbimento + iniezione, distinto da `:phage_burst`) | `hgt/phage.ex` | Atteso, non emesso |
+| **L2.5** | `:rm_digestion` (R-M taglia DNA esogeno non metilato) | `hgt/defense.ex` | Solo gate interno; nessun audit |
+| **L2.6** | `:plasmid_displaced` (incompatibilità o entry exclusion) | `hgt.ex` | Non implementato |
+| **L2.7** | `:bacteriocin_kill` (con coppia killer/target lineage) | `bacteriocin.ex` | Non emesso |
+| **L2.8** | `:sos_active` (con `dna_damage_score` + trigger source) | `mutator.ex` | Non emesso |
+| **L2.9** | `:mutator_emergence` (lignaggio sale a hypermutator) | `mutator.ex` | Non emesso |
+| **L2.10** | `:error_catastrophe_death` (Eigen criterion superato) | `mutator.ex` | Non emesso |
+| **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` | `phenotype.ex` + `tick.ex` | Non emessi |
+| **L2.12** | `:migration_pulse` (aggregato per arco top-N per tick) | `migration/` | Non emesso |
+| **L2.13** | `:domain_flip` (mutazione in `type_tag` cambia categoria del dominio) | `genome/mutation/applicator.ex` | Non emesso |
+| **L2.14** | `:gene_chimera_birth` (translocazione fonde due geni) | `genome/mutation/applicator.ex` | Non emesso |
+
+**Tutti chiusi in Fase 21** (Top 5 azione #2 + #3 della roadmap).
+
+### L3. Interventi player limitati
+
+Solo 4 interventi disponibili in `Intervention.apply/2`, tutti a livello di fase:
+
+- `:nutrient_pulse` con mix fisso `{glucose, nh3, po4}` (non scelta del metabolita)
+- `:plasmid_inoculation` con plasmide modello hardcoded a 1 gene (non personalizzabile)
+- `:xenobiotic_pulse` con solo `:beta_lactam` esposto in UI (il framework `target_class` è generativo)
+- `:mixing_event` (omogeneizzazione fasi)
+
+**Mancano**: mutagenesi guidata, knockout / knockdown, heterologous expression, pulse mutageno UV/MMS-like, shift environment (pH/T/osmolarità), inoculazione di un lignaggio osservato altrove, dosaggio temporale schedulato, xenobiotici aminoglycoside/fluorochinolone/polimixina.
+
+**Chiusura**: Fase 27 (Interventi avanzati).
+
+### L4. Strumenti di analisi mancanti
+
+I dati esistono in `phenotype.ex` e nel snapshot export, ma **mancano viste live**:
+
+- Trait tracker time-series per fenotipo macro (uno o più lineage selezionati) — Fase 22
+- Espressione per-gene per-tick (oggi `Phenotype.from_genome/1` aggrega tutto in scalari globali) — Fase 25
+- Diff genoma fra due lineage (selezione multipla nel dendrogramma) — Fase 22 (macro) + Fase 26 (codonico)
+- Mappa metabolica del biotopo (heatmap / network 13 metaboliti × fasi, flussi inter-lineage) — Fase 22
+- Network regolatorio molecolare (`:dna_binding` + `:regulator_output` → target promoter) — Fase 25
+- Codon-level viewer (zoom: cromosoma → operone → gene → 50–200 codoni alfabeto 20) — Fase 26
+- Mutation hotspot map per gene — Fase 26
+- Distribuzione fenotipica del biotopo (violin plot di un tratto across lineage, pesato per abbondanza) — Fase 22
+- Landscape struttura-funzione di un dominio (scatter 2D `kcat × Km` di tutte le varianti) — Fase 26
+
+### L5. Filogenesi — capacità mancanti
+
+Il dendrogramma in `phylogeny.ex` mostra lineage, abbondanza, branch length, ma:
+
+- Nessun filtro per tratto (oggi colora solo per abbondanza) — Fase 25
+- Nessun highlight delle convergenze fenotipiche o a livello di dominio — Fase 25
+- Tasso di mutazione per branch non normalizzato per branch length — Fase 25
+- Nessuna ricostruzione del genoma ancestrale o della sequenza ancestrale di un gene — Fase 26
+- Nessun gene tree distinto dallo species tree (HGT come incongruenza topologica) — Fase 26
+
+### L6. Lab notebook assente
+
+Il sistema esporta JSON/CSV/blueprint ma:
+
+- Nessuna annotazione utente attaccabile a uno specifico tick — Fase 24
+- Nessun permalink temporale (link che riapre il biotopo allo stato del tick X) — Fase 24
+- Nessun bookmark di evento (con label utente, visibili sulla time-series) — Fase 24
+- Nessun replay con scrubbing — Fase 24
+- Nessun export FASTA-like (sequenze codoniche) o GFF-like (annotazione genomica) — Fase 27
+- Nessun export "notebook-ready" (parquet, AnnData) — Fase 24
+
+### L7. Cosa NON è una limitazione (precisazioni)
+
+Per evitare aspettative errate:
+
+- **Nessun DNA reale (ATGC)**: il genoma è una sequenza di codoni logici su alfabeto 20, *deliberatamente* (Blocco 5 del design). Non è un gap, è una scelta di scope.
+- **Nessun ribosoma reale, nessun replisoma reale, nessun compartimento intracellulare**: deliberatamente esclusi (vedi 01-DESIGN.md).
+- **Nessun CRISPR/Cas in v1**: rinviato a v2 (decisione esplicita 2026-04-25).
+- **Nessuna senescence**: batteri immortali in v1 (decisione esplicita).
+- **Nessuna chemiolitotrofia completa (H₂/H₂S/CH₄ as electron donors)**: copertura parziale, non gap di design.
+- **Nessuna tossicità H₂S/lattato finemente modellata**: in coda, non gap di design.
+
+### Roadmap di chiusura
+
+Vedi `15-MICRO-BIO-MOL-INTEGRATION-PLAN.md` §4 per la sequenza completa Fase 21 → 29. Ogni fase mergiata aggiorna questa sezione **rimuovendo** il punto chiuso (single source of truth).
+
 ## Citazioni primarie raccomandate per documentazione
 
 - **Imlay JA**. *Cellular defenses against superoxide and hydrogen peroxide*. Annu Rev Biochem 2008.
