@@ -3,12 +3,12 @@ defmodule ArkeaWeb.SeedLabLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Arkea.Persistence.ArkeonBlueprint
-  alias Arkea.Persistence.PlayerBiotope
-  alias Arkea.Repo
   alias Arkea.Game.PrototypePlayer
   alias Arkea.Game.SeedLab
   alias Arkea.Game.World
+  alias Arkea.Persistence.ArkeonBlueprint
+  alias Arkea.Persistence.PlayerBiotope
+  alias Arkea.Repo
 
   setup %{conn: conn} do
     cleanup_owned_biotopes()

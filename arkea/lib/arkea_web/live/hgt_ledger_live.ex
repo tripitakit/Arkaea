@@ -230,8 +230,7 @@ defmodule ArkeaWeb.HGTLedgerLive do
   defp format_payload(map) when is_map(map) do
     map
     |> Enum.reject(fn {k, _} -> k in ["lineage_id", "parent_id", "tick"] end)
-    |> Enum.map(fn {k, v} -> "#{k}=#{inspect(v)}" end)
-    |> Enum.join(" · ")
+    |> Enum.map_join(" · ", fn {k, v} -> "#{k}=#{inspect(v)}" end)
   end
 
   defp format_payload(other), do: inspect(other)

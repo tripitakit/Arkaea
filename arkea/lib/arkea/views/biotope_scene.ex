@@ -172,9 +172,10 @@ defmodule Arkea.Views.BiotopeScene do
             count_raw = round(fraction * budget)
 
             count =
-              cond do
-                count_raw == 0 and abundance > 0 and used < budget * 0.75 -> 1
-                true -> count_raw
+              if count_raw == 0 and abundance > 0 and used < budget * 0.75 do
+                1
+              else
+                count_raw
               end
               |> min(budget - used)
 

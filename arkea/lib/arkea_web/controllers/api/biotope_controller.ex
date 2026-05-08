@@ -140,8 +140,7 @@ defmodule ArkeaWeb.API.BiotopeController do
       entry.actor_player_id || "",
       payload_json(entry.payload)
     ]
-    |> Enum.map(&escape_field/1)
-    |> Enum.join(",")
+    |> Enum.map_join(",", &escape_field/1)
   end
 
   defp payload_json(nil), do: "{}"

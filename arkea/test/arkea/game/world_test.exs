@@ -1,10 +1,10 @@
 defmodule Arkea.Game.WorldTest do
   use Arkea.DataCase, async: false
 
+  alias Arkea.Ecology.Phase
   alias Arkea.Game.World
   alias Arkea.Sim.Biotope.Supervisor, as: BiotopeSupervisor
   alias Arkea.Sim.BiotopeState
-  alias Arkea.Ecology.Phase
 
   test "overview repositions colliding world nodes so cards stay readable" do
     ids =

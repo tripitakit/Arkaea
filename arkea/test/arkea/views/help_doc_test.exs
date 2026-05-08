@@ -43,7 +43,7 @@ defmodule Arkea.Views.HelpDocTest do
 
     assert byte_size(html) > 1_000
     assert String.contains?(html, "<h1>")
-    assert length(headings) > 0
+    assert not Enum.empty?(headings)
     assert Enum.all?(headings, &Map.has_key?(&1, :anchor))
   end
 end

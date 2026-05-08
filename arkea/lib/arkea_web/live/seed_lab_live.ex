@@ -5,11 +5,11 @@ defmodule ArkeaWeb.SeedLabLive do
 
   use ArkeaWeb, :live_view
 
+  alias Arkea.Game.SeedLab
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
-  alias Arkea.Game.SeedLab
-  alias Arkea.Views.GenomeCanvas, as: CanvasLayout
   alias Arkea.Views.ArkeonSchematic, as: SchematicLayout
+  alias Arkea.Views.GenomeCanvas, as: CanvasLayout
   alias ArkeaWeb.Components.ArkeonSchematic
   alias ArkeaWeb.Components.GenomeCanvas
   alias ArkeaWeb.Components.Metric
@@ -1057,17 +1057,15 @@ defmodule ArkeaWeb.SeedLabLive do
           {idx, _} ->
             plasmid = Enum.at(preview.genome.plasmids, max(idx - 1, 0))
 
-            cond do
-              is_nil(plasmid) ->
-                nil
+            if is_nil(plasmid) do
+              nil
+            else
+              genes = if is_map(plasmid), do: plasmid.genes, else: plasmid
 
-              true ->
-                genes = if is_map(plasmid), do: plasmid.genes, else: plasmid
-
-                case Enum.at(genes, max(gene_index - 1, 0)) do
-                  %{id: id} -> id
-                  _ -> nil
-                end
+              case Enum.at(genes, max(gene_index - 1, 0)) do
+                %{id: id} -> id
+                _ -> nil
+              end
             end
 
           :error ->

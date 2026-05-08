@@ -63,7 +63,7 @@ defmodule Arkea.Persistence.TimeSeriesTest do
       assert {:ok, _samples} = TimeSeries.persist(Arkea.Repo, state, now)
 
       results = TimeSeries.list(state.id, repo: Arkea.Repo)
-      assert length(results) > 0
+      assert not Enum.empty?(results)
 
       ticks = results |> Enum.map(& &1.tick) |> Enum.uniq()
       assert ticks == [10]

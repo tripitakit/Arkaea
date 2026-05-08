@@ -168,7 +168,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       # Sanity: at least one infection occurred (children list reflects
       # lysogenic integrations; lytic infections do not produce children
       # but DO emit events).
-      assert length(infections) >= 1,
+      assert not Enum.empty?(infections),
              "Expected at least one :phage_infection event over 50 ticks; got #{inspect(events)}"
 
       assert Enum.all?(infections, fn e ->
@@ -215,7 +215,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       digestions = Enum.filter(events, &(&1.type == :rm_digestion))
 
-      assert length(digestions) >= 1,
+      assert not Enum.empty?(digestions),
              "Expected at least one :rm_digestion event over 50 ticks; got #{inspect(events)}"
 
       assert Enum.all?(digestions, fn e ->
@@ -273,7 +273,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       transfers = Enum.filter(events, &(&1.type == :hgt_transfer))
 
-      assert length(transfers) >= 1,
+      assert not Enum.empty?(transfers),
              "Expected at least one :hgt_transfer event over 2000 HGT.step calls"
 
       assert Enum.all?(transfers, fn e ->
@@ -324,7 +324,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       displacements = Enum.filter(events, &(&1.type == :plasmid_displaced))
 
-      assert length(displacements) >= 1,
+      assert not Enum.empty?(displacements),
              "Expected at least one :plasmid_displaced event over 2000 HGT.step calls"
 
       assert Enum.all?(displacements, fn e ->
@@ -381,7 +381,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       transductions = Enum.filter(events, &(&1.type == :transduction_event))
 
-      assert length(transductions) >= 1,
+      assert not Enum.empty?(transductions),
              "Expected at least one :transduction_event over 30 Phage.step calls"
 
       assert Enum.all?(transductions, fn e ->
@@ -426,7 +426,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
           e.type in [:hgt_transfer, :transformation_event, :phage_infection, :rm_digestion]
         end)
 
-      assert length(channel_events) >= 1,
+      assert not Enum.empty?(channel_events),
              "Expected at least one channel-emitted event in tick output over 500 ticks"
     end
 
@@ -467,7 +467,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       # Sanity: at least one transformant child fired (otherwise the
       # event assertion would pass vacuously for the wrong reason).
-      assert length(children) > 0
+      assert not Enum.empty?(children)
 
       # Every successful uptake must have produced exactly one event.
       assert length(events) == length(children)
@@ -545,7 +545,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       kills = Enum.filter(all_events, &(&1.type == :bacteriocin_kill))
 
-      assert length(kills) >= 1,
+      assert not Enum.empty?(kills),
              "Expected at least one :bacteriocin_kill event over 50 ticks; got #{inspect(Enum.map(all_events, & &1.type))}"
 
       assert Enum.all?(kills, fn e ->

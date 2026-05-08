@@ -216,7 +216,7 @@ defmodule Arkea.Sim.HGT.PhageTest do
       # With high virion abundance, R-M trivial (no enzymes), competence
       # not required for transduction → expect at least one transformant
       # carrying the donor gene at the chromosome position.
-      assert length(children) > 0
+      assert not Enum.empty?(children)
 
       child = hd(children)
 
@@ -266,7 +266,7 @@ defmodule Arkea.Sim.HGT.PhageTest do
       phage_events =
         Enum.filter(infection_events, fn e -> e.type == :phage_infection end)
 
-      assert length(children) > 0 or length(phage_events) > 0,
+      assert not Enum.empty?(children) or not Enum.empty?(phage_events),
              "Expected at least one infection product after 50 ticks"
     end
   end

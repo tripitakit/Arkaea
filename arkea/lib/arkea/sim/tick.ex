@@ -301,21 +301,19 @@ defmodule Arkea.Sim.Tick do
       phase = Map.get(primary_phase_by_lineage, lineage_id)
       phenotype = Map.get(phenotypes, lineage_id)
 
-      cond do
-        phase == nil or phenotype == nil ->
-          {lineage_id, atp}
+      if phase == nil or phenotype == nil do
+        {lineage_id, atp}
+      else
+        pool = Map.get(phase_pools, phase.name, %{})
 
-        true ->
-          pool = Map.get(phase_pools, phase.name, %{})
+        factor =
+          Xenobiotic.survival_factor(
+            pool,
+            phenotype.target_classes,
+            phenotype.efflux_capacity
+          )
 
-          factor =
-            Xenobiotic.survival_factor(
-              pool,
-              phenotype.target_classes,
-              phenotype.efflux_capacity
-            )
-
-          {lineage_id, atp * factor}
+        {lineage_id, atp * factor}
       end
     end)
   end

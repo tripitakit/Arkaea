@@ -59,10 +59,7 @@ defmodule Arkea.Genome.PDistance do
       |> add_replicon_list(a.plasmids, b.plasmids, & &1.genes)
       |> add_replicon_list(a.prophages, b.prophages, & &1.genes)
 
-    cond do
-      total == 0 -> 0.0
-      true -> mm / total
-    end
+    if total == 0, do: 0.0, else: mm / total
   end
 
   defp add_gene_list({mm, total}, list_a, list_b)

@@ -20,9 +20,9 @@ defmodule Arkea.Views.ArkeonSchematicTest do
       assert layout.viewbox =~ "0 0"
       assert layout.envelope.kind == :porous
       refute layout.envelope.double?
-      assert is_list(layout.envelope.porins) and length(layout.envelope.porins) > 0
+      assert is_list(layout.envelope.porins) and not Enum.empty?(layout.envelope.porins)
       assert layout.membrane_spans == []
-      assert is_list(layout.granules) and length(layout.granules) > 0
+      assert is_list(layout.granules) and not Enum.empty?(layout.granules)
       assert layout.plasmids == []
       assert layout.prophage == nil
       assert layout.flagellum == nil

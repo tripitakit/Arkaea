@@ -38,13 +38,11 @@ defmodule Arkea.Views.Chart do
       when is_number(d_min) and is_number(d_max) and is_number(r_min) and is_number(r_max) do
     span_d = d_max - d_min
 
-    cond do
-      span_d == 0 ->
-        fn _v -> r_min * 1.0 end
-
-      true ->
-        slope = (r_max - r_min) / span_d
-        fn v -> r_min + (clamp(v, d_min, d_max) - d_min) * slope end
+    if span_d == 0 do
+      fn _v -> r_min * 1.0 end
+    else
+      slope = (r_max - r_min) / span_d
+      fn v -> r_min + (clamp(v, d_min, d_max) - d_min) * slope end
     end
   end
 
@@ -84,19 +82,17 @@ defmodule Arkea.Views.Chart do
   def axis_ticks(min, max, opts \\ []) when is_number(min) and is_number(max) do
     target = Keyword.get(opts, :target, 6)
 
-    cond do
-      min >= max ->
-        [min]
+    if min >= max do
+      [min]
+    else
+      range = nice_number(max - min, false)
+      step = nice_number(range / max(target - 1, 1), true)
 
-      true ->
-        range = nice_number(max - min, false)
-        step = nice_number(range / max(target - 1, 1), true)
+      nice_min = :math.floor(min / step) * step
+      nice_max = :math.ceil(max / step) * step
 
-        nice_min = :math.floor(min / step) * step
-        nice_max = :math.ceil(max / step) * step
-
-        Stream.iterate(nice_min, fn t -> t + step end)
-        |> Enum.take_while(fn t -> t <= nice_max + step / 2 end)
+      Stream.iterate(nice_min, fn t -> t + step end)
+      |> Enum.take_while(fn t -> t <= nice_max + step / 2 end)
     end
   end
 

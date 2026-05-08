@@ -89,7 +89,7 @@ defmodule Arkea.Views.ChartTest do
       points = Enum.map(0..99, fn i -> {i, i * 2} end)
       bins = Chart.bin_mean(points, 10)
 
-      assert length(bins) >= 1
+      assert not Enum.empty?(bins)
       assert length(bins) <= 11
       # Means are increasing because the input is monotonic.
       ys = Enum.map(bins, &elem(&1, 1))

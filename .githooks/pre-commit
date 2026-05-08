@@ -27,6 +27,20 @@ fi
 
 cd "${arkea_dir}"
 
+# If mix isn't already on PATH, try the usual asdf shim locations
+# (the hook may run from non-interactive parents that don't source
+# the user's shell init).
+if ! command -v mix >/dev/null 2>&1; then
+  for asdf_shim in \
+    "${HOME}/.asdf/shims" \
+    "${ASDF_DATA_DIR:-}/shims"; do
+    if [ -n "${asdf_shim}" ] && [ -d "${asdf_shim}" ]; then
+      PATH="${asdf_shim}:${PATH}"
+    fi
+  done
+  export PATH
+fi
+
 if ! command -v mix >/dev/null 2>&1; then
   echo "pre-commit: 'mix' not on PATH. Either install Elixir or bypass with --no-verify." >&2
   exit 1

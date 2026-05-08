@@ -407,11 +407,11 @@ defmodule Arkea.Genome do
          genes: genes,
          inc_group: inc_group,
          copy_number: copy_number,
-         oriT_present: oriT_present
+         oriT_present: orit_present
        })
        when is_list(genes) and is_integer(inc_group) and inc_group >= 0 and
               is_integer(copy_number) and copy_number >= 1 and
-              is_boolean(oriT_present) do
+              is_boolean(orit_present) do
     valid_gene_list?(genes)
   end
 

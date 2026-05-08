@@ -152,7 +152,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
       # With abundance 5000 × competence ~0.4 × p_uptake_base 0.0006 ≈ 1.2
       # capped at 0.20 per call, P(zero successes in 20 calls × 1 fragment)
       # ≈ 0.8^20 ≈ 0.012 → at least one transformation expected.
-      assert length(children) > 0
+      assert not Enum.empty?(children)
     end
 
     test "every successful uptake consumes one fragment unit" do
@@ -229,7 +229,7 @@ defmodule Arkea.Sim.HGT.Channel.TransformationTest do
           {ls_out, ph_out, ch ++ new_children, ev ++ new_events, rng_out}
         end)
 
-      assert length(children) > 0
+      assert not Enum.empty?(children)
 
       child = hd(children)
       assert length(child.genome.chromosome) == length(recipient.genome.chromosome)
