@@ -244,7 +244,7 @@ The system exports JSON/CSV/blueprint but:
 
 - ✅ **User annotation attachable to a specific tick** — *Closed Phase 24 / 6.1*: `biotope_annotations` table (uuid, biotope_id, player_id, tick, body, timestamps); `Arkea.Notebook` context with `list_for_biotope/1`, `create/4`, `delete/2` (author-only); "Notebook" panel as the 7th bottom tab of the biotope viewport with an entry form and a per-tick list.
 - No time-anchored permalinks (link that re-opens the biotope at the state of tick X) — Phase 24
-- No event bookmark (with user label, visible on the time-series) — Phase 24
+- ✅ **Event bookmark (with user label, visible on the time-series)** — *Closed Phase 24 / 6.3*: `bookmark :: boolean` field added to `biotope_annotations` (default false, partial index `WHERE bookmark = true` for fast lookups); `Notebook.toggle_bookmark/2` flips the flag (author-only); `Notebook.list_bookmarks_for_biotope/1` returns only flagged notes; `PopulationTrajectory.build/3` and `build_trait/4` accept the bookmarks list as the third/fourth argument and render them as vertical markers on the Trends chart (solid amber line vs the dashed audit-derived ones); UI in the Notebook panel: ★/☆ button next to delete for toggling.
 - No replay with scrubbing — Phase 24
 - No FASTA-like export (codon sequences) or GFF-like (genome annotation) — Phase 27
 - No notebook-ready export (parquet, AnnData) — Phase 24

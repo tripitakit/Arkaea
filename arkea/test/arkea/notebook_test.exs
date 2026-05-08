@@ -93,4 +93,56 @@ defmodule Arkea.NotebookTest do
     assert cs.errors[:biotope_id]
     assert cs.errors[:player_id]
   end
+
+  describe "bookmarks (Phase 24 / 6.3)" do
+    test "create/5 with bookmark: true persists the flag" do
+      {biotope_id, player_id} = ids()
+
+      assert {:ok, a} =
+               Notebook.create(biotope_id, player_id, 10, "marker note", bookmark: true)
+
+      assert a.bookmark == true
+    end
+
+    test "default is bookmark: false" do
+      {biotope_id, player_id} = ids()
+      {:ok, a} = Notebook.create(biotope_id, player_id, 5, "regular note")
+      assert a.bookmark == false
+    end
+
+    test "toggle_bookmark/2 flips the flag for the author" do
+      {biotope_id, player_id} = ids()
+      {:ok, a} = Notebook.create(biotope_id, player_id, 1, "starts as note")
+      assert a.bookmark == false
+
+      assert {:ok, a2} = Notebook.toggle_bookmark(a.id, player_id)
+      assert a2.bookmark == true
+
+      assert {:ok, a3} = Notebook.toggle_bookmark(a.id, player_id)
+      assert a3.bookmark == false
+    end
+
+    test "toggle_bookmark/2 rejects non-author with :unauthorized" do
+      {biotope_id, owner} = ids()
+      {_, intruder} = ids()
+      {:ok, a} = Notebook.create(biotope_id, owner, 1, "owned by alice")
+      assert {:error, :unauthorized} = Notebook.toggle_bookmark(a.id, intruder)
+    end
+
+    test "toggle_bookmark/2 returns :not_found for missing id" do
+      {_, player_id} = ids()
+      assert {:error, :not_found} = Notebook.toggle_bookmark(Ecto.UUID.generate(), player_id)
+    end
+
+    test "list_bookmarks_for_biotope/1 returns only flagged notes, ordered by tick" do
+      {biotope_id, player_id} = ids()
+      {:ok, _plain} = Notebook.create(biotope_id, player_id, 5, "not a bookmark")
+      {:ok, b1} = Notebook.create(biotope_id, player_id, 20, "second bookmark", bookmark: true)
+      {:ok, b2} = Notebook.create(biotope_id, player_id, 10, "first bookmark", bookmark: true)
+
+      bookmarks = Notebook.list_bookmarks_for_biotope(biotope_id)
+      assert Enum.map(bookmarks, & &1.id) == [b2.id, b1.id]
+      assert Enum.all?(bookmarks, & &1.bookmark)
+    end
+  end
 end

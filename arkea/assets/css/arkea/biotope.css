@@ -622,3 +622,26 @@
   line-height: 1.45;
   white-space: pre-wrap;
 }
+
+/* Phase 24 / 6.3 — bookmark toggle button on a notebook entry. */
+
+.arkea-notebook__bookmark {
+  background: none;
+  border: 0;
+  color: rgba(226, 232, 240, 0.5);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.arkea-notebook__bookmark:hover {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.arkea-notebook__bookmark--active {
+  color: #fbbf24;
+}

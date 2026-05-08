@@ -16,6 +16,7 @@ defmodule Arkea.Views.PopulationTrajectory do
   """
 
   alias Arkea.Persistence.AuditLog
+  alias Arkea.Persistence.BiotopeAnnotation
   alias Arkea.Persistence.TimeSeriesSample
 
   @marker_event_types ~w(intervention mass_lysis mutation_notable phage_burst colonization
@@ -69,21 +70,32 @@ defmodule Arkea.Views.PopulationTrajectory do
   entries. Both lists may be empty; the result will then have
   degenerate domains `{0, 0}` and empty series — callers should
   render a "no data yet" placeholder instead of an SVG.
+
+  Phase 24 / 6.3: an optional third argument carries
+  `BiotopeAnnotation` rows that the player has flagged as
+  bookmarks; they render as additional vertical markers next to
+  the audit-derived ones, with the note body as the tooltip.
   """
   @spec build([TimeSeriesSample.t()], [AuditLog.t()]) :: t()
-  def build(samples, audit) when is_list(samples) and is_list(audit) do
+  def build(samples, audit), do: build(samples, audit, [])
+
+  @spec build([TimeSeriesSample.t()], [AuditLog.t()], [BiotopeAnnotation.t()]) :: t()
+  def build(samples, audit, bookmarks)
+      when is_list(samples) and is_list(audit) and is_list(bookmarks) do
     abundance_samples = Enum.filter(samples, fn s -> s.kind == "abundance" end)
 
     lineages = lineage_series(abundance_samples)
     {min_t, max_t} = tick_domain_for(abundance_samples)
     {min_y, max_y} = population_domain_for(lineages)
-    markers = audit |> Enum.filter(&marker?/1) |> Enum.map(&marker_for/1)
+
+    audit_markers = audit |> Enum.filter(&marker?/1) |> Enum.map(&marker_for/1)
+    bookmark_markers = Enum.map(bookmarks, &bookmark_marker_for/1)
 
     %{
       tick_domain: {min_t, max_t},
       population_domain: {min_y, max_y},
       lineages: lineages,
-      markers: markers
+      markers: audit_markers ++ bookmark_markers
     }
   end
 
@@ -139,6 +151,14 @@ defmodule Arkea.Views.PopulationTrajectory do
     }
   end
 
+  defp bookmark_marker_for(%BiotopeAnnotation{} = annotation) do
+    %{
+      tick: annotation.tick,
+      type: "bookmark",
+      payload: %{"body" => annotation.body, "annotation_id" => annotation.id}
+    }
+  end
+
   # ---------------------------------------------------------------------------
   # Phase 21 Top 5 #4 — trait tracker
 
@@ -161,21 +181,31 @@ defmodule Arkea.Views.PopulationTrajectory do
   speciation, mass lysis, SOS activation, etc.
   """
   @spec build_trait([TimeSeriesSample.t()], [AuditLog.t()], String.t()) :: trait_t()
-  def build_trait(samples, audit, trait)
-      when is_list(samples) and is_list(audit) and is_binary(trait) do
+  def build_trait(samples, audit, trait), do: build_trait(samples, audit, trait, [])
+
+  @spec build_trait(
+          [TimeSeriesSample.t()],
+          [AuditLog.t()],
+          String.t(),
+          [BiotopeAnnotation.t()]
+        ) :: trait_t()
+  def build_trait(samples, audit, trait, bookmarks)
+      when is_list(samples) and is_list(audit) and is_binary(trait) and is_list(bookmarks) do
     trait_samples = Enum.filter(samples, fn s -> s.kind == "phenotype_trait" end)
 
     lineages = trait_lineage_series(trait_samples, trait)
     {min_t, max_t} = trait_tick_domain(trait_samples)
     {min_y, max_y} = trait_value_domain(lineages)
-    markers = audit |> Enum.filter(&marker?/1) |> Enum.map(&marker_for/1)
+
+    audit_markers = audit |> Enum.filter(&marker?/1) |> Enum.map(&marker_for/1)
+    bookmark_markers = Enum.map(bookmarks, &bookmark_marker_for/1)
 
     %{
       trait: trait,
       tick_domain: {min_t, max_t},
       value_domain: {min_y, max_y},
       lineages: lineages,
-      markers: markers
+      markers: audit_markers ++ bookmark_markers
     }
   end
 

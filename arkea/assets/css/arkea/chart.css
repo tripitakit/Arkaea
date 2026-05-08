@@ -65,6 +65,15 @@
   stroke: rgba(110, 231, 183, 0.85);
 }
 
+/* Phase 24 / 6.3 — player-authored bookmark marker. Solid (no
+   dash) and slightly thicker than the audit-derived ones so a
+   note the player intentionally marked stands out from the
+   auto-emitted forensic markers. */
+.arkea-chart__marker--bookmark {
+  stroke: rgba(251, 191, 36, 0.9);
+  stroke-width: 1.5;
+}
+
 .arkea-chart__legend {
   display: flex;
   flex-wrap: wrap;

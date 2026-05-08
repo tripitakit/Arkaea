@@ -56,6 +56,7 @@ defmodule ArkeaWeb.SimLive do
        trends_samples: [],
        trends_audit: [],
        trends_trait_samples: [],
+       trends_bookmarks: [],
        selected_trait: nil,
        phylogeny_model: nil,
        notebook_annotations: [],
@@ -314,6 +315,33 @@ defmodule ArkeaWeb.SimLive do
     end
   end
 
+  # Phase 24 / 6.3 — toggle the bookmark flag on an annotation;
+  # the change becomes visible in the Trends time-series at the
+  # next chart re-render.
+  def handle_event("toggle_bookmark", %{"id" => id}, socket) do
+    biotope_id = socket.assigns.biotope_id
+    player_id = socket.assigns.current_player.id
+
+    case Arkea.Notebook.toggle_bookmark(id, player_id) do
+      {:ok, _} ->
+        {:noreply,
+         assign(socket,
+           notebook_annotations: Arkea.Notebook.list_for_biotope(biotope_id),
+           trends_bookmarks: Arkea.Notebook.list_bookmarks_for_biotope(biotope_id)
+         )}
+
+      {:error, :unauthorized} ->
+        {:noreply,
+         assign(socket, notebook_form_error: "You can only bookmark your own annotations.")}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply, assign(socket, notebook_form_error: format_changeset_error(cs))}
+    end
+  end
+
   def handle_event("recolonize_home", _params, socket) do
     case SeedLab.recolonize_home(socket.assigns.player, socket.assigns.biotope_id) do
       {:ok, %{lineage_id: lineage_id, tick: tick}} ->
@@ -494,6 +522,7 @@ defmodule ArkeaWeb.SimLive do
                       samples={@trends_samples}
                       trait_samples={@trends_trait_samples}
                       audit={@trends_audit}
+                      bookmarks={@trends_bookmarks}
                       selected_trait={@selected_trait}
                       sim_state={@sim_state}
                     />
@@ -1324,6 +1353,7 @@ defmodule ArkeaWeb.SimLive do
   attr :samples, :list, required: true
   attr :trait_samples, :list, default: []
   attr :audit, :list, required: true
+  attr :bookmarks, :list, default: []
   attr :selected_trait, :any, default: nil
   attr :sim_state, :any, default: nil
 
@@ -1371,6 +1401,7 @@ defmodule ArkeaWeb.SimLive do
         <Chart.trait_trajectory_from_samples
           samples={@trait_samples}
           audit={@audit}
+          bookmarks={@bookmarks}
           trait={@selected_trait}
         />
 
@@ -1395,6 +1426,7 @@ defmodule ArkeaWeb.SimLive do
         <Chart.population_trajectory_from_samples
           samples={@samples}
           audit={@audit}
+          bookmarks={@bookmarks}
         />
       <% end %>
     </div>
@@ -1513,6 +1545,27 @@ defmodule ArkeaWeb.SimLive do
                 <% end %>
               </span>
               <%= if a.player_id == @current_player.id do %>
+                <button
+                  type="button"
+                  phx-click="toggle_bookmark"
+                  phx-value-id={a.id}
+                  class={[
+                    "arkea-notebook__bookmark",
+                    a.bookmark && "arkea-notebook__bookmark--active"
+                  ]}
+                  title={
+                    if a.bookmark,
+                      do: "Bookmarked — click to remove from time-series",
+                      else: "Bookmark this tick on the Trends chart"
+                  }
+                  aria-label={
+                    if a.bookmark,
+                      do: "Remove bookmark",
+                      else: "Add bookmark"
+                  }
+                >
+                  {if a.bookmark, do: "★", else: "☆"}
+                </button>
                 <button
                   type="button"
                   phx-click="delete_annotation"
@@ -1912,11 +1965,15 @@ defmodule ArkeaWeb.SimLive do
       end
 
     audit = recent_audit(biotope_id)
+    # Phase 24 / 6.3 — annotation bookmarks add vertical markers on
+    # the chart next to audit-derived ones.
+    bookmarks = Arkea.Notebook.list_bookmarks_for_biotope(biotope_id)
 
     assign(socket,
       trends_samples: samples,
       trends_audit: audit,
-      trends_trait_samples: trait_samples
+      trends_trait_samples: trait_samples,
+      trends_bookmarks: bookmarks
     )
   end
 

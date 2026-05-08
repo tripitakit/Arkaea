@@ -24,6 +24,7 @@ defmodule Arkea.Persistence.BiotopeAnnotation do
           player_id: Ecto.UUID.t() | nil,
           tick: non_neg_integer() | nil,
           body: String.t() | nil,
+          bookmark: boolean() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -36,6 +37,9 @@ defmodule Arkea.Persistence.BiotopeAnnotation do
     field :player_id, :binary_id
     field :tick, :integer
     field :body, :string
+    # Phase 24 / 6.3 — when true, the annotation also surfaces on
+    # the Trends time-series as a vertical marker (tooltip = body).
+    field :bookmark, :boolean, default: false
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -49,11 +53,12 @@ defmodule Arkea.Persistence.BiotopeAnnotation do
   def body_max_length, do: @body_max_length
 
   @required [:biotope_id, :player_id, :tick, :body]
+  @optional [:bookmark]
 
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(annotation, attrs) do
     annotation
-    |> cast(attrs, @required)
+    |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
     |> validate_number(:tick, greater_than_or_equal_to: 0)
     |> update_change(:body, &normalise_body/1)

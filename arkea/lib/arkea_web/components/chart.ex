@@ -197,14 +197,18 @@ defmodule ArkeaWeb.Components.Chart do
 
   attr :samples, :list, default: []
   attr :audit, :list, default: []
+  attr :bookmarks, :list, default: []
   attr :class, :string, default: nil
 
   @doc """
   Convenience wrapper that builds a `PopulationTrajectory` view-model
   from the raw sample/audit lists and renders it.
+
+  Phase 24 / 6.3: optional `bookmarks` add vertical markers
+  derived from player annotations flagged as bookmarks.
   """
   def population_trajectory_from_samples(assigns) do
-    model = PopulationTrajectory.build(assigns.samples, assigns.audit)
+    model = PopulationTrajectory.build(assigns.samples, assigns.audit, assigns.bookmarks)
     assigns = assign(assigns, :model, model)
 
     ~H"""
@@ -379,14 +383,25 @@ defmodule ArkeaWeb.Components.Chart do
 
   attr :samples, :list, default: []
   attr :audit, :list, default: []
+  attr :bookmarks, :list, default: []
   attr :trait, :string, required: true
   attr :class, :string, default: nil
 
   @doc """
   Convenience wrapper that builds a trait trajectory model and renders it.
+
+  Phase 24 / 6.3: optional `bookmarks` add vertical markers
+  derived from player annotations flagged as bookmarks.
   """
   def trait_trajectory_from_samples(assigns) do
-    model = PopulationTrajectory.build_trait(assigns.samples, assigns.audit, assigns.trait)
+    model =
+      PopulationTrajectory.build_trait(
+        assigns.samples,
+        assigns.audit,
+        assigns.trait,
+        assigns.bookmarks
+      )
+
     assigns = assign(assigns, :model, model)
 
     ~H"""
@@ -628,6 +643,10 @@ defmodule ArkeaWeb.Components.Chart do
   defp marker_dash("mutation_notable"), do: "6 2"
   defp marker_dash("phage_burst"), do: "1 3"
   defp marker_dash("colonization"), do: "5 1 1 1"
+  # Phase 24 / 6.3 — bookmarks render as a solid (no dash) line
+  # so player-authored markers stand out from the auto-derived
+  # audit dashes.
+  defp marker_dash("bookmark"), do: nil
   defp marker_dash(_), do: "3 3"
 
   defp format_count(n) when is_integer(n) and n >= 10_000,
