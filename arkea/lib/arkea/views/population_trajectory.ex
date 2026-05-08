@@ -21,13 +21,14 @@ defmodule Arkea.Views.PopulationTrajectory do
   @marker_event_types ~w(intervention mass_lysis mutation_notable phage_burst colonization
                          sos_active mutator_emergence biofilm_formation biofilm_dispersal)
 
-  # Phase 21 Top 5 #4 — traits exposed by `kind: "phenotype_trait"`
+  # Phase 21 Top 5 #4/#5 — traits exposed by `kind: "phenotype_trait"`
   # samples. Keep this in sync with `Arkea.Persistence.TimeSeries.
-  # trait_payload/1`.
+  # trait_payload/1`. `regulatory_net_activation` (#5) is the
+  # aggregated `sigma_factor_components.net_activation`.
   @trait_keys ~w(base_growth_rate repair_efficiency energy_cost
                  dna_binding_affinity competence_score hydrolase_capacity
                  efflux_capacity structural_stability n_transmembrane
-                 biofilm_capable)
+                 biofilm_capable regulatory_net_activation)
 
   @type lineage_series :: %{
           id: String.t(),

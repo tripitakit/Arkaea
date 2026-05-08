@@ -87,7 +87,7 @@ Arkea v1 ha gap dichiarati tra ciò che il design (`devel-docs/01-DESIGN.md`) pr
 
 **Sintesi rapida** (dettaglio completo in [`devel-docs/04-CALIBRATION.md` § Limitazioni note del modello v1](devel-docs/04-CALIBRATION.md#limitazioni-note-del-modello-v1)):
 
-- **Regolazione**: `promoter_block` e `regulatory_block` non sono parsati in v1; `:regulator_output` è parsato ma non aggregato in σ; operoni non sono ancora un'unità di espressione runtime. La "regolazione" pubblicizzata è ridotta a uno scalare globale fino a Fase 25.
+- **Regolazione**: `promoter_block` e `regulatory_block` non sono parsati in v1 (Fase 25); ✅ Fase 21 #5 ha aggregato strutturalmente `:regulator_output` per gene (`Phenotype.regulatory_outputs`, `sigma_factor_components/1`, trait `regulatory_net_activation` nel Trends tab) — il *cabling* runtime nello σ scalare di `step_expression/1` resta volutamente differito a Fase 25 per preservare la calibrazione Phase 5/6/7. Operoni non sono ancora un'unità di espressione runtime fino a Fase 25.
 - **Ribosoma**: `ribosome_like = 1.0` hardcoded in v1 (non deriva dai domini); chiusura Fase 29.
 - **Coniugazione**: usa solo conteggio `:transmembrane_anchor` come proxy del pilo sex; mancano `pili_like + relaxase_like + oriT_like` espliciti fino a Fase 28.
 - **R-M**: siti di riconoscimento opachi a 4 codoni, no recognition sequence DNA modellata.

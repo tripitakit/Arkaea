@@ -406,4 +406,192 @@ defmodule Arkea.Sim.PhenotypeTest do
 
     has_oligomeric_fold and has_ligation_site
   end
+
+  # ---------------------------------------------------------------------------
+  # Phase 21 Top 5 #5 — regulatory_outputs structural aggregation.
+
+  describe "regulatory_outputs/1 (Phase 21 Top 5 #5)" do
+    @param_codons List.duplicate(10, 20)
+
+    # type_tag sum 6 → :regulator_output (index 6 in Domain.Type
+    # @types). First parameter codon even → :activator.
+    defp activator_regulator_domain do
+      Domain.new([0, 0, 6], [0 | List.duplicate(10, 19)])
+    end
+
+    # First parameter codon odd → :repressor.
+    defp repressor_regulator_domain do
+      Domain.new([0, 0, 6], [1 | List.duplicate(10, 19)])
+    end
+
+    # type_tag sum 5 → :dna_binding. High binding_affinity from
+    # all-19 codons (max).
+    defp strong_dna_binding_domain do
+      Domain.new([0, 0, 5], List.duplicate(19, 20))
+    end
+
+    # type_tag sum 7 → :ligand_sensor. signal_key = "10,10,10,10".
+    defp ligand_sensor_domain do
+      Domain.new([0, 0, 7], @param_codons)
+    end
+
+    # No regulator → empty regulatory_outputs.
+    test "genome without :regulator_output domains → regulatory_outputs == []" do
+      genome =
+        Genome.new([
+          Gene.from_domains([Domain.new([0, 0, 1], @param_codons)])
+        ])
+
+      phenotype = Phenotype.from_genome(genome)
+      assert phenotype.regulatory_outputs == []
+    end
+
+    test "single activator regulator co-located with strong dna_binding produces one entry" do
+      gene = Gene.from_domains([activator_regulator_domain(), strong_dna_binding_domain()])
+      genome = Genome.new([gene])
+      phenotype = Phenotype.from_genome(genome)
+
+      assert [entry] = phenotype.regulatory_outputs
+      assert entry.mode == :activator
+      assert entry.cooperativity >= 1.0 and entry.cooperativity <= 4.0
+      # binding_affinity is non-zero because of the co-located :dna_binding.
+      assert entry.binding_affinity > 0.0
+      # No co-located :ligand_sensor → signal_key is nil.
+      assert is_nil(entry.signal_key)
+    end
+
+    test "regulator without co-located :dna_binding has binding_affinity 0.0" do
+      gene = Gene.from_domains([activator_regulator_domain()])
+      genome = Genome.new([gene])
+      phenotype = Phenotype.from_genome(genome)
+
+      assert [entry] = phenotype.regulatory_outputs
+      assert entry.binding_affinity == 0.0
+    end
+
+    test "regulator co-located with :ligand_sensor inherits the sensor's signal_key" do
+      gene =
+        Gene.from_domains([
+          activator_regulator_domain(),
+          ligand_sensor_domain()
+        ])
+
+      genome = Genome.new([gene])
+      phenotype = Phenotype.from_genome(genome)
+
+      assert [entry] = phenotype.regulatory_outputs
+      assert entry.signal_key == "10,10,10,10"
+    end
+
+    test "regulators on separate genes do NOT cross-pollinate dna_binding / signal_key" do
+      genome =
+        Genome.new([
+          # Gene 1: activator + strong dna_binding (no sensor)
+          Gene.from_domains([activator_regulator_domain(), strong_dna_binding_domain()]),
+          # Gene 2: repressor only — no co-located partners
+          Gene.from_domains([repressor_regulator_domain()])
+        ])
+
+      phenotype = Phenotype.from_genome(genome)
+      assert length(phenotype.regulatory_outputs) == 2
+
+      activator = Enum.find(phenotype.regulatory_outputs, &(&1.mode == :activator))
+      repressor = Enum.find(phenotype.regulatory_outputs, &(&1.mode == :repressor))
+
+      # Activator inherits the binding_affinity from its own gene only.
+      assert activator.binding_affinity > 0.0
+      # Repressor in a partner-less gene has zero binding_affinity —
+      # the activator's strong dna_binding does NOT leak across genes.
+      assert repressor.binding_affinity == 0.0
+    end
+  end
+
+  describe "sigma_factor_components/1 (Phase 21 Top 5 #5)" do
+    test "empty regulatory_outputs → all zeros" do
+      # A genome without `:regulator_output` domains produces an empty
+      # `regulatory_outputs` list — `Genome.new/1` requires at least one
+      # gene, so we stage a single neutral catalytic gene.
+      neutral_gene = Gene.from_domains([Domain.new([0, 0, 1], List.duplicate(10, 20))])
+      phenotype = Phenotype.from_genome(Genome.new([neutral_gene]))
+      summary = Phenotype.sigma_factor_components(phenotype)
+
+      assert summary.net_activation == 0.0
+      assert summary.total_activation == 0.0
+      assert summary.total_repression == 0.0
+      assert summary.n_activators == 0
+      assert summary.n_repressors == 0
+    end
+
+    test "balanced regulator: 1 activator + 1 repressor with same magnitude → net_activation ≈ 0" do
+      summary =
+        Phenotype.sigma_factor_components(%Phenotype{
+          base_growth_rate: 0.0,
+          substrate_affinities: %{},
+          energy_cost: 0.0,
+          surface_tags: [],
+          repair_efficiency: 0.0,
+          structural_stability: 0.0,
+          n_transmembrane: 0,
+          dna_binding_affinity: 0.0,
+          regulatory_outputs: [
+            %{mode: :activator, cooperativity: 2.0, binding_affinity: 0.5, signal_key: nil},
+            %{mode: :repressor, cooperativity: 2.0, binding_affinity: 0.5, signal_key: nil}
+          ]
+        })
+
+      assert summary.net_activation == 0.0
+      assert summary.total_activation == 1.0
+      assert summary.total_repression == 1.0
+      assert summary.n_activators == 1
+      assert summary.n_repressors == 1
+    end
+
+    test "pure activator → positive net_activation, zero repression" do
+      summary =
+        Phenotype.sigma_factor_components(%Phenotype{
+          base_growth_rate: 0.0,
+          substrate_affinities: %{},
+          energy_cost: 0.0,
+          surface_tags: [],
+          repair_efficiency: 0.0,
+          structural_stability: 0.0,
+          n_transmembrane: 0,
+          dna_binding_affinity: 0.0,
+          regulatory_outputs: [
+            %{mode: :activator, cooperativity: 3.0, binding_affinity: 0.4, signal_key: nil}
+          ]
+        })
+
+      assert_in_delta summary.net_activation, 1.2, 1.0e-9
+      assert_in_delta summary.total_activation, 1.2, 1.0e-9
+      assert summary.total_repression == 0.0
+      assert summary.n_activators == 1
+      assert summary.n_repressors == 0
+    end
+  end
+
+  property "regulatory_outputs entries respect their schema" do
+    check all(g <- genome(), max_runs: 100) do
+      phenotype = Phenotype.from_genome(g)
+
+      for entry <- phenotype.regulatory_outputs do
+        assert entry.mode in [:activator, :repressor]
+        assert is_float(entry.cooperativity)
+        assert entry.cooperativity >= 1.0 and entry.cooperativity <= 4.0
+        assert is_float(entry.binding_affinity)
+        assert entry.binding_affinity >= 0.0 and entry.binding_affinity <= 1.0
+        assert is_nil(entry.signal_key) or is_binary(entry.signal_key)
+      end
+    end
+  end
+
+  property "sigma_factor_components net_activation ≡ total_activation − total_repression" do
+    check all(g <- genome(), max_runs: 100) do
+      phenotype = Phenotype.from_genome(g)
+      summary = Phenotype.sigma_factor_components(phenotype)
+      delta = summary.total_activation - summary.total_repression
+      # Float comparison with tolerance
+      assert_in_delta summary.net_activation, delta, 1.0e-9
+    end
+  end
 end

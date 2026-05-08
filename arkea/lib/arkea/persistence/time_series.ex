@@ -298,6 +298,8 @@ defmodule Arkea.Persistence.TimeSeries do
   end
 
   defp trait_payload(%Phenotype{} = phenotype) do
+    sigma = Phenotype.sigma_factor_components(phenotype)
+
     %{
       "base_growth_rate" => phenotype.base_growth_rate,
       "repair_efficiency" => phenotype.repair_efficiency,
@@ -308,7 +310,11 @@ defmodule Arkea.Persistence.TimeSeries do
       "efflux_capacity" => phenotype.efflux_capacity,
       "structural_stability" => phenotype.structural_stability,
       "n_transmembrane" => phenotype.n_transmembrane,
-      "biofilm_capable" => phenotype.biofilm_capable?
+      "biofilm_capable" => phenotype.biofilm_capable?,
+      # Phase 21 Top 5 #5: aggregated regulatory output strength as a
+      # plottable trait. Positive = net activator pressure; negative =
+      # net repressor pressure; zero = balanced or no regulators.
+      "regulatory_net_activation" => sigma.net_activation
     }
   end
 

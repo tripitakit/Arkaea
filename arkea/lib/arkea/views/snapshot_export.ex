@@ -101,6 +101,7 @@ defmodule Arkea.Views.SnapshotExport do
 
   defp phenotype_export(genome) do
     %Phenotype{} = phenotype = Phenotype.from_genome(genome)
+    sigma = Phenotype.sigma_factor_components(phenotype)
 
     %{
       base_growth_rate: phenotype.base_growth_rate,
@@ -120,7 +121,23 @@ defmodule Arkea.Views.SnapshotExport do
         end),
       biofilm_capable?: phenotype.biofilm_capable?,
       hydrolase_capacity: phenotype.hydrolase_capacity,
-      efflux_capacity: phenotype.efflux_capacity
+      efflux_capacity: phenotype.efflux_capacity,
+      regulatory_outputs:
+        Enum.map(phenotype.regulatory_outputs, fn entry ->
+          %{
+            mode: Atom.to_string(entry.mode),
+            cooperativity: entry.cooperativity,
+            binding_affinity: entry.binding_affinity,
+            signal_key: entry.signal_key
+          }
+        end),
+      sigma_factor_components: %{
+        net_activation: sigma.net_activation,
+        total_activation: sigma.total_activation,
+        total_repression: sigma.total_repression,
+        n_activators: sigma.n_activators,
+        n_repressors: sigma.n_repressors
+      }
     }
   end
 

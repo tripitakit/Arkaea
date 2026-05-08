@@ -87,7 +87,7 @@ Arkea v1 has declared gaps between what the design (`devel-docs/01-DESIGN.en.md`
 
 **Quick summary** (full detail in [`devel-docs/04-CALIBRATION.en.md` § Known v1 model limitations](devel-docs/04-CALIBRATION.en.md#known-v1-model-limitations)):
 
-- **Regulation**: `promoter_block` and `regulatory_block` are not parsed in v1; `:regulator_output` is parsed but not aggregated into σ; operons are not yet a runtime expression unit. The advertised "regulation" is reduced to a global scalar until Phase 25.
+- **Regulation**: `promoter_block` and `regulatory_block` are not parsed in v1 (Phase 25); ✅ Phase 21 #5 added per-gene structural aggregation of `:regulator_output` (`Phenotype.regulatory_outputs`, `sigma_factor_components/1`, new `regulatory_net_activation` trait in the Trends tab) — runtime cabling into `step_expression/1`'s σ scalar is deliberately deferred to Phase 25 to preserve Phase 5/6/7 calibration. Operons are not yet a runtime expression unit until Phase 25.
 - **Ribosome**: `ribosome_like = 1.0` hardcoded in v1 (not derived from domains); closure Phase 29.
 - **Conjugation**: uses only `:transmembrane_anchor` count as a proxy for the sex pilus; explicit `pili_like + relaxase_like + oriT_like` absent until Phase 28.
 - **R-M**: recognition sites opaque at 4 codons, no modelled DNA recognition sequence.

@@ -143,6 +143,36 @@ defmodule Arkea.Sim.Phenotype do
     enjoy a per-tick dilution discount in `Tick.step_environment/1`
     — the analogue of the protective EPS layer that shields biofilm
     members from chemostat washout.
+
+  - `regulatory_outputs` — list of regulatory-output entries derived
+    from genes that carry a `:regulator_output` domain (Phase 21 Top
+    5 #5 — 01-DESIGN.md Block 5 generative regulation). Each entry
+    summarises one transcription-factor-like activity inferred from
+    the gene's domain composition:
+
+      - `mode :: :activator | :repressor` — from the
+        `:regulator_output` domain itself.
+      - `cooperativity :: 1.0..4.0` — from the `:regulator_output`.
+      - `binding_affinity :: 0.0..1.0` — mean of any co-located
+        `:dna_binding` `binding_affinity`s in the same gene; `0.0`
+        when the gene has no `:dna_binding` (an output without a
+        promoter targeting cassette can still encode a regulatory
+        intent — e.g. a small RNA — but its operational strength is
+        proportional to the dna-binding it co-occurs with).
+      - `signal_key :: binary() | nil` — first `:ligand_sensor`
+        `signal_key` co-located in the same gene; `nil` when the
+        gene has no sensor co-located. This is the closest analogue
+        of the *input* of a two-component regulatory system (the
+        ligand sensor head) bundled with the output domain on the
+        same polypeptide.
+
+    The list is *strictly structural* in v1: it lets downstream
+    views (Fase 25 regulatory network) reason about the regulator
+    cassette of every lineage without firing it through the σ
+    scalar at runtime. The runtime cabling is deliberately deferred
+    to keep Phase 5/6/7 calibration intact (`step_expression/1`
+    still uses `dna_binding_affinity` as its single σ contribution).
+    See `sigma_factor_components/1` for the aggregated summary.
   """
 
   use TypedStruct
@@ -157,6 +187,29 @@ defmodule Arkea.Sim.Phenotype do
   # collides with the opaque `MapSet.t()` argument expected by
   # `MapSet.union/2`. The runtime contract is upheld by construction.
   @dialyzer {:no_opaque, [detoxify_targets: 1]}
+
+  @typedoc """
+  One entry in `Phenotype.regulatory_outputs`. Phase 21 Top 5 #5
+  structural aggregation of `:regulator_output` domains.
+  """
+  @type regulatory_output_entry :: %{
+          mode: :activator | :repressor,
+          cooperativity: float(),
+          binding_affinity: float(),
+          signal_key: binary() | nil
+        }
+
+  @typedoc """
+  Aggregated summary of a phenotype's regulatory_outputs, computed by
+  `sigma_factor_components/1`.
+  """
+  @type sigma_components :: %{
+          net_activation: float(),
+          total_activation: float(),
+          total_repression: float(),
+          n_activators: non_neg_integer(),
+          n_repressors: non_neg_integer()
+        }
 
   typedstruct enforce: true do
     field :base_growth_rate, float()
@@ -177,6 +230,7 @@ defmodule Arkea.Sim.Phenotype do
     field :hydrolase_capacity, float(), default: 0.0
     field :efflux_capacity, float(), default: 0.0
     field :biofilm_capable?, boolean(), default: false
+    field :regulatory_outputs, [regulatory_output_entry()], default: []
   end
 
   @doc """
@@ -201,8 +255,59 @@ defmodule Arkea.Sim.Phenotype do
         target_classes: target_classes(genome),
         hydrolase_capacity: hydrolase_capacity(genome),
         efflux_capacity: efflux_capacity(genome),
-        biofilm_capable?: biofilm_capable?(domains)
+        biofilm_capable?: biofilm_capable?(domains),
+        regulatory_outputs: regulatory_outputs(genome)
     }
+  end
+
+  @doc """
+  Aggregate the phenotype's `regulatory_outputs` list into a sigma-
+  components summary (Phase 21 Top 5 #5).
+
+  For every regulatory-output entry, the *contribution magnitude* is
+  `cooperativity × binding_affinity` — an activator with strong
+  binding produces a large positive contribution; a repressor of the
+  same shape produces a same-magnitude negative one. The summary
+  exposes the sign-aware sum (`net_activation`) plus the
+  unsigned activator / repressor totals so future callers can
+  distinguish "balanced regulator" (net ≈ 0, activations & repressions
+  large) from "neutral regulator" (everything zero).
+
+  Pure: derived deterministically from the phenotype.
+  """
+  @spec sigma_factor_components(t()) :: sigma_components()
+  def sigma_factor_components(%__MODULE__{regulatory_outputs: regs}) when is_list(regs) do
+    Enum.reduce(
+      regs,
+      %{
+        net_activation: 0.0,
+        total_activation: 0.0,
+        total_repression: 0.0,
+        n_activators: 0,
+        n_repressors: 0
+      },
+      fn entry, acc ->
+        contrib = entry.cooperativity * entry.binding_affinity
+
+        case entry.mode do
+          :activator ->
+            %{
+              acc
+              | net_activation: acc.net_activation + contrib,
+                total_activation: acc.total_activation + contrib,
+                n_activators: acc.n_activators + 1
+            }
+
+          :repressor ->
+            %{
+              acc
+              | net_activation: acc.net_activation - contrib,
+                total_repression: acc.total_repression + contrib,
+                n_repressors: acc.n_repressors + 1
+            }
+        end
+      end
+    )
   end
 
   @doc """
@@ -486,6 +591,58 @@ defmodule Arkea.Sim.Phenotype do
     Enum.any?(domains, fn d -> d.type == :dna_binding end)
   end
 
+  # Phase 21 Top 5 #5 — derive one regulatory-output entry per
+  # `:regulator_output` domain in the genome, enriching it with the
+  # binding affinity and signal key of any co-located `:dna_binding`
+  # / `:ligand_sensor` partners on the same gene. The list is the
+  # structural surface that future callers (Fase 25 regulatory
+  # network view) consume; runtime σ wiring stays scalar in v1.
+  @spec regulatory_outputs(Genome.t()) :: [regulatory_output_entry()]
+  def regulatory_outputs(%Genome{} = genome) do
+    genome
+    |> Genome.all_genes()
+    |> Enum.flat_map(&gene_regulatory_outputs/1)
+  end
+
+  defp gene_regulatory_outputs(%Gene{domains: domains}) do
+    reg_domains = Enum.filter(domains, fn d -> d.type == :regulator_output end)
+
+    if reg_domains == [] do
+      []
+    else
+      binding_affinity = mean_binding_affinity(domains)
+      signal_key = first_signal_key(domains)
+
+      Enum.map(reg_domains, fn d ->
+        %{
+          mode: d.params[:mode],
+          cooperativity: d.params[:cooperativity] || 1.0,
+          binding_affinity: binding_affinity,
+          signal_key: signal_key
+        }
+      end)
+    end
+  end
+
+  defp mean_binding_affinity(domains) do
+    affinities =
+      domains
+      |> Enum.filter(fn d -> d.type == :dna_binding end)
+      |> Enum.map(fn d -> d.params[:binding_affinity] || 0.0 end)
+
+    case affinities do
+      [] -> 0.0
+      _ -> Enum.sum(affinities) / length(affinities)
+    end
+  end
+
+  defp first_signal_key(domains) do
+    domains
+    |> Enum.find_value(nil, fn d ->
+      if d.type == :ligand_sensor, do: d.params[:signal_key], else: nil
+    end)
+  end
+
   defp catalytic_signal_keys_by_reaction(%Gene{domains: domains}, reaction_class) do
     domains
     |> Enum.filter(fn d ->
@@ -567,8 +724,13 @@ defmodule Arkea.Sim.Phenotype do
     %{acc | qs_receives: [{sig_key, threshold} | acc.qs_receives]}
   end
 
-  # All other domain types (regulator_output, channel_pore, etc.)
-  # are parsed but not yet aggregated into the phenotype.
+  # All other domain types (channel_pore, etc.) are parsed but not
+  # yet aggregated into the phenotype at the *domain* level.
+  #
+  # `:regulator_output` is intentionally not aggregated here — it
+  # requires *gene-level* context (its `:dna_binding` /
+  # `:ligand_sensor` co-partners) and is materialised by
+  # `regulatory_outputs/1` instead.
   defp aggregate_domain(_type, _params, acc), do: acc
 
   defp build_phenotype(acc) do
