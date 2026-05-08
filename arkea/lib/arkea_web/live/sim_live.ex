@@ -494,6 +494,26 @@ defmodule ArkeaWeb.SimLive do
         >
           ⤓
         </a>
+        <a
+          :if={@sim_state}
+          href={~p"/api/biotopes/#{@biotope_id}/notebook-export.csv"}
+          class="arkea-biotope__header-btn"
+          title="Download long-format CSV of phenotype-trait time-series (pandas / polars ready)"
+          aria-label="Download notebook CSV"
+          download
+        >
+          .csv
+        </a>
+        <a
+          :if={@sim_state}
+          href={~p"/api/biotopes/#{@biotope_id}/notebook-export.jsonl"}
+          class="arkea-biotope__header-btn"
+          title="Download NDJSON of annotations + traits + audit (one record per line, polars / streaming ready)"
+          aria-label="Download notebook NDJSON"
+          download
+        >
+          .jsonl
+        </a>
         <.link
           :if={@sim_state}
           navigate={~p"/biotopes/#{@biotope_id}/hgt-ledger"}

@@ -48,6 +48,48 @@ defmodule ArkeaWeb.API.BiotopeControllerTest do
              "occurred_at,occurred_at_tick,event_type,target_lineage_id,actor_player_id,payload_json"
   end
 
+  describe "Phase 24 / 6.8 — notebook exports" do
+    test "GET /api/biotopes/:id/notebook-export.csv returns long-format trait CSV", %{
+      conn: conn,
+      biotope_id: id
+    } do
+      conn = get(conn, ~p"/api/biotopes/#{id}/notebook-export.csv")
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-type") |> List.first() =~ "text/csv"
+      assert get_resp_header(conn, "content-disposition") |> List.first() =~ "notebook-#{id}.csv"
+
+      body = response(conn, 200)
+      [header | _] = String.split(body, "\n")
+      assert header == "tick,lineage_id,trait,value"
+    end
+
+    test "GET /api/biotopes/:id/notebook-export.jsonl returns NDJSON with header", %{
+      conn: conn,
+      biotope_id: id
+    } do
+      conn = get(conn, ~p"/api/biotopes/#{id}/notebook-export.jsonl")
+      assert conn.status == 200
+
+      assert get_resp_header(conn, "content-type") |> List.first() =~ "application/x-ndjson"
+
+      assert get_resp_header(conn, "content-disposition") |> List.first() =~
+               "notebook-#{id}.jsonl"
+
+      body = response(conn, 200)
+      # Empty body is acceptable on a freshly-provisioned biotope
+      # (no annotations / no samples / no audit yet); when present,
+      # every non-empty line must parse as JSON with the documented
+      # `record_type` discriminator.
+      lines = body |> String.split("\n", trim: true)
+
+      for line <- lines do
+        decoded = Jason.decode!(line)
+        assert decoded["record_type"] in ["annotation", "phenotype_trait", "audit_event"]
+        assert decoded["biotope_id"] == id
+      end
+    end
+  end
+
   defp provision_test_biotope do
     SeedLab.provision_home(%{
       "seed_name" => "Export Test",

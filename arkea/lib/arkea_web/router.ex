@@ -60,6 +60,10 @@ defmodule ArkeaWeb.Router do
 
     get "/biotopes/:id/snapshot", BiotopeController, :snapshot
     get "/biotopes/:id/audit", BiotopeController, :audit
+    # Phase 24 / 6.8 — notebook-ready exports for direct ingestion
+    # in pandas / polars / scanpy.
+    get "/biotopes/:id/notebook-export.csv", BiotopeController, :notebook_export_csv
+    get "/biotopes/:id/notebook-export.jsonl", BiotopeController, :notebook_export_jsonl
     get "/blueprints/:id", BlueprintController, :show
   end
 
