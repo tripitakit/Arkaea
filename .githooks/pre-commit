@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook — refuse a commit when any tracked Elixir source under
+# `arkea/` is not formatted according to `arkea/.formatter.exs`.
+#
+# Mirrors the GitHub Actions `mix format --check-formatted` step, so what
+# CI rejects this hook rejects locally — first.
+#
+# Activation (one-time per clone):
+#   git config core.hooksPath .githooks
+#
+# Bypass for an emergency commit (the next CI run will still flag it):
+#   git commit --no-verify
+#
+
+set -euo pipefail
+
+# Find the repo root so the hook works regardless of where `git commit`
+# is invoked from.
+repo_root="$(git rev-parse --show-toplevel)"
+arkea_dir="${repo_root}/arkea"
+
+if [ ! -f "${arkea_dir}/mix.exs" ]; then
+  echo "pre-commit: ${arkea_dir}/mix.exs not found — skipping format check." >&2
+  exit 0
+fi
+
+cd "${arkea_dir}"
+
+if ! command -v mix >/dev/null 2>&1; then
+  echo "pre-commit: 'mix' not on PATH. Either install Elixir or bypass with --no-verify." >&2
+  exit 1
+fi
+
+if ! mix format --check-formatted; then
+  cat >&2 <<EOF
+
+pre-commit: 'mix format --check-formatted' failed.
+
+Run
+
+    (cd arkea && mix format)
+
+re-stage the affected files, and commit again. Bypass with --no-verify only
+if you understand that CI will reject the same files.
+
+EOF
+  exit 1
+fi
+
+exit 0

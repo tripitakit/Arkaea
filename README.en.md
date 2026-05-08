@@ -45,6 +45,12 @@ Then open [`localhost:4000`](http://localhost:4000) and create a player from rou
 
 Requirements: Erlang 28.x · Elixir 1.19.x · PostgreSQL ≥14.
 
+Once per clone, enable the versioned git hooks (pre-commit formatter check, aligned with CI):
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## License
 
 [GNU General Public License v3.0](LICENSE) (GPL-3.0).

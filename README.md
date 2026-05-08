@@ -45,6 +45,12 @@ Apri [`localhost:4000`](http://localhost:4000) e crea un player dalla route `/`.
 
 Requisiti: Erlang 28.x · Elixir 1.19.x · PostgreSQL ≥14.
 
+Una volta sola per clone, attiva i git hook versionati (formatter check pre-commit, allineato al CI):
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Licenza
 
 [GNU General Public License v3.0](LICENSE) (GPL-3.0).
