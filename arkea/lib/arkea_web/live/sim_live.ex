@@ -52,6 +52,7 @@ defmodule ArkeaWeb.SimLive do
        lineage_sort: :abundance,
        bottom_tab: :events,
        selected_lineage_id: nil,
+       compare_lineage_id: nil,
        trends_samples: [],
        trends_audit: [],
        trends_trait_samples: [],
@@ -240,6 +241,26 @@ defmodule ArkeaWeb.SimLive do
     {:noreply, assign(socket, selected_lineage_id: nil)}
   end
 
+  # Phase 22 / 2.3a — pin the currently-selected lineage as the
+  # compare target so the next selection can be diff'd against it.
+  # Toggles: clicking again on the already-pinned lineage clears the
+  # compare slot.
+  def handle_event("pin_compare", %{"id" => id}, socket) do
+    next =
+      cond do
+        is_nil(socket.assigns.sim_state) -> nil
+        socket.assigns.compare_lineage_id == id -> nil
+        Enum.any?(socket.assigns.sim_state.lineages, &(&1.id == id)) -> id
+        true -> nil
+      end
+
+    {:noreply, assign(socket, compare_lineage_id: next)}
+  end
+
+  def handle_event("clear_compare", _params, socket) do
+    {:noreply, assign(socket, compare_lineage_id: nil)}
+  end
+
   def handle_event("recolonize_home", _params, socket) do
     case SeedLab.recolonize_home(socket.assigns.player, socket.assigns.biotope_id) do
       {:ok, %{lineage_id: lineage_id, tick: tick}} ->
@@ -374,6 +395,8 @@ defmodule ArkeaWeb.SimLive do
                 lineage={@selected_lineage}
                 phenotype_cache={@phenotype_cache}
                 biotope_id={@biotope_id}
+                sim_state={@sim_state}
+                compare_lineage_id={@compare_lineage_id}
               />
             </aside>
 
@@ -578,18 +601,31 @@ defmodule ArkeaWeb.SimLive do
   attr :lineage, :map, required: true
   attr :phenotype_cache, :map, required: true
   attr :biotope_id, :string, required: true
+  attr :sim_state, :any, default: nil
+  attr :compare_lineage_id, :string, default: nil
 
   defp lineage_drawer(assigns) do
     phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
     cluster = phenotype_cluster(phenotype)
     abundance = Lineage.total_abundance(assigns.lineage)
+    compare_lineage = find_compare_lineage(assigns.sim_state, assigns.compare_lineage_id)
+
+    diff =
+      cond do
+        is_nil(compare_lineage) -> nil
+        compare_lineage.id == assigns.lineage.id -> nil
+        true -> Arkea.Views.GenomeDiff.build(compare_lineage.genome, assigns.lineage.genome)
+      end
 
     assigns =
       assign(assigns,
         phenotype: phenotype,
         cluster: cluster,
         abundance: abundance,
-        color: lineage_color(assigns.lineage.id, phenotype)
+        color: lineage_color(assigns.lineage.id, phenotype),
+        compare_lineage: compare_lineage,
+        diff: diff,
+        is_compare_pinned?: assigns.compare_lineage_id == assigns.lineage.id
       )
 
     ~H"""
@@ -629,10 +665,38 @@ defmodule ArkeaWeb.SimLive do
             </li>
           </ul>
         </div>
+
+        <%= if @diff do %>
+          <div class="arkea-drawer__section">
+            <div class="arkea-drawer__section-title">
+              Genome diff vs <code>{short_id(@compare_lineage.id)}</code>
+            </div>
+            <.genome_diff_summary diff={@diff} />
+          </div>
+        <% end %>
       </:body>
       <:footer>
         <.arkea_button variant="ghost" size="sm" phx-click="close_drawer">
           Close
+        </.arkea_button>
+        <.arkea_button
+          :if={not @is_compare_pinned?}
+          variant="secondary"
+          size="sm"
+          phx-click="pin_compare"
+          phx-value-id={@lineage.id}
+          title="Pin this lineage as the compare target; the next selection will be diff'd against it"
+        >
+          Pin as compare
+        </.arkea_button>
+        <.arkea_button
+          :if={@is_compare_pinned?}
+          variant="secondary"
+          size="sm"
+          phx-click="clear_compare"
+          title="Clear the pinned compare target"
+        >
+          Unpin compare
         </.arkea_button>
         <.arkea_button
           variant="secondary"
@@ -1834,6 +1898,97 @@ defmodule ArkeaWeb.SimLive do
   # Phase 22 / 2.4: `chemistry_matrix/1`, `@metabolites`, `met_abbr/1`
   # and `@met_abbrs` are gone — replaced by the pure
   # `Arkea.Views.MetabolicMap` and its `metabolite_label/1` helper.
+
+  # Phase 22 / 2.3a — compare-target lookup + genome diff summary.
+
+  defp find_compare_lineage(nil, _id), do: nil
+  defp find_compare_lineage(_state, nil), do: nil
+
+  defp find_compare_lineage(state, id) do
+    Enum.find(state.lineages, &(&1.id == id))
+  end
+
+  attr :diff, :map, required: true
+
+  defp genome_diff_summary(assigns) do
+    ~H"""
+    <%= if @diff.identical? do %>
+      <p class="arkea-muted" style="margin: 0;">
+        Genomes are identical at the gene level (same canonical codon
+        sequences, same plasmid identities, same prophage cassettes).
+      </p>
+    <% else %>
+      <ul class="arkea-drawer__kv">
+        <li>
+          <span>Chromosome</span>
+          <span>
+            {length(@diff.chromosome.shared)} shared · {length(@diff.chromosome.a_only)} only-in-pinned · {length(
+              @diff.chromosome.b_only
+            )} only-in-selected
+          </span>
+        </li>
+        <li>
+          <span>Plasmids</span>
+          <span>
+            {length(@diff.plasmids.shared)} shared · {length(@diff.plasmids.a_only)} only-in-pinned · {length(
+              @diff.plasmids.b_only
+            )} only-in-selected
+          </span>
+        </li>
+        <li>
+          <span>Prophages</span>
+          <span>
+            {length(@diff.prophages.shared)} shared · {length(@diff.prophages.a_only)} only-in-pinned · {length(
+              @diff.prophages.b_only
+            )} only-in-selected
+          </span>
+        </li>
+      </ul>
+
+      <p class="arkea-muted" style="margin: 0.6rem 0 0.3rem;">
+        <strong>Phenotype Δ</strong> (selected − pinned):
+      </p>
+      <ul class="arkea-drawer__kv">
+        <li>
+          <span>µ (h⁻¹)</span><span>{format_signed(@diff.phenotype_delta.base_growth_rate, 4)}</span>
+        </li>
+        <li>
+          <span>ε (repair)</span><span>{format_signed(@diff.phenotype_delta.repair_efficiency, 4)}</span>
+        </li>
+        <li>
+          <span>E (ATP)</span><span>{format_signed(@diff.phenotype_delta.energy_cost, 4)}</span>
+        </li>
+        <li>
+          <span>n_TM</span><span>{format_signed_int(@diff.phenotype_delta.n_transmembrane)}</span>
+        </li>
+        <li>
+          <span>DNA-binding</span><span>{format_signed(@diff.phenotype_delta.dna_binding_affinity, 4)}</span>
+        </li>
+        <li>
+          <span>Hydrolase</span><span>{format_signed(@diff.phenotype_delta.hydrolase_capacity, 4)}</span>
+        </li>
+        <li>
+          <span>Efflux</span><span>{format_signed(@diff.phenotype_delta.efflux_capacity, 4)}</span>
+        </li>
+        <li :if={@diff.phenotype_delta.biofilm_capable_changed}>
+          <span>Biofilm</span><span>flipped</span>
+        </li>
+      </ul>
+    <% end %>
+    """
+  end
+
+  defp format_signed(v, decimals) when is_number(v) do
+    cond do
+      v > 0 -> "+" <> format_float(v, decimals)
+      v < 0 -> format_float(v, decimals)
+      true -> "0"
+    end
+  end
+
+  defp format_signed_int(0), do: "0"
+  defp format_signed_int(v) when is_integer(v) and v > 0, do: "+#{v}"
+  defp format_signed_int(v) when is_integer(v), do: Integer.to_string(v)
 
   defp shannon_diversity([], _phase_name), do: 0.0
 
