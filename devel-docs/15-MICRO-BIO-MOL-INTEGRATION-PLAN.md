@@ -270,18 +270,27 @@ Sequenza che bilancia *quick wins ad alta visibilità* (Fase 21–22), *fondamen
 
 ---
 
-### Fase 25 — Operoni e regolazione (fondamenta molecolari)
+### Fase 25 — Operoni e regolazione (fondamenta molecolari) ✅ DONE (tag `phase-25`)
 
-**Goal**: chiudere il principale gap di credibilità del modello molecolare.
+**Split deliberato (2026-05-08)**: la Fase 25 originale aveva 6 sotto-tracce mescolando *strutturali* (additive, basso rischio) e *runtime-cabling* (alto rischio sulla calibrazione Phase 5/6/7). Per "fare le cose per bene" ho splittato in due tranche e consegnato la prima:
 
-- Traccia 7.2 (Operon module + espressione coordinata) — **dipendenza per 2.5**
-- Traccia 7.3 (`promoter_block` + `regulatory_block` strict subset) — **dipendenza per 5.8 KD**
-- Traccia 2.5 (network regolatorio molecolare) — sblocca dopo 7.1+7.2+7.3
-- Traccia 2.2 (espressione per-gene per-tick)
-- Traccia 3.1, 3.2, 3.3, 3.4, 3.5 (filogenesi avanzata)
-- Traccia 7.6 (SOS threshold derivato da `:ligand_sensor`)
+**Phase 25 (consegnata)** — 5 sub-deliverable strutturali / view-layer additivi:
 
-**Effort**: ~3 settimane. **Rischio**: medio-alto (modifica strutturale al fenotipo). Richiede property-test estesi su invarianti evolutivi.
+- ✅ Traccia 7.2a (`Arkea.Genome.Operon` — grouping helper)
+- ✅ Traccia 7.3 (`Arkea.Genome.Regulation` — parser promoter/riboswitch)
+- ✅ Traccia 2.5 (`Arkea.Views.RegulatoryNetwork` — graph builder)
+- ✅ Traccia 3.1/3.4/3.5 (`Phylogeny.enrich_with_branch_metrics/2` + `colour_by_trait/2`)
+- ✅ Traccia 2.2 (`Arkea.Views.GeneExpression.derive/2` — per-gene view)
+- Plus: smoke test E2E
+
+Zero impatto runtime — Phase 5/6/7 calibration intatta. Le 5 tracce sono già consumabili da Fase 26 (codon viewer / ancestral reconstruction).
+
+**Phase 25.5 (deferred)** — runtime cabling:
+
+- Traccia 7.2b (operon-aware σ in `Tick.step_expression/1`; kcat scaling polycistronico per i membri)
+- Traccia 7.6 (SOS threshold derivato dai `:ligand_sensor(:dna_damage)` del lignaggio invece della costante modulo-level)
+
+Questa tranche è esplicitamente *invasiva* sul runtime e va affrontata con cura dedicata: pre-scrittura di property-test sugli invarianti evolutivi, calibration dance per non rompere Phase 5/6/7, possibile config flag a 0-effetto di default per soft-rollout. Effort stimato 1-2 settimane in una sessione dedicata.
 
 ---
 
