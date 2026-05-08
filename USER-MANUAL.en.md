@@ -92,7 +92,7 @@ Arkea v1 has declared gaps between what the design (`devel-docs/01-DESIGN.en.md`
 - **Conjugation**: uses only `:transmembrane_anchor` count as a proxy for the sex pilus; explicit `pili_like + relaxase_like + oriT_like` absent until Phase 28.
 - **R-M**: recognition sites opaque at 4 codons, no modelled DNA recognition sequence.
 - **SOS threshold**: global constant, does not evolve with lineage sensitivity.
-- **Silent audit events**: 14 event categories (HGT split by channel, R-M digestion, bacteriocin kill, SOS, mutator emergence, error catastrophe, biofilm, migration, domain flip, gene chimera) are not yet emitted — closure **in Phase 21**.
+- **Audit events**: 8/14 categories already emitted and visible in the ledger (HGT split by channel including `conjugation`, `transformation_event`, `transduction_event`, `phage_infection`, `rm_digestion`, `plasmid_displaced`, `bacteriocin_kill`, `error_catastrophe_death`). Still to close: `sos_active`, `mutator_emergence`, `biofilm_formation`/`_dispersal`, `migration_pulse` in Phase 21 #3; `domain_flip`, `gene_chimera_birth` in Phase 26.
 - **Player interventions**: only 4 types at the phase level, no guided mutagenesis / KO / KD / heterologous expression / mutagenic pulse until Phase 27.
 - **Analysis tools**: no trait tracker time-series, no genome diff between lineages, no codon-level viewer, no regulatory network until Phase 22+25+26.
 - **Lab notebook**: no annotations, time-anchored permalinks, replay scrubbing, FASTA/GFF export until Phase 24+27.

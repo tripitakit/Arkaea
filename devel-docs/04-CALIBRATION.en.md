@@ -180,26 +180,26 @@ This section **honestly declares the gaps between what the design promises (`01-
 
 ### L2. Missing audit events (silent mechanisms)
 
-The following mechanisms are already implemented in the sim core but **do not emit identifiable audit events**, so `HGTLedgerLive` and `AuditLive` expose a reduced surface.
+Status of the 14 audit-event categories identified in the user reviews. `✅` = closed (event emitted, persisted via `Arkea.Persistence.AuditWriter`, visible in the ledger).
 
-| ID | Expected event | Emitting file | Current visibility |
+| ID | Event | Emitting file | Status |
 |---|---|---|---|
-| **L2.1** | `:conjugation_event` (conjugation channel) | `hgt.ex` | Only generic `:hgt_transfer` — channel is not distinguishable |
-| **L2.2** | `:transformation_event` | `hgt/channel/transformation.ex` | Expected by `HGTLedgerLive`, not emitted |
-| **L2.3** | `:transduction_event` | `hgt/phage.ex` | Expected, not emitted |
-| **L2.4** | `:phage_infection` (adsorption + injection, distinct from `:phage_burst`) | `hgt/phage.ex` | Expected, not emitted |
-| **L2.5** | `:rm_digestion` (R-M cleaves unmethylated foreign DNA) | `hgt/defense.ex` | Internal gate only; no audit |
-| **L2.6** | `:plasmid_displaced` (incompatibility or entry exclusion) | `hgt.ex` | Not implemented |
-| **L2.7** | `:bacteriocin_kill` (with killer/target lineage pair) | `bacteriocin.ex` | Not emitted |
-| **L2.8** | `:sos_active` (with `dna_damage_score` + trigger source) | `mutator.ex` | Not emitted |
-| **L2.9** | `:mutator_emergence` (lineage rises to hypermutator) | `mutator.ex` | Not emitted |
-| **L2.10** | `:error_catastrophe_death` (Eigen criterion exceeded) | `mutator.ex` | Not emitted |
-| **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` | `phenotype.ex` + `tick.ex` | Not emitted |
-| **L2.12** | `:migration_pulse` (top-N arc aggregate per tick) | `migration/` | Not emitted |
-| **L2.13** | `:domain_flip` (mutation in `type_tag` changes domain category) | `genome/mutation/applicator.ex` | Not emitted |
-| **L2.14** | `:gene_chimera_birth` (translocation fuses two genes) | `genome/mutation/applicator.ex` | Not emitted |
+| **L2.1** | `conjugation` (conjugation channel, derived from `hgt_transfer` with `payload.channel == "conjugation"`) | `hgt.ex` | ✅ Closed Phase 21 — kind promotion in `Arkea.Views.HGTLedger` |
+| **L2.2** | `:transformation_event` | `hgt/channel/transformation.ex:252` | ✅ Closed pre-Phase 21 (Sub-task 1.2 remediation) |
+| **L2.3** | `:transduction_event` | `hgt/phage.ex:598` | ✅ Closed pre-Phase 21 (Sub-task 1.3 remediation) |
+| **L2.4** | `:phage_infection` (adsorption + injection, distinct from `:phage_burst`) | `hgt/phage.ex:713` | ✅ Closed pre-Phase 21 (Sub-task 1.3 remediation) |
+| **L2.5** | `:rm_digestion` (R-M cleaves unmethylated foreign DNA) | `hgt/phage.ex:724` | ✅ Closed pre-Phase 21 (Sub-task 1.3 remediation) |
+| **L2.6** | `:plasmid_displaced` (incompatibility or entry exclusion) | `hgt.ex:381` | ✅ Closed pre-Phase 21 (Sub-task 1.4 remediation) |
+| **L2.7** | `:bacteriocin_kill` (with killer/target lineage pair) | `bacteriocin.ex` | ✅ Closed pre-Phase 21 (Sub-task 1.5 remediation) |
+| **L2.8** | `:sos_active` (with `dna_damage_score` + trigger source) | `mutator.ex` | ❌ Pending Phase 21 (#3) |
+| **L2.9** | `:mutator_emergence` (lineage rises to hypermutator) | `mutator.ex` | ❌ Pending Phase 21 (#3) |
+| **L2.10** | `:error_catastrophe_death` (Eigen criterion exceeded) | `mutator.ex` | ✅ Closed (writer + emit ready; reachable only synthetically by Eigen-faithful design) |
+| **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` | `phenotype.ex` + `tick.ex` | ❌ Pending Phase 21 (#3) |
+| **L2.12** | `:migration_pulse` (top-N arc aggregate per tick) | `migration/` | ❌ Pending Phase 21 (#3) |
+| **L2.13** | `:domain_flip` (mutation in `type_tag` changes domain category) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
+| **L2.14** | `:gene_chimera_birth` (translocation fuses two genes) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
 
-**All closed in Phase 21** (Top 5 actions #2 + #3 of the roadmap).
+**Current status**: 8/14 closed. L2.1 closed in Phase 21 Top 5 #2 (channel UX disambiguation via kind promotion in the view layer). L2.2-L2.7 and L2.10 were already closed by pre-Phase 21 remediation (Sub-tasks 1.2-1.6) but not documented as such — this update aligns the documentation to the real state of the code. L2.8, L2.9, L2.11, L2.12 (closed in Top 5 #3) and L2.13, L2.14 (closed in Phase 26) remain.
 
 ### L3. Limited player interventions
 

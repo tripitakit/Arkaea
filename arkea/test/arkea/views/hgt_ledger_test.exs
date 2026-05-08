@@ -124,7 +124,11 @@ defmodule Arkea.Views.HGTLedgerTest do
       assert entry.donor_id == "o-4"
     end
 
-    test "hgt_transfer row appears with donor_lineage_id as donor" do
+    test "hgt_transfer row with channel=conjugation is promoted to kind: conjugation" do
+      # Phase 21 (Top 5 action #2): the view layer promotes a generic
+      # `hgt_transfer` event_type to its channel-name kind when the
+      # payload tags one. This lets the ledger UI show a `conjugation`
+      # filter chip instead of an opaque `hgt_transfer`.
       audit = [
         %AuditLog{
           event_type: "hgt_transfer",
@@ -141,10 +145,51 @@ defmodule Arkea.Views.HGTLedgerTest do
       %{entries: entries, total: total} = HGTLedger.build(audit)
       assert total == 1
       [entry] = entries
-      assert entry.kind == "hgt_transfer"
+      assert entry.kind == "conjugation"
       assert entry.recipient_id == "r-5"
       assert entry.donor_id == "d-5"
       assert entry.payload["plasmid_inc_group"] == 3
+    end
+
+    test "hgt_transfer row without channel keeps kind: hgt_transfer (legacy)" do
+      # Audit rows persisted before Sub-task 1.4 promoted channel-direct
+      # shapes do not carry `payload["channel"]`. They should keep their
+      # original `hgt_transfer` kind so legacy permalinks (`?kind=
+      # hgt_transfer`) keep matching the rows the user expected.
+      audit = [
+        %AuditLog{
+          event_type: "hgt_transfer",
+          occurred_at_tick: 15,
+          target_lineage_id: "r-legacy",
+          payload: %{"donor_id" => "d-legacy"}
+        }
+      ]
+
+      %{entries: entries} = HGTLedger.build(audit)
+      [entry] = entries
+      assert entry.kind == "hgt_transfer"
+      assert entry.donor_id == "d-legacy"
+    end
+
+    test "filter kind: conjugation narrows to channel-tagged hgt_transfer rows" do
+      audit = [
+        %AuditLog{
+          event_type: "hgt_transfer",
+          occurred_at_tick: 1,
+          target_lineage_id: "r-1",
+          payload: %{"channel" => "conjugation", "donor_lineage_id" => "d-1"}
+        },
+        %AuditLog{
+          event_type: "transformation_event",
+          occurred_at_tick: 2,
+          target_lineage_id: "r-2",
+          payload: %{"origin_lineage_id" => "d-2"}
+        }
+      ]
+
+      %{entries: entries, total: total} = HGTLedger.build(audit, kind: "conjugation")
+      assert total == 1
+      assert hd(entries).kind == "conjugation"
     end
 
     test "plasmid_displaced row appears with new_donor as donor" do

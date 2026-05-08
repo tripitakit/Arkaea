@@ -24,10 +24,22 @@ defmodule Arkea.Views.HGTLedger do
   # `Arkea.Persistence.AuditWriter`: `hgt_transfer`, `transformation_event`,
   # `transduction_event`, `phage_infection`, `rm_digestion`,
   # `plasmid_displaced`.
+  #
+  # Phase 21 (Top 5 action #2 — channel disambiguation): generic
+  # `hgt_transfer` rows whose payload carries `"channel" => <ch>` are
+  # *promoted* to a channel-named kind in the view (today: `"conjugation"`).
+  # `hgt_transfer` is still listed below so legacy permalinks (`?kind=
+  # hgt_transfer`) keep matching, but new UI surfaces should prefer the
+  # channel name.
   @hgt_types ~w(hgt_event hgt_transfer hgt_conjugation_attempt
                 hgt_transformation_event hgt_transduction_event
-                transformation_event transduction_event
+                conjugation transformation_event transduction_event
                 rm_digestion plasmid_displaced phage_burst phage_infection)
+
+  # Channel names valid in the `payload["channel"]` field of `hgt_transfer`
+  # rows. Each one also appears in `@hgt_types` so it can drive a filter
+  # chip directly.
+  @channel_kinds ~w(conjugation)
 
   @type entry :: %{
           id: String.t() | nil,
@@ -82,13 +94,27 @@ defmodule Arkea.Views.HGTLedger do
     %{
       id: entry.id,
       tick: entry.occurred_at_tick,
-      kind: entry.event_type,
+      kind: derive_kind(entry.event_type, payload),
       donor_id: extract_donor_id(payload),
       recipient_id: entry.target_lineage_id || payload["lineage_id"],
       payload: payload,
       occurred_at: entry.occurred_at
     }
   end
+
+  # Phase 21: promote a generic `hgt_transfer` row to its channel name when
+  # the payload tags one. This lets the ledger UI show `conjugation (n)`
+  # filter chips instead of an opaque `hgt_transfer (n)`. Rows without
+  # `payload["channel"]` (legacy data, or future non-channel-tagged
+  # transfers) keep `kind == "hgt_transfer"` for back-compat.
+  defp derive_kind("hgt_transfer", payload) do
+    case payload["channel"] do
+      ch when is_binary(ch) and ch in @channel_kinds -> ch
+      _ -> "hgt_transfer"
+    end
+  end
+
+  defp derive_kind(event_type, _payload), do: event_type
 
   # Channel-direct shapes (Sub-task 1.6) hoist the upstream lineage under
   # type-specific keys: `donor_lineage_id` (hgt_transfer, transduction),
