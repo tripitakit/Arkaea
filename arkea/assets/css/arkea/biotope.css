@@ -42,6 +42,58 @@
   border-radius: var(--arkea-radius-pill);
 }
 
+/* Phase 22 / 8.2 — biotope-level stress chip in the header. Green
+   / amber / red tied to the abundance-weighted mean of dna_damage
+   vs the SOS threshold (see `biotope_stress_level/1`). */
+.arkea-biotope__stress-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+  padding: 4px var(--arkea-space-3);
+  border-radius: 999px;
+  font-size: var(--arkea-text-xs);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  margin-left: var(--arkea-space-2);
+  border: 1px solid transparent;
+}
+
+.arkea-biotope__stress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--arkea-radius-pill);
+}
+
+.arkea-biotope__stress-chip--low {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.arkea-biotope__stress-chip--low .arkea-biotope__stress-dot {
+  background: #22c55e;
+}
+
+.arkea-biotope__stress-chip--medium {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.arkea-biotope__stress-chip--medium .arkea-biotope__stress-dot {
+  background: #fbbf24;
+}
+
+.arkea-biotope__stress-chip--high {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.arkea-biotope__stress-chip--high .arkea-biotope__stress-dot {
+  background: #ef4444;
+}
+
 .arkea-biotope__header-btn {
   appearance: none;
   border: 1px solid var(--arkea-border);

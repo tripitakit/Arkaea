@@ -328,6 +328,17 @@ defmodule ArkeaWeb.SimLive do
           />
           <span>{phase_label(@sim_state.archetype)}</span>
         </span>
+        <%= if @sim_state do %>
+          <% stress = biotope_stress_level(@sim_state) %>
+          <span
+            class={"arkea-biotope__stress-chip arkea-biotope__stress-chip--#{stress.tier}"}
+            title={stress.tooltip}
+            aria-label={"Biotope stress: #{stress.tier}"}
+          >
+            <span class="arkea-biotope__stress-dot" aria-hidden="true" />
+            <span>stress · {stress.label}</span>
+          </span>
+        <% end %>
         <div class="arkea-shell__spacer"></div>
         <a
           :if={@sim_state}
@@ -1391,7 +1402,7 @@ defmodule ArkeaWeb.SimLive do
     ~H"""
     <div class="arkea-event-entry" style="padding: 0.5rem 0.75rem;">
       <span class={[
-        "arkea-event-entry__icon w-4 h-4 flex-shrink-0",
+        "arkea-event-entry__icon w-4 h-4 shrink-0",
         "arkea-event-entry__icon--#{@tone}"
       ]}>
         <span class={@icon_class}></span>
@@ -1989,6 +2000,47 @@ defmodule ArkeaWeb.SimLive do
   defp format_signed_int(0), do: "0"
   defp format_signed_int(v) when is_integer(v) and v > 0, do: "+#{v}"
   defp format_signed_int(v) when is_integer(v), do: Integer.to_string(v)
+
+  # Phase 22 / Track 8 (8.2) — biotope-level stress chip in the header.
+  # Three tiers based on the abundance-weighted mean of `dna_damage`
+  # across all live lineages, anchored on `Mutator.sos_active_threshold/0`:
+  #
+  #   - low (<50% threshold)   → green
+  #   - medium (50-100%)       → amber
+  #   - high (>=threshold)     → red — at least part of the population
+  #     is past the SOS-induction line.
+  #
+  # Empty biotopes degrade gracefully to "low / 0.000" so the chip
+  # is never blank.
+  defp biotope_stress_level(%{lineages: lineages}) do
+    threshold = Arkea.Sim.Mutator.sos_active_threshold()
+
+    {weighted_sum, total_abundance} =
+      Enum.reduce(lineages, {0.0, 0}, fn lineage, {acc_sum, acc_n} ->
+        n = Lineage.total_abundance(lineage)
+        {acc_sum + lineage.dna_damage * n, acc_n + n}
+      end)
+
+    mean_damage =
+      if total_abundance == 0, do: 0.0, else: weighted_sum / total_abundance
+
+    tier =
+      cond do
+        mean_damage >= threshold -> :high
+        mean_damage >= threshold * 0.5 -> :medium
+        true -> :low
+      end
+
+    %{
+      tier: tier,
+      label: format_float(mean_damage, 3),
+      tooltip:
+        "Population-weighted mean dna_damage = #{format_float(mean_damage, 3)} " <>
+          "(SOS threshold = #{format_float(threshold, 3)})"
+    }
+  end
+
+  defp biotope_stress_level(_), do: %{tier: :low, label: "0.000", tooltip: "no biotope state"}
 
   defp shannon_diversity([], _phase_name), do: 0.0
 
