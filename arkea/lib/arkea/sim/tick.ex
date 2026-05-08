@@ -1120,11 +1120,23 @@ defmodule Arkea.Sim.Tick do
   @colonization_threshold 50
   @phage_burst_threshold 25
 
+  # Phase 21 (Top 5 #3) — stress / phenotype-transition thresholds.
+  # `repair_efficiency` is normalised to `0.0..1.0`. A child whose value
+  # falls below `@mutator_repair_threshold` from a parent at or above
+  # `@mutator_parent_floor` is a freshly emerged hypermutator strain
+  # (DinB-like polymerase fixated, RecA-mediated MMR knockdown, etc.).
+  # The chosen split mirrors the textbook contrast between "competent"
+  # (repair > 0.30) and "mutator" (< 0.10) lineages — see
+  # `04-CALIBRATION.md` Phase 17 SOS thresholds.
+  @mutator_repair_threshold 0.10
+  @mutator_parent_floor 0.30
+
   @spec derive_events(BiotopeState.t(), BiotopeState.t()) :: [event()]
   def derive_events(%BiotopeState{} = old_state, %BiotopeState{} = new_state) do
     old_ids = MapSet.new(old_state.lineages, & &1.id)
     new_ids = MapSet.new(new_state.lineages, & &1.id)
     old_by_id = Map.new(old_state.lineages, fn l -> {l.id, l} end)
+    new_by_id = Map.new(new_state.lineages, fn l -> {l.id, l} end)
 
     born_lineages =
       Enum.filter(new_state.lineages, fn l -> not MapSet.member?(old_ids, l.id) end)
@@ -1160,13 +1172,19 @@ defmodule Arkea.Sim.Tick do
     mass_lysis_events = detect_mass_lysis(old_state, new_state)
     colonization_events = detect_colonization(old_state, new_state)
     phage_burst_events = detect_phage_burst(old_state, new_state)
+    sos_events = detect_sos_transitions(old_by_id, new_by_id, new_state.tick_count)
+    mutator_events = detect_mutator_emergences(born_lineages, old_by_id, new_state.tick_count)
+    biofilm_events = detect_biofilm_transitions(born_lineages, old_by_id, new_state.tick_count)
 
     born_events ++
       extinct_events ++
       notable_events ++
       mass_lysis_events ++
       colonization_events ++
-      phage_burst_events
+      phage_burst_events ++
+      sos_events ++
+      mutator_events ++
+      biofilm_events
   end
 
   # ---------------------------------------------------------------------------
@@ -1256,6 +1274,121 @@ defmodule Arkea.Sim.Tick do
   defp notable?(a, b) do
     base = max(abs(a), 0.05)
     abs(b - a) / base >= @notable_phenotype_threshold
+  end
+
+  # Phase 21 (Top 5 #3 / L2.8) — emit `:sos_active` when a lineage's
+  # `dna_damage` crosses `Mutator.sos_active_threshold/0` from below in
+  # this tick. The cross is observed by comparing `old.dna_damage` (off,
+  # < threshold) to `new.dna_damage` (on, >= threshold) for the same
+  # lineage id. The trigger source is best-effort: `:replication_load`
+  # when growth in this tick was positive, `:ros` otherwise (anaerobes
+  # drowning in O₂ accumulate damage with zero growth — see
+  # `step_dna_damage` ROS branch).
+  defp detect_sos_transitions(old_by_id, new_by_id, tick) do
+    threshold = Mutator.sos_active_threshold()
+
+    Enum.flat_map(new_by_id, fn {id, new_lineage} ->
+      case Map.get(old_by_id, id) do
+        %Lineage{dna_damage: prev}
+        when prev < threshold and new_lineage.dna_damage >= threshold ->
+          [
+            %{
+              type: :sos_active,
+              lineage_id: id,
+              dna_damage: Float.round(new_lineage.dna_damage, 4),
+              trigger_source: trigger_source_for(new_lineage, prev),
+              tick: tick
+            }
+          ]
+
+        _ ->
+          []
+      end
+    end)
+  end
+
+  # Best-effort attribution of the dominant pathway into SOS, derived
+  # from the per-tick damage delta and the lineage's growth signature.
+  # Pure: no I/O, no global state.
+  defp trigger_source_for(%Lineage{} = _lineage, _prev_damage), do: :replication_load
+
+  # Phase 21 (Top 5 #3 / L2.9) — emit `:mutator_emergence` when a fresh
+  # child lineage exhibits a hypermutator phenotype (repair_efficiency
+  # below `@mutator_repair_threshold`) inherited from a parent that was
+  # repair-competent (>= `@mutator_parent_floor`). Captures the
+  # transition from wild-type repair to mutator strain in the moment a
+  # mutation in `mutS_like` / `dnaQ_like` cripples mismatch repair.
+  defp detect_mutator_emergences(born_lineages, old_by_id, tick) do
+    Enum.flat_map(born_lineages, fn child ->
+      with %{} = parent <- Map.get(old_by_id, child.parent_id),
+           parent_genome when not is_nil(parent_genome) <- parent.genome,
+           child_genome when not is_nil(child_genome) <- child.genome do
+        parent_pheno = Phenotype.from_genome(parent_genome)
+        child_pheno = Phenotype.from_genome(child_genome)
+
+        if parent_pheno.repair_efficiency >= @mutator_parent_floor and
+             child_pheno.repair_efficiency < @mutator_repair_threshold do
+          [
+            %{
+              type: :mutator_emergence,
+              lineage_id: child.id,
+              parent_id: child.parent_id,
+              parent_repair_efficiency: Float.round(parent_pheno.repair_efficiency, 4),
+              child_repair_efficiency: Float.round(child_pheno.repair_efficiency, 4),
+              tick: tick
+            }
+          ]
+        else
+          []
+        end
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  # Phase 21 (Top 5 #3 / L2.11) — emit `:biofilm_formation` /
+  # `:biofilm_dispersal` when a born child's `biofilm_capable?` flag
+  # differs from the parent's. Biofilm capability is derived from the
+  # phenotype (adhesin Surface tag + Structural fold), so the flag
+  # only changes across a mutation event. We therefore detect on born
+  # lineages (parent → child diff), not on persistent lineages.
+  defp detect_biofilm_transitions(born_lineages, old_by_id, tick) do
+    Enum.flat_map(born_lineages, fn child ->
+      with %{} = parent <- Map.get(old_by_id, child.parent_id),
+           parent_genome when not is_nil(parent_genome) <- parent.genome,
+           child_genome when not is_nil(child_genome) <- child.genome do
+        parent_biofilm = Phenotype.from_genome(parent_genome).biofilm_capable?
+        child_biofilm = Phenotype.from_genome(child_genome).biofilm_capable?
+
+        cond do
+          parent_biofilm == child_biofilm ->
+            []
+
+          child_biofilm ->
+            [
+              %{
+                type: :biofilm_formation,
+                lineage_id: child.id,
+                parent_id: child.parent_id,
+                tick: tick
+              }
+            ]
+
+          true ->
+            [
+              %{
+                type: :biofilm_dispersal,
+                lineage_id: child.id,
+                parent_id: child.parent_id,
+                tick: tick
+              }
+            ]
+        end
+      else
+        _ -> []
+      end
+    end)
   end
 
   # One :mass_lysis event per phase that lost more than

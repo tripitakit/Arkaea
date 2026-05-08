@@ -124,6 +124,47 @@ defmodule Arkea.Persistence.AuditWriter do
     })
   end
 
+  # Phase 21 (Top 5 #3) — stress / phenotype-transition events.
+
+  defp event_attrs(%{type: :sos_active} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "sos_active", e.lineage_id, %{
+      "dna_damage" => e.dna_damage,
+      "trigger_source" => atom_to_string(e.trigger_source)
+    })
+  end
+
+  defp event_attrs(%{type: :mutator_emergence} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "mutator_emergence", e.lineage_id, %{
+      "parent_id" => e.parent_id,
+      "parent_repair_efficiency" => e.parent_repair_efficiency,
+      "child_repair_efficiency" => e.child_repair_efficiency
+    })
+  end
+
+  defp event_attrs(%{type: :biofilm_formation} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "biofilm_formation", e.lineage_id, %{
+      "parent_id" => e.parent_id
+    })
+  end
+
+  defp event_attrs(%{type: :biofilm_dispersal} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "biofilm_dispersal", e.lineage_id, %{
+      "parent_id" => e.parent_id
+    })
+  end
+
+  defp event_attrs(%{type: :migration_pulse} = e, biotope_id, tick_count, occurred_at) do
+    # `target_lineage_id` is nil — `:migration_pulse` is a per-biotope
+    # aggregate, not pinned to a single lineage. The receiving biotope
+    # is captured by `target_biotope_id` via `base_attrs/6`.
+    base_attrs(biotope_id, tick_count, occurred_at, "migration_pulse", nil, %{
+      "lineage_cells" => e.lineage_cells,
+      "metabolite_mass" => e.metabolite_mass,
+      "signal_mass" => e.signal_mass,
+      "phage_particles" => e.phage_particles
+    })
+  end
+
   # --- Legacy diff-derived events (payload-shape). ---
 
   defp event_attrs(event, biotope_id, tick_count, occurred_at) do

@@ -182,10 +182,22 @@ defmodule Arkea.Sim.Biotope.Server do
       true ->
         new_state = Migration.apply_transfer(state, transfer)
 
+        # Phase 21 (Top 5 #3 / L2.12) — `:migration_pulse` is the
+        # channel-direct event for inbound migration; it carries the
+        # aggregated transfer summary (lineage cells, metabolite mass,
+        # signal mass, phage particles) for the receiving biotope at
+        # this tick. Channel-direct shape so AuditWriter routes it via
+        # its typed branch (flat keys at top level, no nested payload).
+        summary = Migration.transfer_summary(transfer)
+
         events = [
           %{
-            type: :migration,
-            payload: Map.put(Migration.transfer_summary(transfer), :tick, expected_tick)
+            type: :migration_pulse,
+            lineage_cells: summary.lineage_cells,
+            metabolite_mass: summary.metabolite_mass,
+            signal_mass: summary.signal_mass,
+            phage_particles: summary.phage_particles,
+            tick: expected_tick
           }
         ]
 

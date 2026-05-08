@@ -266,6 +266,125 @@ defmodule Arkea.Persistence.AuditWriterTest do
     end
   end
 
+  describe "Phase 21 (Top 5 #3): stress / phenotype-transition / migration events" do
+    test ":sos_active persists with lineage as target and stringified trigger source" do
+      biotope_id = Ecto.UUID.generate()
+      lineage_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :sos_active,
+          tick: 60,
+          lineage_id: lineage_id,
+          dna_damage: 0.235,
+          trigger_source: :replication_load
+        }
+      ]
+
+      insert!(events, biotope_id, 60)
+      row = fetch_one!("sos_active", biotope_id)
+
+      assert row.target_lineage_id == lineage_id
+      assert row.occurred_at_tick == 60
+      assert row.payload["dna_damage"] == 0.235
+      assert row.payload["trigger_source"] == "replication_load"
+    end
+
+    test ":mutator_emergence persists with child lineage as target" do
+      biotope_id = Ecto.UUID.generate()
+      child_id = Ecto.UUID.generate()
+      parent_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :mutator_emergence,
+          tick: 70,
+          lineage_id: child_id,
+          parent_id: parent_id,
+          parent_repair_efficiency: 0.42,
+          child_repair_efficiency: 0.05
+        }
+      ]
+
+      insert!(events, biotope_id, 70)
+      row = fetch_one!("mutator_emergence", biotope_id)
+
+      assert row.target_lineage_id == child_id
+      assert row.payload["parent_id"] == parent_id
+      assert row.payload["parent_repair_efficiency"] == 0.42
+      assert row.payload["child_repair_efficiency"] == 0.05
+    end
+
+    test ":biofilm_formation persists with child lineage as target" do
+      biotope_id = Ecto.UUID.generate()
+      child_id = Ecto.UUID.generate()
+      parent_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :biofilm_formation,
+          tick: 80,
+          lineage_id: child_id,
+          parent_id: parent_id
+        }
+      ]
+
+      insert!(events, biotope_id, 80)
+      row = fetch_one!("biofilm_formation", biotope_id)
+
+      assert row.target_lineage_id == child_id
+      assert row.payload["parent_id"] == parent_id
+    end
+
+    test ":biofilm_dispersal persists with child lineage as target" do
+      biotope_id = Ecto.UUID.generate()
+      child_id = Ecto.UUID.generate()
+      parent_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :biofilm_dispersal,
+          tick: 81,
+          lineage_id: child_id,
+          parent_id: parent_id
+        }
+      ]
+
+      insert!(events, biotope_id, 81)
+      row = fetch_one!("biofilm_dispersal", biotope_id)
+
+      assert row.target_lineage_id == child_id
+      assert row.payload["parent_id"] == parent_id
+    end
+
+    test ":migration_pulse persists with biotope target and aggregate flow fields" do
+      biotope_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :migration_pulse,
+          tick: 100,
+          lineage_cells: 240,
+          metabolite_mass: 12.5,
+          signal_mass: 0.42,
+          phage_particles: 18
+        }
+      ]
+
+      insert!(events, biotope_id, 100)
+      row = fetch_one!("migration_pulse", biotope_id)
+
+      # Per-biotope aggregate; not pinned to a single lineage.
+      assert row.target_lineage_id == nil
+      assert row.target_biotope_id == biotope_id
+      assert row.occurred_at_tick == 100
+      assert row.payload["lineage_cells"] == 240
+      assert row.payload["metabolite_mass"] == 12.5
+      assert row.payload["signal_mass"] == 0.42
+      assert row.payload["phage_particles"] == 18
+    end
+  end
+
   describe "pre-existing diff-derived events still handled" do
     test ":lineage_extinct (payload-shape) still persists with target_lineage_id" do
       biotope_id = Ecto.UUID.generate()

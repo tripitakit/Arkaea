@@ -76,6 +76,63 @@ defmodule Arkea.Sim.TickEventDiffTest do
     end
   end
 
+  describe "sos_active detection (Phase 21 / L2.8)" do
+    test "emits :sos_active when dna_damage crosses the SOS threshold from below" do
+      lineage_id = Arkea.UUID.v4()
+      threshold = Arkea.Sim.Mutator.sos_active_threshold()
+
+      old =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold * 0.5)
+
+      new =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold + 0.05)
+
+      events = Tick.derive_events(old, new)
+      sos = Enum.filter(events, &(&1.type == :sos_active))
+
+      assert length(sos) == 1
+      [event] = sos
+      assert event.lineage_id == lineage_id
+      assert event.dna_damage > threshold
+    end
+
+    test "no :sos_active when dna_damage stays below threshold" do
+      lineage_id = Arkea.UUID.v4()
+      threshold = Arkea.Sim.Mutator.sos_active_threshold()
+
+      old =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold * 0.3)
+
+      new =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold * 0.6)
+
+      events = Tick.derive_events(old, new)
+      assert Enum.filter(events, &(&1.type == :sos_active)) == []
+    end
+
+    test "no :sos_active when lineage is already above threshold (no fresh transition)" do
+      lineage_id = Arkea.UUID.v4()
+      threshold = Arkea.Sim.Mutator.sos_active_threshold()
+
+      old =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold + 0.05)
+
+      new =
+        state_with_lineage(lineage_id, %{water_column: 100})
+        |> put_lineage_dna_damage(lineage_id, threshold + 0.10)
+
+      events = Tick.derive_events(old, new)
+      # Already-on lineages do not re-emit; the event marks the
+      # transition only.
+      assert Enum.filter(events, &(&1.type == :sos_active)) == []
+    end
+  end
+
   describe "phage_burst detection" do
     test "emits :phage_burst when a phase's phage_pool grows beyond the threshold" do
       lineage_id = Arkea.UUID.v4()
@@ -164,4 +221,13 @@ defmodule Arkea.Sim.TickEventDiffTest do
   end
 
   defp put_lineage(state, lineage), do: %{state | lineages: state.lineages ++ [lineage]}
+
+  defp put_lineage_dna_damage(state, lineage_id, damage) do
+    new_lineages =
+      Enum.map(state.lineages, fn l ->
+        if l.id == lineage_id, do: %{l | dna_damage: damage}, else: l
+      end)
+
+    %{state | lineages: new_lineages}
+  end
 end

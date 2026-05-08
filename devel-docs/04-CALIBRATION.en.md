@@ -191,15 +191,15 @@ Status of the 14 audit-event categories identified in the user reviews. `✅` = 
 | **L2.5** | `:rm_digestion` (R-M cleaves unmethylated foreign DNA) | `hgt/phage.ex:724` | ✅ Closed pre-Phase 21 (Sub-task 1.3 remediation) |
 | **L2.6** | `:plasmid_displaced` (incompatibility or entry exclusion) | `hgt.ex:381` | ✅ Closed pre-Phase 21 (Sub-task 1.4 remediation) |
 | **L2.7** | `:bacteriocin_kill` (with killer/target lineage pair) | `bacteriocin.ex` | ✅ Closed pre-Phase 21 (Sub-task 1.5 remediation) |
-| **L2.8** | `:sos_active` (with `dna_damage_score` + trigger source) | `mutator.ex` | ❌ Pending Phase 21 (#3) |
-| **L2.9** | `:mutator_emergence` (lineage rises to hypermutator) | `mutator.ex` | ❌ Pending Phase 21 (#3) |
+| **L2.8** | `:sos_active` (off→on transition when `dna_damage` crosses `Mutator.sos_active_threshold/0`) | `tick.ex` `detect_sos_transitions/3` | ✅ Closed Phase 21 |
+| **L2.9** | `:mutator_emergence` (child with `repair_efficiency < 0.10` from parent with `repair_efficiency >= 0.30`) | `tick.ex` `detect_mutator_emergences/3` | ✅ Closed Phase 21 |
 | **L2.10** | `:error_catastrophe_death` (Eigen criterion exceeded) | `mutator.ex` | ✅ Closed (writer + emit ready; reachable only synthetically by Eigen-faithful design) |
-| **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` | `phenotype.ex` + `tick.ex` | ❌ Pending Phase 21 (#3) |
-| **L2.12** | `:migration_pulse` (top-N arc aggregate per tick) | `migration/` | ❌ Pending Phase 21 (#3) |
+| **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` (child with `biofilm_capable?` differing from parent) | `tick.ex` `detect_biofilm_transitions/3` | ✅ Closed Phase 21 |
+| **L2.12** | `:migration_pulse` (per-receiving-biotope aggregate: `lineage_cells`, `metabolite_mass`, `signal_mass`, `phage_particles`) | `biotope/server.ex` `apply_migration` | ✅ Closed Phase 21 |
 | **L2.13** | `:domain_flip` (mutation in `type_tag` changes domain category) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
 | **L2.14** | `:gene_chimera_birth` (translocation fuses two genes) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
 
-**Current status**: 8/14 closed. L2.1 closed in Phase 21 Top 5 #2 (channel UX disambiguation via kind promotion in the view layer). L2.2-L2.7 and L2.10 were already closed by pre-Phase 21 remediation (Sub-tasks 1.2-1.6) but not documented as such — this update aligns the documentation to the real state of the code. L2.8, L2.9, L2.11, L2.12 (closed in Top 5 #3) and L2.13, L2.14 (closed in Phase 26) remain.
+**Current status**: 12/14 closed. Phase 21 Top 5 #1 added the "Known v1 limitations" section; Top 5 #2 closed L2.1 (kind promotion of the `conjugation` channel in the view layer); Top 5 #3 closed L2.8/9/11/12 (`:sos_active`, `:mutator_emergence`, `:biofilm_formation`/`_dispersal`, `:migration_pulse` renamed from the previous `:migration`). L2.2-L2.7 and L2.10 were already closed by pre-Phase 21 remediation (Sub-tasks 1.2-1.6) but not documented as such — earlier updates aligned the documentation to the real state of the code. Only L2.13, L2.14 remain, closed in Phase 26 (codon-level events).
 
 ### L3. Limited player interventions
 
