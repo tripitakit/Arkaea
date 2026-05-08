@@ -76,16 +76,17 @@ defmodule Arkea.Genome.Gene do
 
     field(:domains, [Domain.t()])
 
-    # Phase 17 — operon membership tag.
-    # Genes that share the same `operon_id` (a binary opaque key) are
-    # transcribed under a single regulatory block carried by the first
-    # gene of the operon. The runtime semantics — coordinated kcat
-    # scaling and shared σ-factor activation — is staged for a follow-
-    # up: Phase 17 ships the data-model field with a `nil` default so
-    # all existing genes are stand-alone units, and provides the
-    # opt-in API for builders to group genes that should later co-
-    # express. Selection on operon_id (mutator point-mutations near
-    # the regulatory block dissolving an operon) is also deferred.
+    # Phase 17 → Phase 25 — operon membership tag.
+    #
+    # Genes that share the same `operon_id` (a binary opaque key)
+    # are transcribed under a single regulatory block carried by
+    # the leader gene (first occurrence in chromosome order). The
+    # structural surface — grouping, leader lookup, membership —
+    # is provided by `Arkea.Genome.Operon` (Phase 25 / 7.2). The
+    # runtime σ-factor coordination ships in the same phase.
+    #
+    # Genes with `operon_id == nil` are stand-alone units; the
+    # runtime treats them as implicit one-gene operons.
     field(:operon_id, binary() | nil, default: nil)
   end
 
