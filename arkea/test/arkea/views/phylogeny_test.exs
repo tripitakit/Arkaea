@@ -140,6 +140,89 @@ defmodule Arkea.Views.PhylogenyTest do
     }
   end
 
+  describe "Phase 25 / 3.X — branch-metric enrichment" do
+    test "enrich_with_branch_metrics/2 attaches phenotype_displacement from incoming edge summary" do
+      founder = lineage("a", nil)
+      child = lineage("b", "a")
+
+      audit = [
+        %AuditLog{
+          event_type: "lineage_born",
+          occurred_at_tick: 5,
+          target_lineage_id: "b",
+          payload: %{
+            "mutation_summary" => %{
+              "d_growth_rate" => 0.3,
+              "d_repair" => -0.05,
+              "d_energy_cost" => 0.02
+            }
+          }
+        }
+      ]
+
+      model = Phylogeny.build([founder, child], audit) |> Phylogeny.enrich_with_branch_metrics([])
+
+      child_node = Enum.find(model.nodes, &(&1.id == "b"))
+      # |0.3| + |-0.05| + |0.02| = 0.37
+      assert_in_delta child_node.phenotype_displacement, 0.37, 1.0e-9
+
+      # Founder's incoming edge has no mutation_summary → 0.0
+      founder_node = Enum.find(model.nodes, &(&1.id == "a"))
+      assert founder_node.phenotype_displacement == 0.0
+    end
+
+    test "enrich_with_branch_metrics/2 counts hgt_transfer audit events targeting each node" do
+      founder = lineage("a", nil)
+      child = lineage("b", "a")
+
+      audit = [
+        %AuditLog{
+          event_type: "hgt_transfer",
+          occurred_at_tick: 1,
+          target_lineage_id: "b",
+          payload: %{}
+        },
+        %AuditLog{
+          event_type: "hgt_transfer",
+          occurred_at_tick: 2,
+          target_lineage_id: "b",
+          payload: %{}
+        },
+        %AuditLog{
+          event_type: "hgt_transfer",
+          occurred_at_tick: 3,
+          target_lineage_id: "a",
+          payload: %{}
+        },
+        %AuditLog{
+          event_type: "transformation_event",
+          occurred_at_tick: 4,
+          target_lineage_id: "b",
+          payload: %{}
+        }
+      ]
+
+      model = Phylogeny.build([founder, child], []) |> Phylogeny.enrich_with_branch_metrics(audit)
+
+      assert Enum.find(model.nodes, &(&1.id == "b")).hgt_received == 2
+      assert Enum.find(model.nodes, &(&1.id == "a")).hgt_received == 1
+    end
+
+    test "colour_by_trait/2 sets :colour_value on observed leaves only" do
+      founder = lineage("a", nil)
+      model = Phylogeny.build([founder], []) |> Phylogeny.colour_by_trait(:base_growth_rate)
+
+      observed = Enum.find(model.nodes, &(&1.id == "a"))
+      assert observed.colour_value == observed.phenotype.base_growth_rate
+    end
+
+    test "colour_by_trait/2 with an unknown trait is a no-op" do
+      founder = lineage("a", nil)
+      base = Phylogeny.build([founder], [])
+      assert ^base = Phylogeny.colour_by_trait(base, :something_invented)
+    end
+  end
+
   describe "p-distance branch lengths" do
     test "branch_length on a child edge equals PDistance(parent.genome, child.genome)" do
       parent_genome =

@@ -232,9 +232,10 @@ Data exist in `phenotype.ex` and in the snapshot export, but **live views are ab
 
 The dendrogram in `phylogeny.ex` shows lineages, abundance, branch lengths, but:
 
-- No filter by trait (currently colours only by abundance) — Phase 25
-- No highlight of phenotypic or domain-level convergences — Phase 25
-- Mutation rate per branch not normalised by branch length — Phase 25
+- ✅ **Filter by trait on the dendrogram** — *Closed Phase 25 / 3.X*: `Phylogeny.colour_by_trait(model, trait)` annotates every non-synthetic node with `:colour_value` from the `phenotype` map (`:base_growth_rate`, `:repair_efficiency`, `:energy_cost`); the UI consumer can colour the dendrogram by that trait instead of abundance.
+- No highlight of phenotypic or domain-level convergences — Phase 26 (requires ancestral sequence reconstruction)
+- ✅ **Per-branch mutation rate (proxy)** — *Closed Phase 25 / 3.X*: `Phylogeny.enrich_with_branch_metrics(model, audit)` adds `:phenotype_displacement = |Δgrowth| + |Δrepair| + |Δenergy_cost|` per node (proxy for "phenotypic shift per branch", divide by `branch_length` for the mutator-style intensity). Not the per-position mutation count (would need a sub/indel/dup/inv breakdown in the `mutation_summary` audit, currently absent — TODO 3.4-precise).
+- ✅ **Per-branch HGT rate** — *Closed Phase 25 / 3.X*: same enrichment adds `:hgt_received` per node (count of `hgt_transfer` audit entries with `target_lineage_id == node.id`); identifies HGT-hub lineages.
 - No ancestral reconstruction of the genome or of the ancestral sequence of a gene — Phase 26
 - No gene tree distinct from the species tree (HGT as topological incongruence) — Phase 26
 

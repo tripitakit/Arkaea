@@ -418,4 +418,96 @@ defmodule Arkea.Views.Phylogeny do
       {id, Map.get(payload, "mutation_summary")}
     end)
   end
+
+  # ---------------------------------------------------------------------------
+  # Phase 25 / 3.X — branch-metric enrichment + trait colouring.
+
+  @doc """
+  Augment a phylogeny model in place with two per-node metrics
+  (Phase 25 / 3.4 + 3.5):
+
+    * `:phenotype_displacement` — `|Δgrowth| + |Δrepair| +
+      |Δenergy_cost|` aggregated from the node's incoming
+      edge's `mutation_summary` (already produced by
+      `Tick.derive_events/2` / `:lineage_born`). This is a
+      branch-length-independent proxy for *how much* the
+      phenotype shifted in the speciation event that produced
+      the node — divided by `branch_length`, the consumer gets
+      a "mutator-style" intensity diagnostic.
+    * `:hgt_received` — number of `hgt_transfer` audit events
+      whose `target_lineage_id` is this node's id. Counts the
+      conjugation / transformation / transduction acquisitions
+      received by the lineage over the audit window.
+
+  Synthetic split nodes carry the displacement of the speciating
+  lineage (the edge `split:X → X` self-edge is empty, but
+  `split:X → Y` carries the summary for sibling Y; we use the
+  speciation edge by walking the model's edges).
+  """
+  @spec enrich_with_branch_metrics(t(), [AuditLog.t()]) :: t()
+  def enrich_with_branch_metrics(%{nodes: nodes, edges: edges} = model, audit)
+      when is_list(audit) do
+    hgt_counts = hgt_received_counts(audit)
+    summary_by_to = Map.new(edges, fn e -> {e.to, e.mutation_summary} end)
+
+    enriched =
+      Enum.map(nodes, fn node ->
+        node
+        |> Map.put(:phenotype_displacement, displacement_from(summary_by_to[node.id]))
+        |> Map.put(:hgt_received, Map.get(hgt_counts, node.id, 0))
+      end)
+
+    %{model | nodes: enriched}
+  end
+
+  defp displacement_from(nil), do: 0.0
+
+  defp displacement_from(summary) when is_map(summary) do
+    abs_or_zero(Map.get(summary, "d_growth_rate", 0)) +
+      abs_or_zero(Map.get(summary, "d_repair", 0)) +
+      abs_or_zero(Map.get(summary, "d_energy_cost", 0))
+  end
+
+  defp abs_or_zero(v) when is_number(v), do: abs(v * 1.0)
+  defp abs_or_zero(_), do: 0.0
+
+  defp hgt_received_counts(audit) do
+    audit
+    |> Enum.filter(fn
+      %AuditLog{event_type: "hgt_transfer", target_lineage_id: id} when not is_nil(id) -> true
+      _ -> false
+    end)
+    |> Enum.frequencies_by(& &1.target_lineage_id)
+  end
+
+  @doc """
+  Annotate every non-synthetic node with `:colour_value`, the
+  numeric value of `trait` from the node's existing `phenotype`
+  map (Phase 25 / 3.1). When `trait` is not a known field the
+  function returns the model unchanged (no-op rather than crash).
+
+  Synthetic split nodes (`synthetic? == true`) and extinct
+  ghost tips (`extinct? == true`) get `colour_value: nil` so
+  the renderer can keep its current fallback colours for them.
+  """
+  @spec colour_by_trait(t(), atom()) :: t()
+  def colour_by_trait(%{nodes: nodes} = model, trait) when is_atom(trait) do
+    if trait in [:base_growth_rate, :repair_efficiency, :energy_cost] do
+      enriched =
+        Enum.map(nodes, fn node ->
+          value =
+            cond do
+              Map.get(node, :synthetic?, false) -> nil
+              Map.get(node, :extinct?, false) -> nil
+              true -> get_in(node, [:phenotype, trait])
+            end
+
+          Map.put(node, :colour_value, value)
+        end)
+
+      %{model | nodes: enriched}
+    else
+      model
+    end
+  end
 end

@@ -232,9 +232,10 @@ I dati esistono in `phenotype.ex` e nel snapshot export, ma **mancano viste live
 
 Il dendrogramma in `phylogeny.ex` mostra lineage, abbondanza, branch length, ma:
 
-- Nessun filtro per tratto (oggi colora solo per abbondanza) — Fase 25
-- Nessun highlight delle convergenze fenotipiche o a livello di dominio — Fase 25
-- Tasso di mutazione per branch non normalizzato per branch length — Fase 25
+- ✅ **Filtro per tratto sul dendrogramma** — *Closed Phase 25 / 3.X*: `Phylogeny.colour_by_trait(model, trait)` annota ogni nodo non-sintetico con `:colour_value` letto dal `phenotype` map (`:base_growth_rate`, `:repair_efficiency`, `:energy_cost`); UI consumer può colorare il dendrogramma per quel tratto invece che per abbondanza.
+- Nessun highlight delle convergenze fenotipiche o a livello di dominio — Fase 26 (richiede sequenza ancestrale)
+- ✅ **Tasso di mutazione per branch (proxy)** — *Closed Phase 25 / 3.X*: `Phylogeny.enrich_with_branch_metrics(model, audit)` aggiunge `:phenotype_displacement = |Δgrowth| + |Δrepair| + |Δenergy_cost|` per nodo (proxy della "shift fenotipica per branch", da dividere per `branch_length` per il diagnostico tipo-mutator). La metrica non è il count di mutazioni puntiformi (richiederebbe sub/indel/dup/inv breakdown nel `mutation_summary` audit, oggi assente — TODO 3.4-precise).
+- ✅ **Rate eventi HGT per branch** — *Closed Phase 25 / 3.X*: stesso enrichment aggiunge `:hgt_received` per nodo (count di `hgt_transfer` audit con `target_lineage_id == node.id`); identifica i lignaggi-hub di scambio.
 - Nessuna ricostruzione del genoma ancestrale o della sequenza ancestrale di un gene — Fase 26
 - Nessun gene tree distinto dallo species tree (HGT come incongruenza topologica) — Fase 26
 
