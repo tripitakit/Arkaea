@@ -2001,18 +2001,26 @@ defmodule ArkeaWeb.SimLive do
   defp format_signed_int(v) when is_integer(v) and v > 0, do: "+#{v}"
   defp format_signed_int(v) when is_integer(v), do: Integer.to_string(v)
 
-  # Phase 22 / Track 8 (8.2) — biotope-level stress chip in the header.
-  # Three tiers based on the abundance-weighted mean of `dna_damage`
-  # across all live lineages, anchored on `Mutator.sos_active_threshold/0`:
-  #
-  #   - low (<50% threshold)   → green
-  #   - medium (50-100%)       → amber
-  #   - high (>=threshold)     → red — at least part of the population
-  #     is past the SOS-induction line.
-  #
-  # Empty biotopes degrade gracefully to "low / 0.000" so the chip
-  # is never blank.
-  defp biotope_stress_level(%{lineages: lineages}) do
+  @doc """
+  Phase 22 / Track 8 (8.2) — biotope-level stress chip in the header.
+  Three tiers based on the abundance-weighted mean of `dna_damage`
+  across all live lineages, anchored on `Mutator.sos_active_threshold/0`:
+
+    - low (<50% threshold)   → green
+    - medium (50-100%)       → amber
+    - high (>=threshold)     → red — at least part of the population
+      is past the SOS-induction line.
+
+  Empty biotopes degrade gracefully to "low / 0.000" so the chip is
+  never blank. Public so the Phase-22 smoke test can assert on the
+  tier without going through the LiveView render machinery.
+  """
+  @spec biotope_stress_level(%{lineages: [Lineage.t()]} | any()) :: %{
+          tier: :low | :medium | :high,
+          label: String.t(),
+          tooltip: String.t()
+        }
+  def biotope_stress_level(%{lineages: lineages}) do
     threshold = Arkea.Sim.Mutator.sos_active_threshold()
 
     {weighted_sum, total_abundance} =
@@ -2040,7 +2048,7 @@ defmodule ArkeaWeb.SimLive do
     }
   end
 
-  defp biotope_stress_level(_), do: %{tier: :low, label: "0.000", tooltip: "no biotope state"}
+  def biotope_stress_level(_), do: %{tier: :low, label: "0.000", tooltip: "no biotope state"}
 
   defp shannon_diversity([], _phase_name), do: 0.0
 
