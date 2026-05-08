@@ -68,7 +68,10 @@ defmodule ArkeaWeb.SimLiveTest do
 
     view |> element(~s|.arkea-tab[phx-value-tab="chemistry"]|) |> render_click()
     assert has_element?(view, ~s|.arkea-tab--active|, "Chemistry")
-    assert render(view) =~ "Metabolite pools"
+    # Phase 22 / 2.4: panel title is now "Metabolic map" (per-row
+    # normalised heatmap, metabolites × phases) — see
+    # `Arkea.Views.MetabolicMap`.
+    assert render(view) =~ "Metabolic map"
   end
 
   test "Trends tab renders the population trajectory placeholder when there are no samples yet",

@@ -1118,41 +1118,51 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp chemistry_panel(assigns) do
-    chem = chemistry_matrix(assigns.sim_state)
-    assigns = assign(assigns, chem: chem)
+    map = Arkea.Views.MetabolicMap.build(assigns.sim_state)
+    assigns = assign(assigns, metabolic_map: map)
 
     ~H"""
     <section class="arkea-card">
       <div class="arkea-card__header">
         <div>
           <div class="arkea-card__eyebrow">Chemistry</div>
-          <h2 class="arkea-card__title">Metabolite pools</h2>
+          <h2 class="arkea-card__title">Metabolic map</h2>
         </div>
         <div class="arkea-card__meta">
-          {length(@sim_state.phases)} phases × {length(@chem.metabolites)} metabolites
+          {length(@metabolic_map.metabolites)} metabolites × {length(@metabolic_map.phases)} phases
         </div>
       </div>
 
-      <%= if @chem.rows == [] do %>
+      <p class="arkea-muted" style="margin: 0 0 0.6rem;">
+        Concentration intensity is normalised <strong>per metabolite</strong>
+        (per row): the most concentrated phase of each metabolite anchors its
+        colour scale, so the sulfur cycle stays visible even next to a glucose-
+        rich phase.
+      </p>
+
+      <%= if @metabolic_map.phases == [] do %>
         <p class="arkea-muted">No phase pools available.</p>
       <% else %>
         <div class="overflow-x-auto">
           <table class="arkea-heatmap">
             <thead>
               <tr>
-                <th></th>
-                <th :for={m <- @chem.metabolites}>{met_abbr(m)}</th>
+                <th>Metabolite</th>
+                <th :for={p <- @metabolic_map.phases}>{phase_label(p)}</th>
               </tr>
             </thead>
             <tbody>
-              <tr :for={row <- @chem.rows}>
-                <td>{phase_label(row.phase)}</td>
+              <tr :for={row <- @metabolic_map.rows}>
+                <td title={Atom.to_string(row.metabolite)}>
+                  {Arkea.Views.MetabolicMap.metabolite_label(row.metabolite)}
+                </td>
                 <td
-                  :for={{conc, max_c} <- Enum.zip(row.concentrations, @chem.max_per_met)}
+                  :for={cell <- row.cells}
                   class="arkea-heatmap__cell"
-                  style={"--fill: #{Float.round(if(max_c > 0, do: conc / max_c, else: 0.0), 2)}"}
+                  style={"--fill: #{Float.round(cell.intensity, 2)}"}
+                  title={"#{Arkea.Views.MetabolicMap.metabolite_label(cell.metabolite)} in #{phase_label(cell.phase)}: #{format_μm(cell.value)}"}
                 >
-                  {if conc > 0, do: format_μm(conc)}
+                  {if cell.value > 0, do: format_μm(cell.value)}
                 </td>
               </tr>
             </tbody>
@@ -1821,30 +1831,9 @@ defmodule ArkeaWeb.SimLive do
   defp round_metric(value) when is_integer(value), do: value
   defp round_metric(value) when is_float(value), do: Float.round(value, 2)
 
-  @metabolites ~w[glucose acetate lactate oxygen no3 so4 h2s nh3 h2 po4 co2 ch4 iron]a
-
-  defp chemistry_matrix(%BiotopeState{phases: []}) do
-    # Empty biotope: short-circuit to avoid Enum.max/1 on []. The template
-    # already guards `@chem.rows == []`, so callers stay happy.
-    %{rows: [], metabolites: @metabolites, max_per_met: List.duplicate(0.0, length(@metabolites))}
-  end
-
-  defp chemistry_matrix(%BiotopeState{phases: phases}) do
-    rows =
-      Enum.map(phases, fn phase ->
-        concs = Enum.map(@metabolites, fn m -> Map.get(phase.metabolite_pool, m, 0.0) end)
-        %{phase: phase.name, concentrations: concs}
-      end)
-
-    max_per_met =
-      Enum.map(0..(length(@metabolites) - 1), fn i ->
-        rows
-        |> Enum.map(&Enum.at(&1.concentrations, i))
-        |> Enum.max(fn -> 0.0 end)
-      end)
-
-    %{rows: rows, metabolites: @metabolites, max_per_met: max_per_met}
-  end
+  # Phase 22 / 2.4: `chemistry_matrix/1`, `@metabolites`, `met_abbr/1`
+  # and `@met_abbrs` are gone — replaced by the pure
+  # `Arkea.Views.MetabolicMap` and its `metabolite_label/1` helper.
 
   defp shannon_diversity([], _phase_name), do: 0.0
 
@@ -1865,24 +1854,6 @@ defmodule ArkeaWeb.SimLive do
       |> Float.round(2)
     end
   end
-
-  @met_abbrs %{
-    glucose: "Glc",
-    acetate: "Ace",
-    lactate: "Lac",
-    oxygen: "O₂",
-    no3: "NO₃",
-    so4: "SO₄",
-    h2s: "H₂S",
-    nh3: "NH₃",
-    h2: "H₂",
-    po4: "PO₄",
-    co2: "CO₂",
-    ch4: "CH₄",
-    iron: "Fe"
-  }
-
-  defp met_abbr(metabolite), do: Map.get(@met_abbrs, metabolite, to_string(metabolite))
 
   defp format_μm(value) when is_float(value) and value >= 1000.0,
     do: "#{:erlang.float_to_binary(value / 1000.0, decimals: 1)}m"
