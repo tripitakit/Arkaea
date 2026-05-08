@@ -152,6 +152,12 @@ defmodule Arkea.Sim.Phenotype do
   alias Arkea.Genome.Gene
   alias Arkea.Sim.Metabolism
 
+  # `MapSet.new/0` invoked inline as the reduce accumulator is materialised
+  # by Dialyzer as the concrete `%MapSet{}` representation, which then
+  # collides with the opaque `MapSet.t()` argument expected by
+  # `MapSet.union/2`. The runtime contract is upheld by construction.
+  @dialyzer {:no_opaque, [detoxify_targets: 1]}
+
   typedstruct enforce: true do
     field :base_growth_rate, float()
     field :substrate_affinities, %{atom() => %{km: float(), kcat: float()}}

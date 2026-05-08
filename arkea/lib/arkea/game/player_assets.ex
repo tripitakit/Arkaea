@@ -13,6 +13,11 @@ defmodule Arkea.Game.PlayerAssets do
   alias Arkea.Sim.BiotopeState
   alias Ecto.Multi
 
+  # `Multi.new/0` exposes the literal `%Ecto.Multi{names: %MapSet{...}}` to
+  # the analysis, which then loses the opacity of `Ecto.Multi.t()` /
+  # `MapSet.t()`. The runtime values are well-formed by construction.
+  @dialyzer {:no_opaque, [register_home: 4, register_home_recolonization: 4]}
+
   @spec ensure_player(map()) :: {:ok, Player.t()} | {:error, term()}
   def ensure_player(%{id: id, email: email, display_name: display_name}) do
     now = DateTime.utc_now() |> DateTime.truncate(:microsecond)

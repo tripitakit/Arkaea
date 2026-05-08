@@ -469,14 +469,6 @@ defmodule ArkeaWeb.SeedLabLive do
 
           {:error, errors} when is_map(errors) ->
             {:noreply, socket |> assign(errors: errors) |> apply_form(params)}
-
-          {:error, reason} ->
-            {:noreply,
-             socket
-             |> assign(
-               errors: %{starter_archetype: "Community provision failed: #{inspect(reason)}"}
-             )
-             |> apply_form(params)}
         end
 
       true ->

@@ -120,8 +120,6 @@ defmodule ArkeaWeb.SimLive do
     end
   end
 
-  defp maybe_refresh_phylogeny(socket, _events), do: socket
-
   @impl Phoenix.LiveView
   def handle_params(%{"id" => biotope_id}, _uri, socket) do
     if Phoenix.LiveView.connected?(socket) and socket.assigns.biotope_id != biotope_id do

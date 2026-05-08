@@ -143,8 +143,6 @@ defmodule Arkea.Game.PlayerInterventions do
     end)
   end
 
-  defp stringify_keys(other), do: other
-
   defp stringify_value(%{} = map), do: stringify_keys(map)
   defp stringify_value(list) when is_list(list), do: Enum.map(list, &stringify_value/1)
   defp stringify_value(value), do: value

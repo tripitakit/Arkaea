@@ -15,6 +15,12 @@ defmodule Arkea.Persistence.PlayerBiotope do
           biotope_id: Ecto.UUID.t() | nil,
           role: String.t() | nil,
           source_blueprint_id: Ecto.UUID.t() | nil,
+          source_blueprint:
+            Arkea.Persistence.ArkeonBlueprint.t()
+            | Ecto.Association.NotLoaded.t()
+            | nil,
+          player: Arkea.Persistence.Player.t() | Ecto.Association.NotLoaded.t() | nil,
+          biotope: Arkea.Persistence.Biotope.t() | Ecto.Association.NotLoaded.t() | nil,
           claimed_at_tick: non_neg_integer() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil

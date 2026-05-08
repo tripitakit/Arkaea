@@ -49,7 +49,8 @@ defmodule ArkeaWeb.PlayerAuth do
     |> halt()
   end
 
-  @spec log_in_player(Plug.Conn.t(), %{id: binary()}) :: Plug.Conn.t()
+  @spec log_in_player(Plug.Conn.t(), %{:id => binary(), optional(atom()) => any()}) ::
+          Plug.Conn.t()
   def log_in_player(conn, %{id: id}) when is_binary(id) do
     conn
     |> configure_session(renew: true)

@@ -170,8 +170,6 @@ defmodule Arkea.Views.SnapshotExport do
     end)
   end
 
-  defp stringify_each(_), do: []
-
   defp phage_pool_size(pool) when is_map(pool) do
     Enum.sum(
       Enum.map(pool, fn

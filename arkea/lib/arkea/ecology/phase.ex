@@ -52,6 +52,12 @@ defmodule Arkea.Ecology.Phase do
   alias Arkea.Sim.HGT.DnaFragment
   alias Arkea.Sim.HGT.Virion
 
+  # Dialyzer drops the opacity of `MapSet.t()` when it is materialised
+  # inline as a struct default and then immediately fed back into the
+  # constructed phase. The runtime invariant (`lineage_ids` is always a
+  # MapSet) is enforced by `validate/1`, so silence the spurious warning.
+  @dialyzer {:no_opaque, [new: 2, validate: 1]}
+
   @ph_min 0.0
   @ph_max 14.0
   @temperature_min -50.0

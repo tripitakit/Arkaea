@@ -16,6 +16,11 @@ defmodule Arkea.Persistence.Store do
   alias Arkea.Sim.BiotopeState
   alias Ecto.Multi
 
+  # `Multi.new/0` exposes its literal `%Ecto.Multi{names: %MapSet{...}}`
+  # representation to Dialyzer, which then no longer matches the opaque
+  # `Ecto.Multi.t()` argument expected by `Multi.insert/4`.
+  @dialyzer {:no_opaque, [persist_transition: 3]}
+
   @snapshot_interval 10
 
   @doc """
