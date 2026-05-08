@@ -63,6 +63,8 @@ defmodule ArkeaWeb.SimLive do
        notebook_form_tick: nil,
        notebook_form_body: "",
        notebook_form_error: nil,
+       pinned_tick: nil,
+       pinned_annotations: [],
        page_title: "Arkea Biotope"
      )}
   end
@@ -138,7 +140,7 @@ defmodule ArkeaWeb.SimLive do
   end
 
   @impl Phoenix.LiveView
-  def handle_params(%{"id" => biotope_id}, _uri, socket) do
+  def handle_params(%{"id" => biotope_id} = params, _uri, socket) do
     if Phoenix.LiveView.connected?(socket) and socket.assigns.biotope_id != biotope_id do
       # Drop the previous subscription so cross-biotope ticks don't keep
       # arriving and overwriting `sim_state` with stale data.
@@ -154,6 +156,19 @@ defmodule ArkeaWeb.SimLive do
     {sim_state, phenotype_cache} = load_initial_state(biotope_id)
     selected_phase_name = resolve_selected_phase(nil, sim_state)
 
+    # Phase 24 / 6.2 — time-anchored permalink: `?at=N` opens the
+    # biotope with a non-mutating banner that flags the pinned tick
+    # and lists the bookmarks / annotations attached to it. v1
+    # surfaces the *context* of the pinned tick; the historical
+    # state replay of that tick lands in 6.4 (replay scrubbing).
+    pinned_tick = parse_pinned_tick(params)
+
+    pinned_annotations =
+      case pinned_tick do
+        nil -> []
+        n -> Arkea.Notebook.list_for_biotope(biotope_id) |> Enum.filter(&(&1.tick == n))
+      end
+
     socket =
       socket
       |> assign(
@@ -167,11 +182,29 @@ defmodule ArkeaWeb.SimLive do
         intervention_status: intervention_status(socket.assigns.player, biotope_id),
         running: Phoenix.LiveView.connected?(socket) and not is_nil(sim_state),
         not_found?: is_nil(sim_state),
-        page_title: page_title(sim_state, biotope_id)
+        page_title: page_title(sim_state, biotope_id),
+        pinned_tick: pinned_tick,
+        pinned_annotations: pinned_annotations
       )
       |> assign_scene_snapshot()
 
     {:noreply, socket}
+  end
+
+  defp parse_pinned_tick(params) do
+    case Map.get(params, "at") do
+      nil ->
+        nil
+
+      raw when is_binary(raw) ->
+        case Integer.parse(raw) do
+          {n, ""} when n >= 0 -> n
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
   end
 
   @impl Phoenix.LiveView
@@ -476,6 +509,13 @@ defmodule ArkeaWeb.SimLive do
               }
               operator_error={@operator_error}
               biotope_id={@biotope_id}
+            />
+
+            <.pinned_tick_banner
+              :if={@pinned_tick}
+              biotope_id={@biotope_id}
+              tick={@pinned_tick}
+              annotations={@pinned_annotations}
             />
 
             <aside
@@ -1467,6 +1507,41 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
+  attr :biotope_id, :string, required: true
+  attr :tick, :integer, required: true
+  attr :annotations, :list, default: []
+
+  # Phase 24 / 6.2 — banner shown when the user opens the biotope
+  # via a `?at=N` permalink. Surfaces the pinned tick + the
+  # annotations attached to it; "Jump to live" clears the pin and
+  # returns to the live view (no historical state replay yet — that
+  # ships in 6.4).
+  defp pinned_tick_banner(assigns) do
+    ~H"""
+    <div class="arkea-pinned-tick" role="status">
+      <div class="arkea-pinned-tick__head">
+        <span class="arkea-pinned-tick__pin" aria-hidden="true">📌</span>
+        <span class="arkea-pinned-tick__label">Pinned at tick {@tick}</span>
+        <.link navigate={~p"/biotopes/#{@biotope_id}"} class="arkea-pinned-tick__exit">
+          Jump to live
+        </.link>
+      </div>
+      <%= if @annotations != [] do %>
+        <ul class="arkea-pinned-tick__notes">
+          <li :for={a <- @annotations}>
+            {if a.bookmark, do: "★ ", else: ""}{a.body}
+          </li>
+        </ul>
+      <% else %>
+        <p class="arkea-pinned-tick__empty">
+          No notes attached to this tick. The viewport still shows live state —
+          the historical replay of tick {@tick} ships in Phase 24 / 6.4.
+        </p>
+      <% end %>
+    </div>
+    """
+  end
+
   attr :annotations, :list, required: true
   attr :current_player, :map, required: true
   attr :sim_state, :any, default: nil
@@ -1537,7 +1612,13 @@ defmodule ArkeaWeb.SimLive do
         <ul class="arkea-notebook__list">
           <li :for={a <- @annotations} class="arkea-notebook__entry">
             <header class="arkea-notebook__entry-head">
-              <span class="arkea-notebook__entry-tick">tick {a.tick}</span>
+              <.link
+                patch={~p"/biotopes/#{a.biotope_id}?at=#{a.tick}"}
+                class="arkea-notebook__entry-tick"
+                title={"Open this biotope pinned at tick #{a.tick}"}
+              >
+                tick {a.tick}
+              </.link>
               <span class="arkea-notebook__entry-meta">
                 {format_relative_datetime(a.inserted_at)}
                 <%= if a.player_id != @current_player.id do %>

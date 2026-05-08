@@ -645,3 +645,73 @@
 .arkea-notebook__bookmark--active {
   color: #fbbf24;
 }
+
+/* Phase 24 / 6.2 — pinned-tick banner: shown when ?at=N is in the URL. */
+
+.arkea-pinned-tick {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 0.45rem;
+  color: #fcd34d;
+}
+
+.arkea-pinned-tick__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.arkea-pinned-tick__pin {
+  font-size: 0.85rem;
+}
+
+.arkea-pinned-tick__label {
+  flex: 1 1 auto;
+}
+
+.arkea-pinned-tick__exit {
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
+  text-decoration: none;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.3rem;
+  font-size: 0.78rem;
+  transition: background 0.15s ease;
+}
+
+.arkea-pinned-tick__exit:hover {
+  background: rgba(251, 191, 36, 0.28);
+}
+
+.arkea-pinned-tick__notes {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: #e2e8f0;
+  font-size: 0.88rem;
+}
+
+.arkea-pinned-tick__empty {
+  margin: 0.4rem 0 0;
+  color: rgba(252, 211, 77, 0.85);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* Make the tick chip in the notebook entry render as a clickable link. */
+a.arkea-notebook__entry-tick {
+  text-decoration: none;
+}
+
+a.arkea-notebook__entry-tick:hover {
+  background: rgba(103, 232, 249, 0.25);
+}
