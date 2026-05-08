@@ -497,3 +497,128 @@
   color: var(--arkea-fg-muted);
   margin-bottom: var(--arkea-space-2);
 }
+
+/* Phase 24 / 6.1 — Lab notebook panel inside the biotope viewport. */
+
+.arkea-notebook {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.arkea-notebook__form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  border-radius: 0.45rem;
+}
+
+.arkea-notebook__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.arkea-notebook__field--grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.arkea-notebook__field input,
+.arkea-notebook__field textarea {
+  background: rgba(2, 6, 23, 0.6);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.arkea-notebook__field input:focus,
+.arkea-notebook__field textarea:focus {
+  outline: none;
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.15);
+}
+
+.arkea-notebook__tick-input {
+  width: 6rem;
+}
+
+.arkea-notebook__error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.82rem;
+}
+
+.arkea-notebook__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.arkea-notebook__entry {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.arkea-notebook__entry-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.arkea-notebook__entry-tick {
+  background: rgba(103, 232, 249, 0.15);
+  color: #67e8f9;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.arkea-notebook__entry-meta {
+  flex: 1 1 auto;
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.arkea-notebook__delete {
+  background: none;
+  border: 0;
+  color: rgba(226, 232, 240, 0.5);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.arkea-notebook__delete:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.arkea-notebook__entry-body {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}

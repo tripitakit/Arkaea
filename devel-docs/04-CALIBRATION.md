@@ -242,7 +242,7 @@ Il dendrogramma in `phylogeny.ex` mostra lineage, abbondanza, branch length, ma:
 
 Il sistema esporta JSON/CSV/blueprint ma:
 
-- Nessuna annotazione utente attaccabile a uno specifico tick — Fase 24
+- ✅ **Annotazione utente attaccabile a uno specifico tick** — *Closed Phase 24 / 6.1*: tabella `biotope_annotations` (uuid, biotope_id, player_id, tick, body, timestamps); contesto `Arkea.Notebook` con `list_for_biotope/1`, `create/4`, `delete/2` (autore-only); pannello "Notebook" come 7° bottom tab del biotope viewport con form di entry e lista per tick.
 - Nessun permalink temporale (link che riapre il biotopo allo stato del tick X) — Fase 24
 - Nessun bookmark di evento (con label utente, visibili sulla time-series) — Fase 24
 - Nessun replay con scrubbing — Fase 24

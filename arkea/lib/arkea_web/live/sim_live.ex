@@ -58,6 +58,10 @@ defmodule ArkeaWeb.SimLive do
        trends_trait_samples: [],
        selected_trait: nil,
        phylogeny_model: nil,
+       notebook_annotations: [],
+       notebook_form_tick: nil,
+       notebook_form_body: "",
+       notebook_form_error: nil,
        page_title: "Arkea Biotope"
      )}
   end
@@ -202,6 +206,7 @@ defmodule ArkeaWeb.SimLive do
         "interventions" -> :interventions
         "trends" -> :trends
         "phylogeny" -> :phylogeny
+        "notebook" -> :notebook
         _ -> :events
       end
 
@@ -210,6 +215,7 @@ defmodule ArkeaWeb.SimLive do
       |> assign(bottom_tab: tab_atom)
       |> maybe_load_trends_data(tab_atom)
       |> maybe_load_phylogeny_data(tab_atom)
+      |> maybe_load_notebook_data(tab_atom)
 
     {:noreply, socket}
   end
@@ -259,6 +265,53 @@ defmodule ArkeaWeb.SimLive do
 
   def handle_event("clear_compare", _params, socket) do
     {:noreply, assign(socket, compare_lineage_id: nil)}
+  end
+
+  # Phase 24 / 6.1 — lab notebook annotations.
+
+  def handle_event("create_annotation", %{"annotation" => params}, socket) do
+    biotope_id = socket.assigns.biotope_id
+    player_id = socket.assigns.current_player.id
+    body = Map.get(params, "body", "")
+    {tick, _} = Integer.parse(Map.get(params, "tick", "") || "")
+
+    case Arkea.Notebook.create(biotope_id, player_id, tick || 0, body) do
+      {:ok, _annotation} ->
+        {:noreply,
+         socket
+         |> assign(
+           notebook_annotations: Arkea.Notebook.list_for_biotope(biotope_id),
+           notebook_form_body: "",
+           notebook_form_tick: nil,
+           notebook_form_error: nil
+         )}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply, assign(socket, notebook_form_error: format_changeset_error(cs))}
+    end
+  end
+
+  def handle_event("delete_annotation", %{"id" => id}, socket) do
+    biotope_id = socket.assigns.biotope_id
+    player_id = socket.assigns.current_player.id
+
+    case Arkea.Notebook.delete(id, player_id) do
+      {:ok, _} ->
+        {:noreply,
+         assign(socket,
+           notebook_annotations: Arkea.Notebook.list_for_biotope(biotope_id)
+         )}
+
+      {:error, :unauthorized} ->
+        {:noreply,
+         assign(socket, notebook_form_error: "You can only delete your own annotations.")}
+
+      {:error, :not_found} ->
+        {:noreply,
+         assign(socket,
+           notebook_annotations: Arkea.Notebook.list_for_biotope(biotope_id)
+         )}
+    end
   end
 
   def handle_event("recolonize_home", _params, socket) do
@@ -454,6 +507,15 @@ defmodule ArkeaWeb.SimLive do
                       operator_log={@operator_log}
                       operator_error={@operator_error}
                       intervention_status={@intervention_status}
+                    />
+                  <% :notebook -> %>
+                    <.notebook_panel
+                      annotations={@notebook_annotations}
+                      current_player={@current_player}
+                      sim_state={@sim_state}
+                      form_tick={@notebook_form_tick}
+                      form_body={@notebook_form_body}
+                      form_error={@notebook_form_error}
                     />
                 <% end %>
               </div>
@@ -1373,6 +1435,111 @@ defmodule ArkeaWeb.SimLive do
     """
   end
 
+  attr :annotations, :list, required: true
+  attr :current_player, :map, required: true
+  attr :sim_state, :any, default: nil
+  attr :form_tick, :any, default: nil
+  attr :form_body, :string, default: ""
+  attr :form_error, :any, default: nil
+
+  defp notebook_panel(assigns) do
+    default_tick =
+      cond do
+        not is_nil(assigns.form_tick) -> assigns.form_tick
+        is_nil(assigns.sim_state) -> 0
+        true -> assigns.sim_state.tick_count
+      end
+
+    assigns = assign(assigns, :default_tick, default_tick)
+
+    ~H"""
+    <div class="arkea-notebook">
+      <div class="arkea-trends__intro">
+        <span class="arkea-card__eyebrow">Lab notebook</span>
+        <p class="arkea-muted">
+          Free-form notes attached to a specific simulation tick. The smallest
+          scientific primitive of a lab notebook: <em>"tick N: I observed X,
+          here's my hypothesis about Y"</em>. Notes are scoped to this biotope
+          and visible to every player who can read it; only the author can delete
+          their own notes.
+        </p>
+      </div>
+
+      <form phx-submit="create_annotation" class="arkea-notebook__form">
+        <label class="arkea-notebook__field">
+          <span>Tick</span>
+          <input
+            type="number"
+            name="annotation[tick]"
+            min="0"
+            value={@default_tick}
+            class="arkea-notebook__tick-input"
+            required
+          />
+        </label>
+
+        <label class="arkea-notebook__field arkea-notebook__field--grow">
+          <span>Note</span>
+          <textarea
+            name="annotation[body]"
+            rows="2"
+            placeholder="Tick 1827: β-lactam pulse selected lineage L42 (hydrolase 0.87)…"
+            maxlength={Arkea.Persistence.BiotopeAnnotation.body_max_length()}
+            required
+          >{@form_body}</textarea>
+        </label>
+
+        <button type="submit" class="arkea-button arkea-button--primary arkea-button--sm">
+          Save note
+        </button>
+      </form>
+
+      <p :if={@form_error} class="arkea-notebook__error">{@form_error}</p>
+
+      <%= if @annotations == [] do %>
+        <p class="arkea-muted" style="margin-top: 1rem;">
+          No notes for this biotope yet. The first one is always the hardest;
+          the rest write themselves.
+        </p>
+      <% else %>
+        <ul class="arkea-notebook__list">
+          <li :for={a <- @annotations} class="arkea-notebook__entry">
+            <header class="arkea-notebook__entry-head">
+              <span class="arkea-notebook__entry-tick">tick {a.tick}</span>
+              <span class="arkea-notebook__entry-meta">
+                {format_relative_datetime(a.inserted_at)}
+                <%= if a.player_id != @current_player.id do %>
+                  · by <code>{short_id(a.player_id)}</code>
+                <% end %>
+              </span>
+              <%= if a.player_id == @current_player.id do %>
+                <button
+                  type="button"
+                  phx-click="delete_annotation"
+                  phx-value-id={a.id}
+                  phx-confirm="Delete this annotation?"
+                  class="arkea-notebook__delete"
+                  title="Delete this note"
+                  aria-label="Delete annotation"
+                >
+                  ✕
+                </button>
+              <% end %>
+            </header>
+            <p class="arkea-notebook__entry-body">{a.body}</p>
+          </li>
+        </ul>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp format_relative_datetime(%DateTime{} = dt) do
+    Calendar.strftime(dt, "%Y-%m-%d %H:%M")
+  end
+
+  defp format_relative_datetime(_), do: ""
+
   defp event_log_content(assigns) do
     ~H"""
     <div>
@@ -1718,7 +1885,8 @@ defmodule ArkeaWeb.SimLive do
       {:trends, "Trends"},
       {:phylogeny, "Phylogeny"},
       {:chemistry, "Chemistry"},
-      {:interventions, "Interventions"}
+      {:interventions, "Interventions"},
+      {:notebook, "Notebook"}
     ]
   end
 
@@ -1777,6 +1945,20 @@ defmodule ArkeaWeb.SimLive do
   end
 
   defp maybe_load_phylogeny_data(socket, _other), do: socket
+
+  # Phase 24 / 6.1 — load the biotope's annotations on first open of
+  # the Notebook tab. Subsequent crud events refresh `notebook_
+  # annotations` directly from the create/delete handlers.
+  defp maybe_load_notebook_data(socket, :notebook) do
+    biotope_id = socket.assigns.biotope_id
+    assign(socket, notebook_annotations: Arkea.Notebook.list_for_biotope(biotope_id))
+  end
+
+  defp maybe_load_notebook_data(socket, _other), do: socket
+
+  defp format_changeset_error(%Ecto.Changeset{errors: errors}) do
+    Enum.map_join(errors, "; ", fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+  end
 
   defp recent_audit(biotope_id) do
     import Ecto.Query
