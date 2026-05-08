@@ -14,7 +14,7 @@
 }
 
 .arkea-help__heading {
-  max-width: 56rem;
+  max-width: 80rem;
   margin: 0 auto 1.5rem;
 }
 
@@ -56,6 +56,15 @@
   align-items: start;
   max-width: 80rem;
   margin: 0 auto;
+}
+
+/* Single-column variant for views without a sidebar (HGT ledger,
+   audit). The default layout reserves a 16-22rem sidebar column even
+   when overridden inline to `1fr`, so the content was shifted right
+   by the cumulative max-width. The `--single` modifier widens the
+   container and removes any visible offset. */
+.arkea-help__layout--single {
+  max-width: 96rem;
 }
 
 @media (max-width: 920px) {

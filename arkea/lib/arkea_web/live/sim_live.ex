@@ -318,6 +318,15 @@ defmodule ArkeaWeb.SimLive do
         >
           ⤓
         </a>
+        <.link
+          :if={@sim_state}
+          navigate={~p"/biotopes/#{@biotope_id}/hgt-ledger"}
+          class="arkea-biotope__header-btn"
+          title="Open the HGT provenance ledger for this biotope"
+          aria-label="HGT ledger"
+        >
+          HGT
+        </.link>
         <button
           :if={@sim_state}
           type="button"

@@ -100,3 +100,55 @@
   padding: 1.5rem;
   text-align: center;
 }
+
+/* Phase 21 Top 5 #4 — Trait selector in the Trends tab. The native
+   <select> element inherits the user-agent stylesheet (white panel,
+   light grey text on dark theme), which is unreadable. This block
+   styles the picker to match the rest of the app: dark panel, cyan
+   focus ring, custom chevron. */
+
+.arkea-trends__trait-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+  flex-wrap: wrap;
+}
+
+.arkea-trends__trait-picker select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  padding: 0.4rem 2rem 0.4rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  cursor: pointer;
+  /* Inline SVG chevron; uses fixed cyan to match the theme accent. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path fill='%2367e8f9' d='M1 1l5 6 5-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.7rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.arkea-trends__trait-picker select:hover {
+  border-color: rgba(103, 232, 249, 0.6);
+}
+
+.arkea-trends__trait-picker select:focus {
+  outline: none;
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.18);
+}
+
+/* The browser draws the option list with the platform palette; force
+   it to the dark theme too (Chrome / Firefox honour these on the
+   <option> children). */
+.arkea-trends__trait-picker select option {
+  background: #0f172a;
+  color: #e2e8f0;
+}

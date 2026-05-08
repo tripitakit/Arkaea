@@ -90,8 +90,8 @@ defmodule ArkeaWeb.HGTLedgerLive do
         </header>
 
         <div
-          class="arkea-help__layout"
-          style="grid-template-columns: 1fr; max-width: 72rem; margin: 0 auto;"
+          class="arkea-help__layout arkea-help__layout--single"
+          style="grid-template-columns: 1fr;"
         >
           <div class="arkea-tablist" role="tablist" aria-label="Filter HGT events by kind">
             <button
