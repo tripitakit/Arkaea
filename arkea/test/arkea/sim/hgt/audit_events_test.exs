@@ -156,8 +156,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
       # return a 5-tuple with events in slot 4 (Sub-task 1.3).
       {_ls, _ph, children, events, _rng_out} =
         Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i,
-                                                                  {ls, ph, ch_acc, ev_acc,
-                                                                   acc_rng} ->
+                                                                 {ls, ph, ch_acc, ev_acc, acc_rng} ->
           {ls_out, ph_out, new_children, new_events, rng_out} =
             Phage.step(ls, ph, tick, acc_rng)
 
@@ -207,8 +206,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       {_ls, _ph, _children, events, _rng_out} =
         Enum.reduce(1..50, {[recipient], phase, [], [], rng}, fn _i,
-                                                                  {ls, ph, ch_acc, ev_acc,
-                                                                   acc_rng} ->
+                                                                 {ls, ph, ch_acc, ev_acc, acc_rng} ->
           {ls_out, ph_out, new_children, new_events, rng_out} =
             Phage.step(ls, ph, tick, acc_rng)
 
@@ -374,8 +372,7 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
 
       {_ls, _ph, _children, events, _rng_out} =
         Enum.reduce(1..30, {[recipient], phase, [], [], rng}, fn _i,
-                                                                  {ls, ph, ch_acc, ev_acc,
-                                                                   acc_rng} ->
+                                                                 {ls, ph, ch_acc, ev_acc, acc_rng} ->
           {ls_out, ph_out, new_children, new_events, rng_out} =
             Phage.step(ls, ph, tick, acc_rng)
 

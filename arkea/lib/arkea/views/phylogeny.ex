@@ -200,7 +200,15 @@ defmodule Arkea.Views.Phylogeny do
   #                         parent (nil for absolute roots), used only
   #                         to compute branch_length via PDistance
   #   - `children_by_parent` : adjacency map
-  defp layout_subtree(node, depth, cumulative_distance, cursor, rendered_parent_id, parent_node, children_by_parent) do
+  defp layout_subtree(
+         node,
+         depth,
+         cumulative_distance,
+         cursor,
+         rendered_parent_id,
+         parent_node,
+         children_by_parent
+       ) do
     branch_length = branch_length_for(parent_node, node)
     edge_px = max(branch_length * @distance_scale, @min_branch_px)
     next_cumulative = cumulative_distance + edge_px
@@ -226,7 +234,15 @@ defmodule Arkea.Views.Phylogeny do
       {child_records, cursor2} =
         Enum.reduce(children, {[], cursor1}, fn child, {acc, cur} ->
           {laid, next} =
-            layout_subtree(child, depth + 1, next_cumulative, cur, split_id, node, children_by_parent)
+            layout_subtree(
+              child,
+              depth + 1,
+              next_cumulative,
+              cur,
+              split_id,
+              node,
+              children_by_parent
+            )
 
           {acc ++ laid, next}
         end)

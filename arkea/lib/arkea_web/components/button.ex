@@ -56,9 +56,7 @@ defmodule ArkeaWeb.Components.Button do
 
   attr :class, :string, default: nil
 
-  attr :rest, :global,
-    include:
-      ~w(disabled name value form autofocus download
+  attr :rest, :global, include: ~w(disabled name value form autofocus download
          title target rel
          aria-label aria-controls aria-expanded aria-pressed
          phx-click phx-disable-with phx-target phx-value-id

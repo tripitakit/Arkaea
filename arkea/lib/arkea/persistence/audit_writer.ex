@@ -43,10 +43,17 @@ defmodule Arkea.Persistence.AuditWriter do
   # --- Channel-direct (flat-shape) events: Sub-task 1.6 remediation. ---
 
   defp event_attrs(%{type: :transformation_event} = e, biotope_id, tick_count, occurred_at) do
-    base_attrs(biotope_id, tick_count, occurred_at, "transformation_event", e.recipient_lineage_id, %{
-      "origin_lineage_id" => e.origin_lineage_id,
-      "gene_index" => e.gene_index
-    })
+    base_attrs(
+      biotope_id,
+      tick_count,
+      occurred_at,
+      "transformation_event",
+      e.recipient_lineage_id,
+      %{
+        "origin_lineage_id" => e.origin_lineage_id,
+        "gene_index" => e.gene_index
+      }
+    )
   end
 
   defp event_attrs(%{type: :phage_infection} = e, biotope_id, tick_count, occurred_at) do
@@ -76,17 +83,31 @@ defmodule Arkea.Persistence.AuditWriter do
 
   defp event_attrs(%{type: :plasmid_displaced} = e, biotope_id, tick_count, occurred_at) do
     # `inc_group` is `non_neg_integer` (see `Arkea.Genome`); integer pass-through.
-    base_attrs(biotope_id, tick_count, occurred_at, "plasmid_displaced", e.recipient_lineage_id, %{
-      "displaced_inc_group" => e.displaced_inc_group,
-      "new_donor_lineage_id" => e.new_donor_lineage_id
-    })
+    base_attrs(
+      biotope_id,
+      tick_count,
+      occurred_at,
+      "plasmid_displaced",
+      e.recipient_lineage_id,
+      %{
+        "displaced_inc_group" => e.displaced_inc_group,
+        "new_donor_lineage_id" => e.new_donor_lineage_id
+      }
+    )
   end
 
   defp event_attrs(%{type: :transduction_event} = e, biotope_id, tick_count, occurred_at) do
-    base_attrs(biotope_id, tick_count, occurred_at, "transduction_event", e.recipient_lineage_id, %{
-      "donor_lineage_id" => e.donor_lineage_id,
-      "payload_kind" => atom_to_string(e.payload_kind)
-    })
+    base_attrs(
+      biotope_id,
+      tick_count,
+      occurred_at,
+      "transduction_event",
+      e.recipient_lineage_id,
+      %{
+        "donor_lineage_id" => e.donor_lineage_id,
+        "payload_kind" => atom_to_string(e.payload_kind)
+      }
+    )
   end
 
   defp event_attrs(%{type: :bacteriocin_kill} = e, biotope_id, tick_count, occurred_at) do

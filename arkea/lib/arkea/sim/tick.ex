@@ -451,8 +451,8 @@ defmodule Arkea.Sim.Tick do
     # `state.pending_events` via the prepend-then-reverse convention.
     {new_lineages, new_phases, new_pending} =
       Enum.reduce(phases, {lineages, [], state.pending_events}, fn phase,
-                                                                    {acc_lineages, acc_phases,
-                                                                     acc_events} ->
+                                                                   {acc_lineages, acc_phases,
+                                                                    acc_events} ->
         {ls_out, ph_out, ev_out} = Bacteriocin.step_with_events(acc_lineages, phase, tick)
 
         next_events =
