@@ -55,7 +55,7 @@ config :phoenix, :json_library, Jason
 config :arkea, Arkea.Oban,
   repo: Arkea.Repo,
   plugins: false,
-  queues: [snapshots: 5]
+  queues: [snapshots: 5, scheduled_dosing: 4]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

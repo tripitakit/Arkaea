@@ -30,7 +30,7 @@ config :arkea, :persistence_enabled, false
 config :arkea, Arkea.Oban,
   repo: Arkea.Repo,
   plugins: false,
-  queues: [snapshots: 5],
+  queues: [snapshots: 5, scheduled_dosing: 4],
   testing: :manual
 
 # Print only warnings and errors during test
