@@ -250,7 +250,16 @@ body {
   text-align: right;
   padding: 3px 3px;
   font-variant-numeric: tabular-nums;
-  color: oklch(calc(90% - var(--fill, 0) * 40%) 0.01 253);
+  /* Phase 22 contrast fix: light text on dark cells (low fill),
+     pure white on saturated cyan cells (high fill). The previous
+     formula slid into mid-grey at fill=1, illegible on saturated
+     cyan; flipping the slope keeps the text readable across the
+     whole intensity range. The text-shadow is a belt-and-braces
+     guarantee at the border — even with a perfect cyan match,
+     the dark halo separates the digits from the background. */
+  color: oklch(calc(85% + var(--fill, 0) * 12%) 0 0);
+  font-weight: 600;
+  text-shadow: 0 0 2px rgba(2, 6, 23, 0.85);
   font-size: 0.6rem;
   min-width: 2rem;
 }
