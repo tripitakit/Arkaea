@@ -26,6 +26,9 @@ config :arkea, ArkeaWeb.Endpoint,
 # and subscribe to PubSub directly when testing the clock-driven path.
 config :arkea, :tick_interval_ms, 600_000
 config :arkea, :persistence_enabled, false
+# Phase 33 — disable startup bootstrap in test so the default
+# world doesn't pollute test BiotopeSupervisor state.
+config :arkea, :startup_bootstrap, false
 
 config :arkea, Arkea.Oban,
   repo: Arkea.Repo,
