@@ -17,6 +17,14 @@ defmodule Arkea.Sim.Intervention do
   @nutrient_pulse %{glucose: 12.0, nh3: 2.0, po4: 1.0}
   @default_xenobiotic_dose 50.0
 
+  # Default UV / MMS pulse — fraction of `Lineage.dna_damage_max/0`
+  # added to every lineage in the targeted phase. 0.10 ≈ a moderate
+  # acute exposure that is enough to push undamaged cells visibly
+  # into the SOS regime (default threshold = 0.20 = 4% of cap), but
+  # *not* a one-shot kill (the per-tick decay of 0.10 lets cells
+  # recover unless successive pulses stack).
+  @mutagen_pulse_default_dose 0.10
+
   @type command :: %{
           required(:kind) => atom(),
           required(:actor_player_id) => binary(),
@@ -103,6 +111,174 @@ defmodule Arkea.Sim.Intervention do
         })
 
       {:ok, new_state, [%{type: :intervention, payload: payload}], payload}
+    end
+  end
+
+  # Phase 27 / 27.2 — UV / MMS-like mutagenic pulse. Adds a fraction
+  # of `Lineage.dna_damage_max/0` to every lineage *resident in*
+  # `phase_name` (i.e. with abundance > 0 there). Cells already at
+  # the damage cap clamp at the cap. Cells in other phases are
+  # unaffected — the pulse is a phase-local irradiation (UV reaches
+  # the surface phase but not deeper anaerobic zones; MMS in a
+  # specific compartment doesn't migrate). Emits a per-lineage
+  # `:dna_damage_pulse` audit entry alongside the umbrella
+  # `:intervention` so consumers can track which cells were hit.
+  def apply(%BiotopeState{} = state, %{kind: :mutagen_pulse} = command) do
+    phase_name = Map.get(command, :phase_name)
+    dose = Map.get(command, :dose, @mutagen_pulse_default_dose)
+
+    with {:ok, _phase} <- fetch_phase(state, phase_name),
+         {:ok, dose_f} <- normalise_dose(dose) do
+      {updated_lineages, hit_ids} =
+        apply_mutagen_pulse(state.lineages, phase_name, dose_f)
+
+      payload =
+        base_payload(command, state, phase_name, %{
+          dose: dose_f,
+          source: stringify_or_default(Map.get(command, :source), "uv"),
+          affected_lineage_count: length(hit_ids)
+        })
+
+      events =
+        [%{type: :intervention, payload: payload}] ++
+          Enum.map(hit_ids, fn id ->
+            %{
+              type: :dna_damage_pulse,
+              lineage_id: id,
+              dose: dose_f,
+              source: Map.get(command, :source, :uv),
+              tick: state.tick_count
+            }
+          end)
+
+      {:ok, %{state | lineages: updated_lineages}, events, payload}
+    end
+  end
+
+  # Phase 27 / 27.3 — environmental shift. Updates the targeted
+  # phase's physical parameters (`temperature`, `ph`, `osmolarity`,
+  # `dilution_rate`) by the supplied keys. Each parameter is
+  # validated against `Phase.validate/1`'s ranges; if the resulting
+  # phase is invalid the whole intervention is rejected
+  # (`:invalid_environment`). Unrelated keys in the command are
+  # ignored. Emits a `:intervention` event with the *applied delta*
+  # (only the keys that actually changed).
+  def apply(%BiotopeState{} = state, %{kind: :environmental_shift} = command) do
+    phase_name = Map.get(command, :phase_name)
+    shifts = Map.get(command, :shifts, %{})
+
+    with {:ok, phase} <- fetch_phase(state, phase_name),
+         {:ok, updated_phase, applied} <- apply_environmental_shifts(phase, shifts),
+         :ok <- Phase.validate(updated_phase) do
+      new_state = put_phase(state, updated_phase)
+
+      payload =
+        base_payload(command, state, phase_name, %{
+          applied: stringify_map(applied)
+        })
+
+      {:ok, new_state, [%{type: :intervention, payload: payload}], payload}
+    else
+      :invalid_environment -> {:error, :invalid_environment}
+      {:error, _reason} = err -> err
+      other when is_atom(other) -> {:error, other}
+    end
+  end
+
+  # Phase 27 / 27.4 — surgical gene knockout. Replaces every codon
+  # of the named gene in the target lineage with `0`, leaving the
+  # codon count (and therefore the gene-grammar invariant) intact.
+  # The resulting domains parse to `:substrate_binding` with
+  # all-zero parameters — biologically equivalent to a non-functional
+  # gene product (zero kcat, zero affinity, zero binding). The
+  # `genome.gene_count` is recomputed; the lineage's `fitness_cache`
+  # is invalidated so the next tick re-derives the phenotype from
+  # the (now broken) genome.
+  #
+  # The lineage is matched by `:lineage_id`; the gene is matched by
+  # `:gene_id` against the chromosome only (plasmid / prophage
+  # knockouts are out of scope for v1 — those are usually achieved
+  # by curing the replicon, which is a different intervention).
+  def apply(%BiotopeState{} = state, %{kind: :gene_knockout} = command) do
+    lineage_id = Map.get(command, :lineage_id)
+    gene_id = Map.get(command, :gene_id)
+
+    with {:ok, lineage} <- fetch_lineage(state, lineage_id),
+         {:ok, knocked_genome, knocked_gene_id} <- knock_out_chromosome_gene(lineage, gene_id) do
+      knocked_lineage = %{lineage | genome: knocked_genome, fitness_cache: nil}
+      new_lineages = replace_lineage(state.lineages, knocked_lineage)
+      new_state = %{state | lineages: new_lineages}
+
+      payload =
+        base_payload(command, state, nil, %{
+          lineage_id: lineage_id,
+          gene_id: knocked_gene_id
+        })
+
+      events = [
+        %{type: :intervention, payload: payload},
+        %{
+          type: :gene_knockout,
+          lineage_id: lineage_id,
+          gene_id: knocked_gene_id,
+          tick: state.tick_count
+        }
+      ]
+
+      {:ok, new_state, events, payload}
+    end
+  end
+
+  # Phase 27 / 27.5 — heterologous lineage inoculation. Adds a
+  # caller-supplied genome as a new founder lineage of the biotope
+  # at the targeted phase, with the supplied initial abundance.
+  # This is the "save a lineage you observed elsewhere and
+  # reintroduce it later" workflow — it lets the player retry an
+  # experiment with the same genetic background instead of waiting
+  # for re-derivation from random mutation.
+  #
+  # The genome is validated; abundance is required positive. The
+  # founder is born at the *current* tick (not 0), so its lineage
+  # tree position reflects when the player intervened.
+  def apply(%BiotopeState{} = state, %{kind: :lineage_inoculation} = command) do
+    phase_name = Map.get(command, :phase_name)
+    genome = Map.get(command, :genome)
+    abundance = Map.get(command, :abundance, 100)
+    seed_id = Map.get(command, :original_seed_id)
+
+    with {:ok, _phase} <- fetch_phase(state, phase_name),
+         {:ok, valid_genome} <- validate_inoculation_genome(genome),
+         {:ok, abund} <- validate_inoculation_abundance(abundance) do
+      founder =
+        Lineage.new_founder(
+          valid_genome,
+          %{phase_name => abund},
+          state.tick_count,
+          if(seed_id, do: [original_seed_id: seed_id], else: [])
+        )
+
+      new_lineages = [founder | state.lineages]
+      new_state = %{state | lineages: new_lineages}
+
+      payload =
+        base_payload(command, state, phase_name, %{
+          lineage_id: founder.id,
+          abundance: abund,
+          original_seed_id: seed_id
+        })
+
+      events = [
+        %{type: :intervention, payload: payload},
+        %{
+          type: :lineage_inoculated,
+          lineage_id: founder.id,
+          phase_name: phase_name,
+          abundance: abund,
+          tick: state.tick_count
+        }
+      ]
+
+      {:ok, new_state, events, payload}
     end
   end
 
@@ -267,6 +443,154 @@ defmodule Arkea.Sim.Intervention do
   end
 
   defp stringify_map(map) do
-    Map.new(map, fn {key, value} -> {Atom.to_string(key), value} end)
+    Map.new(map, fn {key, value} ->
+      {Atom.to_string(key), stringify_value(value)}
+    end)
+  end
+
+  defp stringify_value(v) when is_atom(v) and not is_boolean(v) and not is_nil(v),
+    do: Atom.to_string(v)
+
+  defp stringify_value(v), do: v
+
+  defp stringify_or_default(nil, default), do: default
+  defp stringify_or_default(v, _default) when is_binary(v), do: v
+  defp stringify_or_default(v, _default) when is_atom(v), do: Atom.to_string(v)
+
+  # ---------------------------------------------------------------------------
+  # Phase 27 / 27.2 — :mutagen_pulse helpers.
+
+  defp apply_mutagen_pulse(lineages, phase_name, dose_fraction) do
+    abs_dose = dose_fraction * Lineage.dna_damage_max()
+    cap = Lineage.dna_damage_max()
+
+    {updated, hits} =
+      Enum.map_reduce(lineages, [], fn lineage, hit_acc ->
+        if Lineage.abundance_in(lineage, phase_name) > 0 do
+          new_damage = min(lineage.dna_damage + abs_dose, cap)
+          {%{lineage | dna_damage: new_damage}, [lineage.id | hit_acc]}
+        else
+          {lineage, hit_acc}
+        end
+      end)
+
+    {updated, Enum.reverse(hits)}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Phase 27 / 27.3 — :environmental_shift helpers.
+
+  @env_shift_keys [:temperature, :ph, :osmolarity, :dilution_rate]
+
+  defp apply_environmental_shifts(%Phase{} = phase, shifts) when is_map(shifts) do
+    {updated, applied} =
+      Enum.reduce(@env_shift_keys, {phase, %{}}, fn key, {acc_phase, acc_applied} ->
+        case Map.get(shifts, key) do
+          nil ->
+            {acc_phase, acc_applied}
+
+          value when is_number(value) ->
+            current = Map.get(acc_phase, key)
+
+            if current == value do
+              {acc_phase, acc_applied}
+            else
+              {Map.put(acc_phase, key, value * 1.0), Map.put(acc_applied, key, value * 1.0)}
+            end
+
+          _other ->
+            {acc_phase, acc_applied}
+        end
+      end)
+
+    if map_size(applied) == 0 do
+      {:error, :no_environmental_change}
+    else
+      {:ok, updated, applied}
+    end
+  end
+
+  defp apply_environmental_shifts(_phase, _other), do: {:error, :invalid_shifts}
+
+  # ---------------------------------------------------------------------------
+  # Phase 27 / 27.4 — :gene_knockout helpers.
+
+  defp fetch_lineage(%BiotopeState{lineages: lineages}, lineage_id) when is_binary(lineage_id) do
+    case Enum.find(lineages, &(&1.id == lineage_id)) do
+      %Lineage{} = l -> {:ok, l}
+      nil -> {:error, :unknown_lineage}
+    end
+  end
+
+  defp fetch_lineage(_state, _id), do: {:error, :unknown_lineage}
+
+  defp knock_out_chromosome_gene(%Lineage{genome: nil}, _gene_id),
+    do: {:error, :lineage_has_no_genome}
+
+  defp knock_out_chromosome_gene(%Lineage{genome: %Genome{} = genome}, gene_id)
+       when is_binary(gene_id) do
+    case Enum.find(genome.chromosome, &(&1.id == gene_id)) do
+      nil ->
+        {:error, :unknown_gene}
+
+      %Gene{} = target ->
+        knocked_gene = neutralise_gene(target)
+
+        new_chromosome =
+          Enum.map(genome.chromosome, fn
+            %Gene{id: ^gene_id} -> knocked_gene
+            other -> other
+          end)
+
+        new_genome =
+          genome
+          |> Map.put(:chromosome, new_chromosome)
+          |> Map.put(
+            :gene_count,
+            length(new_chromosome) + length(genome.plasmids) +
+              length(genome.prophages)
+          )
+
+        {:ok, new_genome, gene_id}
+    end
+  end
+
+  defp knock_out_chromosome_gene(_lineage, _gene_id), do: {:error, :invalid_gene_id}
+
+  defp neutralise_gene(%Gene{codons: codons} = gene) do
+    zero_codons = List.duplicate(0, length(codons))
+    %{gene | codons: zero_codons, domains: rebuild_zero_domains(codons)}
+  end
+
+  # The chromosome-grammar invariant requires each domain block to
+  # be 23 codons (`@phase1_domain_size` in `Gene`). We cannot call
+  # `Gene.from_codons/1` here without coupling to its full parser;
+  # instead we rebuild the domain list from the now-zeroed codon
+  # stream using the same arithmetic.
+  defp rebuild_zero_domains(original_codons) do
+    n_domains = max(div(length(original_codons), 23), 0)
+
+    Enum.map(0..(n_domains - 1)//1, fn _ ->
+      Domain.new([0, 0, 0], List.duplicate(0, 20))
+    end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Phase 27 / 27.5 — :lineage_inoculation helpers.
+
+  defp validate_inoculation_genome(%Genome{} = genome) do
+    if Genome.valid?(genome), do: {:ok, genome}, else: {:error, :invalid_genome}
+  end
+
+  defp validate_inoculation_genome(_), do: {:error, :invalid_genome}
+
+  defp validate_inoculation_abundance(n) when is_integer(n) and n > 0, do: {:ok, n}
+  defp validate_inoculation_abundance(_), do: {:error, :invalid_abundance}
+
+  defp replace_lineage(lineages, %Lineage{id: id} = updated) do
+    Enum.map(lineages, fn
+      %Lineage{id: ^id} -> updated
+      other -> other
+    end)
   end
 end
