@@ -42,6 +42,13 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
           selected_gene_id={@selected_gene_id}
           name={"plasmid-#{idx}"}
         />
+
+        <.replicon_group
+          :for={{prophage, idx} <- Enum.with_index(Map.get(@layout, :prophages, []))}
+          replicon={prophage}
+          selected_gene_id={@selected_gene_id}
+          name={"prophage-#{idx}"}
+        />
       </svg>
     </div>
     """
@@ -52,8 +59,37 @@ defmodule ArkeaWeb.Components.GenomeCanvas do
   attr :name, :string, required: true
 
   defp replicon_group(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:replicon_kind, fn -> Map.get(assigns.replicon, :replicon_kind, :unknown) end)
+      |> assign_new(:state_marker, fn -> Map.get(assigns.replicon, :state) end)
+
     ~H"""
-    <g class="arkea-genome-canvas__replicon" data-name={@name}>
+    <g
+      class={[
+        "arkea-genome-canvas__replicon",
+        "arkea-genome-canvas__replicon--#{@replicon_kind}"
+      ]}
+      data-name={@name}
+      data-replicon-kind={@replicon_kind}
+      data-state={@state_marker}
+    >
+      <%!-- Prophage outer ring: dashed annulus boundary so the lysogenic
+            cassette reads as integrated-but-distinct from the chromosome.
+            For induced prophages the dash pattern tightens (handled in CSS
+            via data-state). --%>
+      <circle
+        :if={@replicon_kind == :prophage}
+        class={[
+          "arkea-genome-canvas__prophage-marker",
+          "arkea-genome-canvas__prophage-marker--#{@state_marker || :lysogenic}"
+        ]}
+        cx={@replicon.cx}
+        cy={@replicon.cy}
+        r={@replicon.r_outer + 4}
+        fill="none"
+      />
+
       <text
         :if={@replicon[:label]}
         class="arkea-genome-canvas__replicon-label"

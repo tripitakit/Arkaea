@@ -168,6 +168,141 @@ defmodule Arkea.Views.GenomeCanvasTest do
     end
   end
 
+  describe "replicon distinction (Phase 26 / 8.9)" do
+    test "chromosome layout carries replicon_kind: :chromosome" do
+      layout = GenomeCanvas.build(%{chromosome: [%{id: "g1", domains: []}], plasmids: []})
+
+      assert layout.chromosome.replicon_kind == :chromosome
+    end
+
+    test "plasmids carry replicon_kind: :plasmid" do
+      layout =
+        GenomeCanvas.build(%{
+          chromosome: [%{id: "core", domains: []}],
+          plasmids: [%{label: "Plasmid 1", genes: []}]
+        })
+
+      assert Enum.all?(layout.plasmids, &(&1.replicon_kind == :plasmid))
+    end
+
+    test "prophages render as a separate list with replicon_kind: :prophage and state" do
+      layout =
+        GenomeCanvas.build(%{
+          chromosome: [%{id: "core", domains: []}],
+          plasmids: [],
+          prophages: [
+            %{label: "Prophage 1", state: :lysogenic, genes: [%{id: "ph1", domains: []}]},
+            %{label: "Prophage 2", state: :induced, genes: []}
+          ]
+        })
+
+      assert length(layout.prophages) == 2
+      assert Enum.all?(layout.prophages, &(&1.replicon_kind == :prophage))
+
+      [p0, p1] = layout.prophages
+      assert p0.label == "Prophage 1"
+      assert p0.state == :lysogenic
+      assert p1.label == "Prophage 2"
+      assert p1.state == :induced
+    end
+
+    test "prophages and plasmids are positioned in distinct regions of the canvas" do
+      layout =
+        GenomeCanvas.build(%{
+          chromosome: [%{id: "core", domains: []}],
+          plasmids: [%{label: "Plasmid 1", genes: []}],
+          prophages: [%{label: "Prophage 1", genes: []}]
+        })
+
+      [plasmid] = layout.plasmids
+      [prophage] = layout.prophages
+      # Prophages are placed in their own region (cy differs from plasmids).
+      assert prophage.cy != plasmid.cy
+    end
+
+    test "missing prophages key defaults to []" do
+      layout =
+        GenomeCanvas.build(%{chromosome: [%{id: "core", domains: []}], plasmids: []})
+
+      assert layout.prophages == []
+    end
+  end
+
+  describe "rich_domain_tooltip/2 (Phase 26 / 8.10)" do
+    test "catalytic_site surfaces reaction class + kcat + cofactor flag" do
+      tip =
+        GenomeCanvas.rich_domain_tooltip(:catalytic_site, %{
+          reaction_class: :hydrolysis,
+          kcat: 4.96,
+          cofactor_required: true
+        })
+
+      assert tip =~ "catalytic_site"
+      assert tip =~ "hydrolysis"
+      assert tip =~ "kcat=4.96"
+      assert tip =~ "+cofactor"
+    end
+
+    test "substrate_binding surfaces target + Km + breadth" do
+      tip =
+        GenomeCanvas.rich_domain_tooltip(:substrate_binding, %{
+          target_metabolite_id: "glucose",
+          km: 0.42,
+          specificity_breadth: 0.18
+        })
+
+      assert tip =~ "substrate_binding"
+      assert tip =~ "→glucose"
+      assert tip =~ "Km=0.42"
+      assert tip =~ "breadth=0.18"
+    end
+
+    test "dna_binding surfaces affinity + promoter specificity" do
+      tip =
+        GenomeCanvas.rich_domain_tooltip(:dna_binding, %{
+          binding_affinity: 0.51,
+          promoter_specificity: 0.62
+        })
+
+      assert tip =~ "affinity=0.51"
+      assert tip =~ "spec=0.62"
+    end
+
+    test "ligand_sensor surfaces sensed metabolite + threshold + curve" do
+      tip =
+        GenomeCanvas.rich_domain_tooltip(:ligand_sensor, %{
+          sensed_metabolite_id: "ammonia",
+          threshold: 0.12,
+          response_curve: :hill
+        })
+
+      assert tip =~ "senses ammonia"
+      assert tip =~ "θ=0.12"
+      assert tip =~ "hill"
+    end
+
+    test "missing params falls back to bare type name" do
+      assert GenomeCanvas.rich_domain_tooltip(:surface_tag, %{}) ==
+               "surface_tag"
+    end
+
+    test "unknown type returns just the type name" do
+      assert GenomeCanvas.rich_domain_tooltip(:unknown, %{}) == "unknown"
+    end
+
+    test "cofactor flag false is omitted (only positive flags surface)" do
+      tip =
+        GenomeCanvas.rich_domain_tooltip(:catalytic_site, %{
+          reaction_class: :oxidation,
+          kcat: 1.0,
+          cofactor_required: false
+        })
+
+      refute tip =~ "+cofactor"
+      assert tip =~ "oxidation"
+    end
+  end
+
   describe "domain_color/1" do
     test "returns a stable color per type" do
       types = [
