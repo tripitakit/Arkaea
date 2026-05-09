@@ -231,10 +231,27 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
   # Sub-task 1.4 — HGT.step (conjugation) channel-aware events.
 
   defp tm_domain, do: Domain.new([0, 0, 2], @param_codons)
+  # type_tag [0,0,1] sum=1 mod 11 = catalytic_site, params first-3
+  # parameter codons all 10 → sum 30 → rem(30,6) = 0 → :hydrolysis.
+  defp hydrolytic_catalytic_domain, do: Domain.new([0, 0, 1], @param_codons)
 
   defp conjugative_plasmid_genes do
-    # 3 transmembrane_anchor domains → conjugation_strength = 3
-    [Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])]
+    # Phase 28 / 28.1 — full conjugation triad: 3 pili (transmembrane
+    # anchors) + 1 relaxase gene (`:dna_binding` + `:catalytic_site`
+    # reaction_class :hydrolysis) + oriT marker. Effective strength
+    # = pili count (3), matching the pre-Phase-28 pili-only count
+    # the trials were tuned to.
+    pili_gene = Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
+
+    orit_gene = %{
+      pili_gene
+      | intergenic_blocks: %{transfer: ["orit_site"], expression: [], duplication: []}
+    }
+
+    relaxase_gene =
+      Gene.from_domains([dna_binding_domain(), hydrolytic_catalytic_domain()])
+
+    [orit_gene, relaxase_gene]
   end
 
   defp donor_with_conjugative do
@@ -412,7 +429,8 @@ defmodule Arkea.Sim.HGT.AuditEventsTest do
     test "events accumulated by step_hgt and step_phage_infection appear in tick output" do
       # Drive multiple ticks until at least one channel-emitted event surfaces
       # in the tick's outward events list. Per-tick conjugation probability is
-      # ~0.00375, so we run a few hundred ticks.
+      # ~0.005 with the Phase-28 triad seed (strength 3, 200/200 abundance,
+      # multiplier 1.45 with single oriT_site).
       state = tick_state_with_active_hgt()
 
       {_final_state, all_events} =

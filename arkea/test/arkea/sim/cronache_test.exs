@@ -195,11 +195,23 @@ defmodule Arkea.Sim.CronacheTest do
 
     recipient_genome = Genome.new([base_gene])
 
+    # Phase 28 / 28.1 — full conjugation triad on the donor plasmid.
+    # The pre-Phase-28 single-tm-anchor seed no longer satisfies the
+    # `pili + relaxase + oriT` requirement; here we wire all three.
+    pili_orit_gene =
+      %{
+        Gene.from_domains([Domain.new([0, 0, 2], List.duplicate(8, 20))])
+        | intergenic_blocks: %{transfer: ["orit_site"], expression: [], duplication: []}
+      }
+
+    relaxase_gene =
+      Gene.from_domains([
+        Domain.new([0, 0, 5], List.duplicate(8, 20)),
+        Domain.new([0, 0, 1], List.duplicate(10, 20))
+      ])
+
     donor_genome =
-      Genome.add_plasmid(
-        recipient_genome,
-        [Gene.from_domains([Domain.new([0, 0, 2], List.duplicate(8, 20))])]
-      )
+      Genome.add_plasmid(recipient_genome, [pili_orit_gene, relaxase_gene])
 
     phase_names = Enum.map(phases, & &1.name)
     donor_abundances = Map.new(phase_names, fn name -> {name, 500} end)

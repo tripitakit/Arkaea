@@ -75,14 +75,31 @@ defmodule Arkea.Sim.Phase26SmokeTest do
       Gene.from_domains([transmembrane_domain()])
     ]
 
-    plasmid = [Gene.from_domains([transmembrane_domain()])]
+    # Phase 28 / 28.1 — Plasmid completes the conjugation triad so
+    # the smoke test exercises the post-Phase-28 conjugation runtime
+    # rather than the pre-Phase-28 pili-only proxy.
+    pili_gene =
+      Gene.from_domains([transmembrane_domain()])
+      |> Map.put(:intergenic_blocks, %{
+        transfer: ["orit_site"],
+        expression: [],
+        duplication: []
+      })
+
+    relaxase_gene = Gene.from_domains([dna_binding_domain(), catalytic_domain()])
+
+    plasmid = [pili_gene, relaxase_gene]
 
     prophage_genes = [Gene.from_domains([catalytic_domain()])]
 
+    # High repressor_strength + zero-stress baseline → prophage is
+    # robust against induction across the smoke's 30-tick window so
+    # the post-tick `:prophage` assertion in DomainLandscape lands
+    # consistently regardless of RNG drift.
     prophage = %{
       genes: prophage_genes,
       state: :lysogenic,
-      repressor_strength: 0.7
+      repressor_strength: 0.99
     }
 
     Genome.new(chromosome, plasmids: [plasmid], prophages: [prophage])

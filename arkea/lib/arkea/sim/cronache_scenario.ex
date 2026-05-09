@@ -187,12 +187,29 @@ defmodule Arkea.Sim.CronacheScenario do
     Genome.new([chromosome_gene], prophages: [[prophage_gene]])
   end
 
-  # Carrier genome: founder + 1-gene conjugative plasmid.
-  #   [0,0,2] → index 2 → :transmembrane_anchor  (pilus-like, conjugation proxy)
+  # Carrier genome: founder + a fully self-conjugative plasmid
+  # (Phase 28 / 28.1 — closes L1.5 conjugation triad).
+  #
+  #   [0,0,2] → :transmembrane_anchor (pili_like, sex pilus)
+  #   [0,0,5] → :dna_binding          (relaxase oriT recognition)
+  #   [0,0,1] params=10 → :catalytic_site reaction_class :hydrolysis
+  #                                   (relaxase nicking activity)
+  #   intergenic_blocks transfer: ["orit_site"]  (oriT_like)
   defp build_carrier_genome do
     tm_domain = Domain.new([0, 0, 2], List.duplicate(8, 20))
-    plasmid_gene = Gene.from_domains([tm_domain])
-    Genome.add_plasmid(build_founder_genome(), [plasmid_gene])
+    dna_binding_domain = Domain.new([0, 0, 5], List.duplicate(8, 20))
+    hydrolytic_domain = Domain.new([0, 0, 1], List.duplicate(10, 20))
+
+    pili_gene = Gene.from_domains([tm_domain])
+
+    pili_with_orit = %{
+      pili_gene
+      | intergenic_blocks: %{transfer: ["orit_site"], expression: [], duplication: []}
+    }
+
+    relaxase_gene = Gene.from_domains([dna_binding_domain, hydrolytic_domain])
+
+    Genome.add_plasmid(build_founder_genome(), [pili_with_orit, relaxase_gene])
   end
 
   defp mean_dilution(phases) do

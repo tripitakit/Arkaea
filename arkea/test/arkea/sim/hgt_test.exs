@@ -38,14 +38,37 @@ defmodule Arkea.Sim.HGTTest do
   defp cat_domain, do: Domain.new(@cat_type_tag, @param_codons)
   defp structural_domain, do: Domain.new(@structural_type_tag, @param_codons)
 
+  # Phase 28 / 28.1 — conjugation triad helpers. A self-conjugative
+  # plasmid needs all three: pili (transmembrane_anchor), relaxase
+  # (:dna_binding + :catalytic_site reaction_class :hydrolysis on a
+  # single gene), and oriT (intergenic_blocks transfer carrying
+  # "orit_site"). All three must be present for a plasmid to drive
+  # conjugation under the triad model.
+  defp dna_binding_domain, do: Domain.new([0, 0, 5], @param_codons)
+  # type_tag [0,0,1] params first 3 = 30, rem(30,6)=0 → :hydrolysis
+  defp hydrolytic_catalytic_domain, do: Domain.new([0, 0, 1], @param_codons)
+
+  defp pili_gene_with_orit(orit_count \\ 1) do
+    Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
+    |> with_intergenic(%{transfer: List.duplicate("orit_site", orit_count)})
+  end
+
+  defp single_relaxase_gene do
+    Gene.from_domains([dna_binding_domain(), hydrolytic_catalytic_domain()])
+  end
+
   defp conjugative_plasmid do
-    # One gene with 3 transmembrane_anchor domains → conjugation_strength = 3
-    plasmid_gene = Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
-    [plasmid_gene]
+    # Baseline triad: 3 pili (transmembrane), 1 relaxase, 1 oriT.
+    # Phase 28's effective strength formula factors only the pilus
+    # count (the triad gates whether conjugation runs at all), so
+    # the strength is 3 — matching the pre-Phase-28 pili-only count
+    # the 2000-trial transfer-rate tests were tuned to.
+    [pili_gene_with_orit(1), single_relaxase_gene()]
   end
 
   defp non_conjugative_plasmid do
-    # One gene with only a structural_fold domain → no transmembrane anchors
+    # One gene with only a structural_fold domain — no pili, no
+    # relaxase, no oriT → fails every triad requirement.
     plasmid_gene = Gene.from_domains([structural_domain()])
     [plasmid_gene]
   end
@@ -70,11 +93,12 @@ defmodule Arkea.Sim.HGTTest do
   end
 
   defp conjugative_plasmid_with_orit do
-    plasmid_gene =
-      Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
-      |> with_intergenic(%{transfer: ["orit_site"]})
-
-    [plasmid_gene]
+    # Triad-complete *plus* extra oriT annotations — the post-Phase-28
+    # equivalent of the legacy "with oriT" boost: the triad needs
+    # only one orit_site, and additional ones stack into the
+    # `Intergenic.transfer_probability_multiplier` count to bias
+    # transfer success above baseline.
+    [pili_gene_with_orit(3), single_relaxase_gene()]
   end
 
   defp surface_phase do
@@ -260,9 +284,34 @@ defmodule Arkea.Sim.HGTTest do
   # ---------------------------------------------------------------------------
   # Test 4: HGT.conjugative? is consistent with HGT.conjugation_strength > 0
 
-  property "conjugative? iff conjugation_strength > 0" do
+  # Phase 28 / 28.1 — `conjugative?/1` is now an alias for
+  # `self_conjugative?/1` (full pili + relaxase + oriT triad).
+  # `conjugation_strength/1` is preserved as the legacy *pili-only*
+  # accessor for backward compatibility, so the two now diverge: a
+  # plasmid with pili but no relaxase/oriT has positive
+  # `conjugation_strength` yet is *not* `conjugative?`.
+  property "conjugative? implies conjugation_strength > 0 (pili are necessary)" do
     check all(genes <- StreamData.list_of(gene())) do
-      assert HGT.conjugative?(genes) == HGT.conjugation_strength(genes) > 0
+      if HGT.conjugative?(genes) do
+        assert HGT.conjugation_strength(genes) > 0
+      end
+    end
+  end
+
+  property "self_conjugative?/1 iff pili_strength + relaxase_strength + oriT (Phase 28 triad)" do
+    check all(genes <- StreamData.list_of(gene())) do
+      pili = HGT.pili_strength(genes)
+      relaxase = HGT.relaxase_strength(genes)
+
+      orit =
+        Enum.any?(genes, fn gene ->
+          blocks = Map.get(gene, :intergenic_blocks, %{})
+          transfer = Map.get(blocks, :transfer, [])
+          "orit_site" in List.wrap(transfer)
+        end)
+
+      expected = pili > 0 and relaxase > 0 and orit
+      assert HGT.self_conjugative?(genes) == expected
     end
   end
 
