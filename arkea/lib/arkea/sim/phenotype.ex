@@ -180,6 +180,7 @@ defmodule Arkea.Sim.Phenotype do
   alias Arkea.Genome
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.HGT
   alias Arkea.Sim.Metabolism
 
   # `MapSet.new/0` invoked inline as the reduce accumulator is materialised
@@ -779,6 +780,62 @@ defmodule Arkea.Sim.Phenotype do
 
   defp gene_has_dna_binding?(%Gene{domains: domains}) do
     Enum.any?(domains, fn d -> d.type == :dna_binding end)
+  end
+
+  @doc """
+  Detailed R-M profile (Phase 30 / partial closure of L1.7).
+
+  Same gene scan as `rm_profiles/1` but returns structured
+  `Arkea.Sim.HGT.RecognitionSite.t()` entries with the *full*
+  parameter codon stream of each catalytic site, a `palindrome?`
+  flag, and a `:type_i / :type_ii / :type_iii` classification.
+
+  The runtime defense pipeline still keys on the
+  `RecognitionSite.signature` (the legacy 4-codon CSV string)
+  for matching, so this richer view does not perturb Phase-12
+  R-M calibration. The new fields are consumed by view modules
+  that surface "what does this restriction enzyme actually
+  recognise?" to the player — closing the L1.7 honesty marker.
+  """
+  @spec rm_profiles_detailed(Genome.t()) :: %{
+          restriction_sites: [HGT.RecognitionSite.t()],
+          methylation_sites: [HGT.RecognitionSite.t()]
+        }
+  def rm_profiles_detailed(%Genome{} = genome) do
+    {rest, methyl} =
+      genome
+      |> Genome.all_genes()
+      |> Enum.reduce({[], []}, fn gene, {rest_acc, methyl_acc} ->
+        if gene_has_dna_binding?(gene) do
+          rest_sites = catalytic_recognition_sites(gene, :hydrolysis, :restriction)
+          methyl_sites = catalytic_recognition_sites(gene, :isomerization, :methylation)
+
+          {Enum.reduce(rest_sites, rest_acc, fn s, acc -> [s | acc] end),
+           Enum.reduce(methyl_sites, methyl_acc, fn s, acc -> [s | acc] end)}
+        else
+          {rest_acc, methyl_acc}
+        end
+      end)
+
+    %{
+      restriction_sites: Enum.reverse(rest),
+      methylation_sites: Enum.reverse(methyl)
+    }
+  end
+
+  defp catalytic_recognition_sites(%Gene{domains: domains}, reaction_class, role) do
+    domains
+    |> Enum.filter(fn d ->
+      d.type == :catalytic_site and d.params[:reaction_class] == reaction_class and
+        not is_nil(d.params[:signal_key])
+    end)
+    |> Enum.map(fn d ->
+      HGT.RecognitionSite.new(
+        d.params.signal_key,
+        d.parameter_codons,
+        role
+      )
+    end)
   end
 
   # Phase 21 Top 5 #5 — derive one regulatory-output entry per
