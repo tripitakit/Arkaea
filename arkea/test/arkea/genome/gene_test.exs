@@ -217,4 +217,95 @@ defmodule Arkea.Genome.GeneTest do
       assert is_nil(gene.regulatory_block)
     end
   end
+
+  describe "from_codons/2 (Phase 31 / L1.1 builder)" do
+    @valid_domain_codons List.duplicate(10, 23)
+
+    test "accepts :promoter_block and :regulatory_block opts and stores them on the gene" do
+      promoter = [1, 2, 3, 4]
+      regulatory = [5, 6, 7, 8, 9]
+
+      assert {:ok, gene} =
+               Gene.from_codons(@valid_domain_codons,
+                 promoter_block: promoter,
+                 regulatory_block: regulatory
+               )
+
+      assert gene.promoter_block == promoter
+      assert gene.regulatory_block == regulatory
+      assert gene.codons == @valid_domain_codons
+      assert length(gene.domains) == 1
+      assert Gene.valid?(gene)
+    end
+
+    test "no opts → identical behaviour to from_codons/1 (backward compat)" do
+      assert {:ok, g1} = Gene.from_codons(@valid_domain_codons)
+      assert {:ok, g2} = Gene.from_codons(@valid_domain_codons, [])
+
+      assert g1.promoter_block == nil
+      assert g1.regulatory_block == nil
+      assert g2.promoter_block == nil
+      assert g2.regulatory_block == nil
+      # Same canonical sequence (only the UUID differs).
+      assert g1.codons == g2.codons
+    end
+
+    test "only promoter_block, regulatory left nil" do
+      assert {:ok, gene} =
+               Gene.from_codons(@valid_domain_codons, promoter_block: [1, 2, 3, 4])
+
+      assert gene.promoter_block == [1, 2, 3, 4]
+      assert gene.regulatory_block == nil
+    end
+
+    test "only regulatory_block, promoter left nil" do
+      assert {:ok, gene} =
+               Gene.from_codons(@valid_domain_codons, regulatory_block: [3, 10, 0, 0, 19])
+
+      assert gene.promoter_block == nil
+      assert gene.regulatory_block == [3, 10, 0, 0, 19]
+    end
+
+    test "rejects empty promoter_block (a populated block must have ≥ 1 codon)" do
+      assert {:error, :invalid_promoter_block} =
+               Gene.from_codons(@valid_domain_codons, promoter_block: [])
+    end
+
+    test "rejects out-of-range codons in promoter_block" do
+      assert {:error, :invalid_promoter_block} =
+               Gene.from_codons(@valid_domain_codons, promoter_block: [99])
+    end
+
+    test "rejects out-of-range codons in regulatory_block" do
+      assert {:error, :invalid_regulatory_block} =
+               Gene.from_codons(@valid_domain_codons, regulatory_block: [10, -3])
+    end
+
+    test "rejects malformed domain codons regardless of opts" do
+      assert {:error, :codon_count_not_phase1_aligned} =
+               Gene.from_codons(List.duplicate(10, 24), promoter_block: [1, 2, 3, 4])
+    end
+
+    test "the resulting gene's promoter_block is consumable by Regulation.promoter_sites/1" do
+      promoter = [1, 2, 3, 4, 5, 6, 7, 8]
+
+      {:ok, gene} =
+        Gene.from_codons(@valid_domain_codons, promoter_block: promoter)
+
+      sites = Arkea.Genome.Regulation.promoter_sites(gene)
+      assert match?([_ | _], sites), "expected non-empty promoter_sites; got #{inspect(sites)}"
+    end
+
+    test "the resulting gene's regulatory_block is consumable by Regulation.riboswitches/1" do
+      regulatory = [3, 10, 0, 0, 19]
+
+      {:ok, gene} =
+        Gene.from_codons(@valid_domain_codons, regulatory_block: regulatory)
+
+      switches = Arkea.Genome.Regulation.riboswitches(gene)
+
+      assert match?([_ | _], switches),
+             "expected non-empty riboswitches; got #{inspect(switches)}"
+    end
+  end
 end

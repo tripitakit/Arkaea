@@ -139,27 +139,67 @@ defmodule Arkea.Genome.Gene do
   Splits the sequence into successive domains of fixed length 23
   (`3 + 20`). Returns `{:ok, gene}` on success, `{:error, reason}` otherwise.
 
-  In Phase 3 this parser will be generalised to handle promoter / regulatory
-  blocks and variable-length parameter codons.
+  ## Options (Phase 31 / L1.1 builder)
+
+    * `:promoter_block` — explicit promoter codons (any non-empty codon
+      list whose codons are valid). Stored on the resulting gene's
+      `promoter_block` field; consumed by
+      `Arkea.Genome.Regulation.promoter_sites/1` (Phase 25 / 7.3).
+      Default `nil`.
+    * `:regulatory_block` — explicit regulatory codons (any non-empty
+      codon list of valid codons). Stored on the resulting gene's
+      `regulatory_block` field; consumed by
+      `Arkea.Genome.Regulation.riboswitches/1` (Phase 25 / 7.3).
+      Default `nil`.
+
+  The `codons` argument is the *domain section* of the gene — it must
+  be a positive multiple of 23 codons (Phase 1 grammar). Promoter and
+  regulatory blocks are independent, side-by-side annotations on the
+  gene struct; they live in the dedicated fields, not concatenated
+  into `codons`. This matches the Block-7 layout in `01-DESIGN.md`
+  where the three blocks are conceptually separate.
+
+  ## Backward compatibility
+
+  The 1-arity form (`from_codons/1`) is preserved: it now delegates to
+  `from_codons/2` with `[]` opts → `promoter_block: nil`,
+  `regulatory_block: nil`. All pre-Phase-31 callers continue to
+  produce the same gene shape.
   """
   @spec from_codons([Codon.t()]) :: {:ok, t()} | {:error, atom()}
-  def from_codons(codons) when is_list(codons) do
+  def from_codons(codons) when is_list(codons), do: from_codons(codons, [])
+
+  def from_codons(_), do: {:error, :not_a_list}
+
+  @doc """
+  Two-arity variant of `from_codons/1` that accepts `:promoter_block`
+  and `:regulatory_block` options. Closes the L1.1 honesty marker —
+  the Gene parser can now produce genes with populated regulation
+  blocks.
+  """
+  @spec from_codons([Codon.t()], keyword()) :: {:ok, t()} | {:error, atom()}
+  def from_codons(codons, opts) when is_list(codons) and is_list(opts) do
+    promoter = Keyword.get(opts, :promoter_block)
+    regulatory = Keyword.get(opts, :regulatory_block)
+
     with :ok <- Codon.validate(codons, codons_range()),
          :ok <- check_phase1_alignment(codons),
+         :ok <- validate_block_opt(promoter, :invalid_promoter_block),
+         :ok <- validate_block_opt(regulatory, :invalid_regulatory_block),
          {:ok, domains} <- parse_domains_phase1(codons) do
       {:ok,
        %__MODULE__{
          id: Arkea.UUID.v4(),
          codons: codons,
-         promoter_block: nil,
-         regulatory_block: nil,
+         promoter_block: promoter,
+         regulatory_block: regulatory,
          intergenic_blocks: %{expression: [], transfer: [], duplication: []},
          domains: domains
        }}
     end
   end
 
-  def from_codons(_), do: {:error, :not_a_list}
+  def from_codons(_, _), do: {:error, :not_a_list}
 
   @doc """
   Re-parse `codons` to refresh `domains` (call after a mutation
@@ -258,6 +298,19 @@ defmodule Arkea.Genome.Gene do
   end
 
   defp validate_optional_block(_), do: false
+
+  # Phase 31 / L1.1 builder option validator. Accepts `nil` (no
+  # block) or a non-empty list of valid codons. Empty lists are
+  # rejected since the gene's `valid?/1` invariant treats them as
+  # malformed (a populated block must carry at least one codon).
+  defp validate_block_opt(nil, _err), do: :ok
+  defp validate_block_opt([], err), do: {:error, err}
+
+  defp validate_block_opt(codons, err) when is_list(codons) do
+    if Enum.all?(codons, &Codon.valid?/1), do: :ok, else: {:error, err}
+  end
+
+  defp validate_block_opt(_, err), do: {:error, err}
 
   defp valid_intergenic_blocks?(%{
          expression: expression,
