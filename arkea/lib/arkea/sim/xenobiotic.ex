@@ -65,6 +65,61 @@ defmodule Arkea.Sim.Xenobiotic do
       kd: 10.0,
       mode: :cidal,
       degradable_by_hydrolase: true
+    },
+
+    # Aminoglycoside (gentamicin / kanamycin / streptomycin family):
+    # targets the 30S ribosomal subunit via its rRNA decoding A-site
+    # (Arkea proxy: `ribosome_like`). Cidal — bound aminoglycoside
+    # forces translational misreading → catastrophic protein
+    # misfolding → cell death (Davis 1987, Mingeot-Leclercq et al.
+    # 1999). Aminoglycosides are not enzymatically degraded by host
+    # hydrolases at clinically meaningful rates (their resistance is
+    # via aminoglycoside-modifying enzymes, AME — a distinct
+    # mechanism not in the v1 hydrolase pathway). Resistance in
+    # Arkea v1 is therefore via efflux only, so we set
+    # `degradable_by_hydrolase: false`.
+    aminoglycoside: %{
+      target_class: :ribosome_like,
+      kd: 8.0,
+      mode: :cidal,
+      degradable_by_hydrolase: false
+    },
+
+    # Fluoroquinolone (ciprofloxacin / levofloxacin family): targets
+    # DNA gyrase + topoisomerase IV — both DNA-polymerase-adjacent
+    # type II topoisomerases. The drug stabilises a covalent
+    # gyrase-DNA cleavage intermediate → double-strand break → cell
+    # death (Drlica & Zhao 1997). Arkea proxies this onto
+    # `dna_polymerase_like` (the closest target_class in the
+    # phenotype catalog; gyrase and pol III share replication-fork
+    # localisation as their relevant Arkea-level handle).
+    # `mode: :mutagen` because fluoroquinolone-induced damage is the
+    # canonical SOS trigger at sub-MIC concentrations (Cirz et al.
+    # 2005 — accelerated mutagenesis under cipro is the textbook
+    # example of antibiotic-induced evolution). Hydrolytic
+    # degradation is not a clinically relevant route → false.
+    fluoroquinolone: %{
+      target_class: :dna_polymerase_like,
+      kd: 6.0,
+      mode: :mutagen,
+      degradable_by_hydrolase: false
+    },
+
+    # Polymyxin (polymyxin B / colistin): cationic lipopeptide that
+    # binds the lipid A of the outer membrane lipopolysaccharide,
+    # disrupting the OM permeability barrier and causing rapid cell
+    # lysis (Velkov et al. 2010). Arkea has no LPS data layer; the
+    # drug's effect rolls up to the genome's `:transmembrane_anchor`
+    # count (Phenotype `:membrane` target_class) — cells with more
+    # membrane domains have more surface area exposed to the
+    # peptide, so the affinity index aligns with target abundance.
+    # Cidal at the bacterial OM, mode `:cidal`. Polymyxins are not
+    # peptidase substrates of the v1 hydrolase machinery.
+    polymyxin: %{
+      target_class: :membrane,
+      kd: 5.0,
+      mode: :cidal,
+      degradable_by_hydrolase: false
     }
   }
 
