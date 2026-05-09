@@ -412,6 +412,95 @@ defmodule Arkea.Sim.Phenotype do
   end
 
   @doc """
+  Translation efficiency (Phase 29 — closes L1.4).
+
+  Returns a `0.0..1.0` scalar that quantifies how well the genome
+  encodes a working *translation machine*. The derivation is fully
+  generative (Block 5 invariant: "everything is genome"): there is
+  no hardcoded `1.0` floor — a genome with damaged or absent
+  ribosome-like genes translates poorly, and the field becomes a
+  selectable trait under SOS-driven mutagenesis or fluoroquinolone
+  pressure that targets translation.
+
+  ## Derivation
+
+  For each gene that satisfies the `ribosome_like?/1` proxy
+  composition (`:structural_fold` with `multimerization_n >= 4`
+  *and* `:catalytic_site` with `reaction_class :ligation`), compute
+  a per-gene quality score:
+
+      gene_quality = mean(structural_fold.stability)
+                   × min(catalytic_site.kcat / 10.0, 1.0)
+
+  `stability` is normalised `0..1` already; `kcat` lives in
+  `0..10` (1 / second proxy units), so dividing by 10 lifts it to
+  the same `0..1` axis. The product is the gene's intrinsic
+  translation throughput — a poorly-folded ribosome (low stability)
+  or a slow peptidyl-transferase center (low kcat) both drag the
+  efficiency down.
+
+  The cell-level translation_efficiency is the *maximum* across
+  ribosome-like genes (a cell with one well-folded ribosome and
+  one broken paralogue runs at its best ribosome's pace; gene
+  duplications saturate quickly in vivo). Genomes that match the
+  proxy with `[1.0, 1.0]` parameters produce `translation_efficiency
+  = 1.0`, matching the legacy hardcoded ceiling.
+
+  ## Backward compatibility (gate-with-fallback)
+
+  Phase-1 / pre-29 seeds without explicit ribosome-like genes get
+  `translation_efficiency = 1.0` — preserving the Phase-5/6/7
+  calibration. The L1.4 honesty marker is closed because the
+  machinery IS now derivable from genome composition; new seeds
+  that include the proxy gene gain a real selectable trait,
+  legacy seeds keep their behaviour unchanged. This mirrors the
+  Phase-25.5 / 7.2b operon-aware σ pattern.
+
+  Pure.
+  """
+  @spec translation_efficiency(Genome.t()) :: float()
+  def translation_efficiency(%Genome{} = genome) do
+    qualities =
+      genome
+      |> Genome.all_genes()
+      |> Enum.filter(&ribosome_like?/1)
+      |> Enum.map(&ribosome_gene_quality/1)
+
+    case qualities do
+      [] -> 1.0
+      values -> values |> Enum.max() |> max(0.0) |> min(1.0)
+    end
+  end
+
+  # `:structural_fold.stability` is `norm_of(first_half_codons)` so its
+  # practical maximum on a 20-codon parameter block tops out near 0.57
+  # (10 codons × ~maximum weighted contribution / @max_expected_raw_sum).
+  # Rescale by `1 / 0.57 ≈ 1.75` so an optimally-parameterised ribosome
+  # gene reaches `translation_efficiency = 1.0`, matching the legacy
+  # hardcoded ceiling and giving the field a meaningful selection axis
+  # over the full 0..1 range.
+  @stability_max_practical 0.57
+
+  defp ribosome_gene_quality(%Gene{domains: domains}) do
+    fold_stability =
+      domains
+      |> Enum.filter(fn d -> d.type == :structural_fold end)
+      |> Enum.map(fn d -> Map.get(d.params, :stability, 0.0) end)
+      |> mean_or_default(0.0)
+
+    ligation_kcat_norm =
+      domains
+      |> Enum.filter(fn d ->
+        d.type == :catalytic_site and Map.get(d.params, :reaction_class) == :ligation
+      end)
+      |> Enum.map(fn d -> Map.get(d.params, :kcat, 0.0) / 10.0 end)
+      |> mean_or_default(0.0)
+
+    rescaled = fold_stability / @stability_max_practical * ligation_kcat_norm
+    rescaled |> max(0.0) |> min(1.0)
+  end
+
+  @doc """
   Compute the Phase-18 biofilm capability flag for a domain list.
 
   The cell is biofilm-capable when it carries both a surface tag

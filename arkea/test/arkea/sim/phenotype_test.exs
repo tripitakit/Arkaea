@@ -692,4 +692,92 @@ defmodule Arkea.Sim.PhenotypeTest do
       assert_in_delta sigma_input, phenotype.dna_binding_affinity, 1.0e-9
     end
   end
+
+  describe "translation_efficiency/1 (Phase 29 / 29.1 — closes L1.4)" do
+    # type_tag [0,0,8] sum=8 mod 11 = :structural_fold
+    #   stability = norm_of(first_half codons)
+    #   multimerization_n = rem(sum_last_3, 8) + 1
+    #   For mer >= 4 we need last_3 sum mod 8 ∈ {3..7}, i.e. last_3 = [3,3,5] (sum 11 → mer 4).
+    #
+    # type_tag [0,0,1] sum=1 mod 11 = :catalytic_site
+    #   reaction_class = rem(sum_first_3, 6); 4 → :ligation. Use [4,0,0].
+    #   kcat = norm * 10.0 ∈ 0..10
+    defp fold_param_codons(filler) do
+      List.duplicate(filler, 17) ++ [3, 3, 5]
+    end
+
+    defp ligation_param_codons(filler) do
+      [4, 0, 0] ++ List.duplicate(filler, 17)
+    end
+
+    defp ribosome_gene(fold_filler, ligation_filler) do
+      Gene.from_domains([
+        Domain.new([0, 0, 8], fold_param_codons(fold_filler)),
+        Domain.new([0, 0, 1], ligation_param_codons(ligation_filler))
+      ])
+    end
+
+    defp catalytic_only_genome do
+      Genome.new([Gene.from_domains([Domain.new([0, 0, 1], List.duplicate(10, 20))])])
+    end
+
+    test "genome with no ribosome_like gene → translation_efficiency = 1.0 (legacy fallback)" do
+      genome = catalytic_only_genome()
+      assert Phenotype.translation_efficiency(genome) == 1.0
+    end
+
+    test "genome with optimally-parameterised ribosome gene → efficiency near 1.0" do
+      # High filler on both fold (high stability) and ligation (high kcat).
+      gene = ribosome_gene(19, 19)
+      genome = Genome.new([gene])
+
+      [_fold, ligation] = gene.domains
+      assert ligation.params.reaction_class == :ligation
+
+      eff = Phenotype.translation_efficiency(genome)
+      # Optimal Phase-1 codons can't fully saturate every internal
+      # `norm_of` accumulator (the structural_fold stability tops
+      # out near `@stability_max_practical / @max_expected_raw_sum`
+      # on a half-codon block); 0.8 is the realistic ceiling here.
+      assert eff > 0.8
+      assert eff <= 1.0
+    end
+
+    test "genome with degraded ribosome (low ligation kcat) → efficiency drops" do
+      strong_eff = Phenotype.translation_efficiency(Genome.new([ribosome_gene(19, 19)]))
+      weak_eff = Phenotype.translation_efficiency(Genome.new([ribosome_gene(19, 2)]))
+
+      assert weak_eff < strong_eff
+      assert weak_eff < 0.5
+    end
+
+    test "genome with degraded ribosome (low fold stability) → efficiency drops" do
+      strong_eff = Phenotype.translation_efficiency(Genome.new([ribosome_gene(19, 19)]))
+      weak_eff = Phenotype.translation_efficiency(Genome.new([ribosome_gene(2, 19)]))
+
+      assert weak_eff < strong_eff
+    end
+
+    test "multiple ribosome genes → max-quality wins (best ribosome paces the cell)" do
+      gene_weak = ribosome_gene(2, 2)
+      gene_strong = ribosome_gene(19, 19)
+
+      mixed = Phenotype.translation_efficiency(Genome.new([gene_weak, gene_strong]))
+      strong_only = Phenotype.translation_efficiency(Genome.new([gene_strong]))
+
+      assert_in_delta mixed, strong_only, 1.0e-9
+    end
+
+    test "result is always in 0.0..1.0" do
+      [
+        Genome.new([ribosome_gene(0, 0)]),
+        Genome.new([ribosome_gene(19, 19)]),
+        catalytic_only_genome()
+      ]
+      |> Enum.each(fn g ->
+        eff = Phenotype.translation_efficiency(g)
+        assert eff >= 0.0 and eff <= 1.0
+      end)
+    end
+  end
 end

@@ -1572,8 +1572,20 @@ defmodule Arkea.Sim.Tick do
     sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
     sigma = 0.5 + sigma_input + expression_mods.sigma_bonus + qs_boost
 
+    # Phase 29 / 29.1 — generative translation efficiency. Genomes
+    # with explicit `ribosome_like` genes (`:structural_fold` with
+    # `multimerization_n >= 4` + `:catalytic_site` with
+    # `reaction_class :ligation`) have a translation_efficiency
+    # derived from `stability × kcat_norm` of the best ribosome
+    # gene; genomes without the proxy fall back to `1.0` preserving
+    # Phase-5/6/7 calibration. Mutations in ribosome genes now
+    # become a selectable trait — the L1.4 hardcoded ceiling is
+    # gone.
+    translation_eff = Phenotype.translation_efficiency(genome)
+
     net =
-      (atp_yield - phenotype.energy_cost * 5.0 + expression_mods.energy_relief) * sigma
+      (atp_yield - phenotype.energy_cost * 5.0 + expression_mods.energy_relief) *
+        sigma * translation_eff
 
     # Phase 16: plasmid replication cost scales with copy_number.
     # Burden = Σ (genes × copy_number × 0.3 ATP/gene/copy/tick).
