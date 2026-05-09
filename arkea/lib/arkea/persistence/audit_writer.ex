@@ -165,6 +165,31 @@ defmodule Arkea.Persistence.AuditWriter do
     })
   end
 
+  # Phase 26 / 1.13 — `:domain_flip` audit event: a mutation has
+  # changed a domain's category in the child lineage. `from_type` /
+  # `to_type` are stringified atoms (`"catalytic_site"`, etc.) so the
+  # ledger UI can render them as human labels without a server round-
+  # trip.
+  defp event_attrs(%{type: :domain_flip} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "domain_flip", e.lineage_id, %{
+      "gene_id" => e.gene_id,
+      "domain_index" => e.domain_index,
+      "from_type" => atom_to_string(e.from_type),
+      "to_type" => atom_to_string(e.to_type)
+    })
+  end
+
+  # Phase 26 / 1.14 — `:gene_chimera_birth` audit event: a successful
+  # `Translocation` produced a new chimeric gene by splicing codons
+  # from a source gene into a destination gene.
+  defp event_attrs(%{type: :gene_chimera_birth} = e, biotope_id, tick_count, occurred_at) do
+    base_attrs(biotope_id, tick_count, occurred_at, "gene_chimera_birth", e.lineage_id, %{
+      "source_gene_id" => e.source_gene_id,
+      "dest_gene_id" => e.dest_gene_id,
+      "codons_moved" => e.codons_moved
+    })
+  end
+
   # --- Legacy diff-derived events (payload-shape). ---
 
   defp event_attrs(event, biotope_id, tick_count, occurred_at) do

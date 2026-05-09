@@ -196,10 +196,10 @@ Status of the 14 audit-event categories identified in the user reviews. `✅` = 
 | **L2.10** | `:error_catastrophe_death` (Eigen criterion exceeded) | `mutator.ex` | ✅ Closed (writer + emit ready; reachable only synthetically by Eigen-faithful design) |
 | **L2.11** | `:biofilm_formation` / `:biofilm_dispersal` (child with `biofilm_capable?` differing from parent) | `tick.ex` `detect_biofilm_transitions/3` | ✅ Closed Phase 21 |
 | **L2.12** | `:migration_pulse` (per-receiving-biotope aggregate: `lineage_cells`, `metabolite_mass`, `signal_mass`, `phage_particles`) | `biotope/server.ex` `apply_migration` | ✅ Closed Phase 21 |
-| **L2.13** | `:domain_flip` (mutation in `type_tag` changes domain category) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
-| **L2.14** | `:gene_chimera_birth` (translocation fuses two genes) | `genome/mutation/applicator.ex` | ❌ Pending Phase 26 |
+| **L2.13** | `:domain_flip` (mutation in `type_tag` changes domain category) | `genome/mutation/applicator.ex` | ✅ Closed Phase 26 (1.13) |
+| **L2.14** | `:gene_chimera_birth` (translocation fuses two genes) | `genome/mutation/applicator.ex` | ✅ Closed Phase 26 (1.14) |
 
-**Current status**: 12/14 closed. Phase 21 Top 5 #1 added the "Known v1 limitations" section; Top 5 #2 closed L2.1 (kind promotion of the `conjugation` channel in the view layer); Top 5 #3 closed L2.8/9/11/12 (`:sos_active`, `:mutator_emergence`, `:biofilm_formation`/`_dispersal`, `:migration_pulse` renamed from the previous `:migration`). L2.2-L2.7 and L2.10 were already closed by pre-Phase 21 remediation (Sub-tasks 1.2-1.6) but not documented as such — earlier updates aligned the documentation to the real state of the code. Only L2.13, L2.14 remain, closed in Phase 26 (codon-level events).
+**Current status**: **14/14 closed** (Phase 26 closes the last two). `Applicator.detect_mutation_events/4` compares old/new genome after every `apply/2` and produces a `:domain_flip` per position whose `Domain.type` changed plus a `:gene_chimera_birth` for every successful `Translocation`; events flow through `Tick.attempt_spawn` → `pending_events` → `AuditWriter` → audit_log with channel-direct shapes (`gene_id`, `domain_index`, stringified `from_type`/`to_type` for flips; `source_gene_id`, `dest_gene_id`, `codons_moved` for chimera).
 
 ### L3. Limited player interventions
 

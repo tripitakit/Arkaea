@@ -385,6 +385,61 @@ defmodule Arkea.Persistence.AuditWriterTest do
     end
   end
 
+  describe "Phase 26 (1.13 + 1.14): mutation-level audit events" do
+    test ":domain_flip persists with child lineage as target + stringified types" do
+      biotope_id = Ecto.UUID.generate()
+      child_id = Ecto.UUID.generate()
+      gene_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :domain_flip,
+          tick: 90,
+          lineage_id: child_id,
+          gene_id: gene_id,
+          domain_index: 0,
+          from_type: :catalytic_site,
+          to_type: :transmembrane_anchor
+        }
+      ]
+
+      insert!(events, biotope_id, 90)
+      row = fetch_one!("domain_flip", biotope_id)
+
+      assert row.target_lineage_id == child_id
+      assert row.payload["gene_id"] == gene_id
+      assert row.payload["domain_index"] == 0
+      assert row.payload["from_type"] == "catalytic_site"
+      assert row.payload["to_type"] == "transmembrane_anchor"
+    end
+
+    test ":gene_chimera_birth persists with child lineage as target" do
+      biotope_id = Ecto.UUID.generate()
+      child_id = Ecto.UUID.generate()
+      source_id = Ecto.UUID.generate()
+      dest_id = Ecto.UUID.generate()
+
+      events = [
+        %{
+          type: :gene_chimera_birth,
+          tick: 95,
+          lineage_id: child_id,
+          source_gene_id: source_id,
+          dest_gene_id: dest_id,
+          codons_moved: 23
+        }
+      ]
+
+      insert!(events, biotope_id, 95)
+      row = fetch_one!("gene_chimera_birth", biotope_id)
+
+      assert row.target_lineage_id == child_id
+      assert row.payload["source_gene_id"] == source_id
+      assert row.payload["dest_gene_id"] == dest_id
+      assert row.payload["codons_moved"] == 23
+    end
+  end
+
   describe "pre-existing diff-derived events still handled" do
     test ":lineage_extinct (payload-shape) still persists with target_lineage_id" do
       biotope_id = Ecto.UUID.generate()

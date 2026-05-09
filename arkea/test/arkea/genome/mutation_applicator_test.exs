@@ -305,6 +305,130 @@ defmodule Arkea.Genome.Mutation.ApplicatorTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Phase 26 / 1.13 + 1.14 — mutation-event detection.
+
+  # Helper: build a single-domain gene with a chosen type_tag.
+  # `type_tag` sum picks the domain category from
+  # `Arkea.Genome.Domain.Type.@types`; the parameter codons are
+  # constant-`10` so each gene has the same `Phenotype.from_genome/1`
+  # baseline modulo the type flip.
+  defp single_typed_gene(type_tag) do
+    Gene.from_domains([Domain.new(type_tag, List.duplicate(10, 20))])
+  end
+
+  describe "detect_mutation_events/4" do
+    test "domain_flip fires when a substitution swaps a domain category" do
+      # Start with a `:catalytic_site` gene (sum 1 → index 1).
+      gene = single_typed_gene([0, 0, 1])
+      genome = Genome.new([gene])
+
+      # Substitute the third type-tag codon 1→2; new sum 2 →
+      # `:transmembrane_anchor` (different category).
+      mutation = %Substitution{
+        gene_id: gene.id,
+        position: 2,
+        old_codon: 1,
+        new_codon: 2
+      }
+
+      {:ok, new_genome} = Applicator.apply(genome, mutation)
+
+      events =
+        Applicator.detect_mutation_events(genome, new_genome, mutation,
+          tick: 7,
+          lineage_id: "L-1"
+        )
+
+      assert [event] = events
+      assert event.type == :domain_flip
+      assert event.tick == 7
+      assert event.lineage_id == "L-1"
+      assert event.gene_id == gene.id
+      assert event.domain_index == 0
+      assert event.from_type == :catalytic_site
+      assert event.to_type == :transmembrane_anchor
+    end
+
+    test "no events when a substitution stays inside parameter_codons (drift only)" do
+      gene = single_typed_gene([0, 0, 1])
+      genome = Genome.new([gene])
+
+      # Substitute a parameter codon (position 5, well past the
+      # 3-codon type_tag) → category unchanged → no flip.
+      mutation = %Substitution{
+        gene_id: gene.id,
+        position: 5,
+        old_codon: 10,
+        new_codon: 19
+      }
+
+      {:ok, new_genome} = Applicator.apply(genome, mutation)
+      assert Applicator.detect_mutation_events(genome, new_genome, mutation) == []
+    end
+
+    test "gene_chimera_birth fires whenever a translocation succeeds" do
+      g1 = gene_with_n_domains(2)
+      g2 = gene_with_n_domains(2)
+      genome = Genome.new([g1, g2])
+
+      # Move 23 codons from g1 (2 domains → 1 domain after) into g2.
+      mutation = %Translocation{
+        source_gene_id: g1.id,
+        dest_gene_id: g2.id,
+        source_range: {0, 22},
+        dest_position: 23
+      }
+
+      {:ok, new_genome} = Applicator.apply(genome, mutation)
+
+      events =
+        Applicator.detect_mutation_events(genome, new_genome, mutation,
+          tick: 12,
+          lineage_id: "L-2"
+        )
+
+      chimera = Enum.find(events, &(&1.type == :gene_chimera_birth))
+      assert chimera, "expected a :gene_chimera_birth event from a successful translocation"
+      assert chimera.source_gene_id == g1.id
+      assert chimera.dest_gene_id == g2.id
+      assert chimera.codons_moved == 23
+      assert chimera.tick == 12
+      assert chimera.lineage_id == "L-2"
+    end
+
+    test "detect on a parameter-only inversion returns []" do
+      # Single-domain gene; inverting a 5-codon window inside the
+      # `parameter_codons` (positions 5..9) keeps the type_tag
+      # untouched ⇒ no domain_flip event.
+      g = single_typed_gene([0, 0, 1])
+      genome = Genome.new([g])
+
+      mutation = %Inversion{gene_id: g.id, range_start: 5, range_end: 9}
+      {:ok, new_genome} = Applicator.apply(genome, mutation)
+
+      assert Applicator.detect_mutation_events(genome, new_genome, mutation) == []
+    end
+
+    test "default tick is 0 and lineage_id is nil when opts are omitted" do
+      gene = single_typed_gene([0, 0, 1])
+      genome = Genome.new([gene])
+
+      mutation = %Substitution{
+        gene_id: gene.id,
+        position: 2,
+        old_codon: 1,
+        new_codon: 2
+      }
+
+      {:ok, new_genome} = Applicator.apply(genome, mutation)
+
+      [event] = Applicator.detect_mutation_events(genome, new_genome, mutation)
+      assert event.tick == 0
+      assert event.lineage_id == nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Private generators
 
   defp valid_mutatable_genome do

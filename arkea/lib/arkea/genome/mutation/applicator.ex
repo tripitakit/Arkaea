@@ -23,6 +23,7 @@ defmodule Arkea.Genome.Mutation.Applicator do
   """
 
   alias Arkea.Genome
+  alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
   alias Arkea.Genome.Mutation.Duplication
   alias Arkea.Genome.Mutation.Indel
@@ -191,5 +192,154 @@ defmodule Arkea.Genome.Mutation.Applicator do
   # Rebuild the genome with a new chromosome, recomputing gene_count.
   defp rebuild_genome(%Genome{plasmids: p, prophages: pr}, new_chromosome) do
     Genome.new(new_chromosome, plasmids: p, prophages: pr)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Phase 26 / 1.13 + 1.14 — mutation-level audit-event detectors.
+  #
+  # `apply/2` stays pure and signature-stable; this companion helper
+  # is the diff-derived event extractor that callers (Tick) invoke
+  # after the mutation has been applied. Returns a list of typed
+  # event maps ready for `BiotopeState.pending_events`.
+
+  @typedoc "Audit-shape events that a successful mutation can fire."
+  @type mutation_event ::
+          %{
+            type: :domain_flip,
+            tick: non_neg_integer(),
+            lineage_id: String.t() | nil,
+            gene_id: String.t(),
+            domain_index: non_neg_integer(),
+            from_type: atom(),
+            to_type: atom()
+          }
+          | %{
+              type: :gene_chimera_birth,
+              tick: non_neg_integer(),
+              lineage_id: String.t() | nil,
+              source_gene_id: String.t(),
+              dest_gene_id: String.t(),
+              codons_moved: non_neg_integer()
+            }
+
+  @doc """
+  Compare an old / new genome pair plus the `mutation` that
+  produced the change, and return the typed audit events the
+  mutation surfaced. Pure, deterministic.
+
+  ## What surfaces
+
+  * **`:domain_flip`** — every position in a *substituted /
+    indel'd / inverted gene* whose `Domain.type` changed
+    between old and new. A single mutation can flip several
+    domains at once (e.g. an inversion swapping two domains
+    of different categories) — they all surface as separate
+    events with the per-position `domain_index`.
+
+  * **`:gene_chimera_birth`** — fires once whenever a
+    `Translocation` succeeded: codons moved from one gene to
+    another *always* produce a chimera at the molecular level
+    (the destination gene now carries a sub-sequence that did
+    not originate there). Carries `source_gene_id`,
+    `dest_gene_id`, and `codons_moved`.
+
+  Mutations that don't reshape categories (e.g. a substitution
+  inside a `parameter_codon` window — drift only, no
+  type_tag flip) return `[]`.
+
+  Other arguments: `tick` is stamped on every event;
+  `lineage_id` is optional — the caller can leave it `nil` and
+  patch it after spawning the child lineage if it's not
+  available at detection time.
+  """
+  @spec detect_mutation_events(
+          Genome.t(),
+          Genome.t(),
+          Arkea.Genome.Mutation.t(),
+          keyword()
+        ) :: [mutation_event()]
+  def detect_mutation_events(old_genome, new_genome, mutation, opts \\ [])
+
+  def detect_mutation_events(%Genome{} = old, %Genome{} = new, %Translocation{} = m, opts) do
+    {rs, re} = m.source_range
+    codons_moved = max(re - rs + 1, 0)
+
+    chimera_event = %{
+      type: :gene_chimera_birth,
+      tick: Keyword.get(opts, :tick, 0),
+      lineage_id: Keyword.get(opts, :lineage_id),
+      source_gene_id: m.source_gene_id,
+      dest_gene_id: m.dest_gene_id,
+      codons_moved: codons_moved
+    }
+
+    # The translocation can also flip domain types in either the
+    # source (truncation may shift type tags) or the destination
+    # (insertion mid-domain may reframe a tag). Detect both.
+    flip_events =
+      collect_domain_flips(old, new, [m.source_gene_id, m.dest_gene_id], opts)
+
+    [chimera_event | flip_events]
+  end
+
+  def detect_mutation_events(%Genome{} = old, %Genome{} = new, mutation, opts) do
+    gene_id = mutation_gene_id(mutation)
+
+    if is_nil(gene_id) do
+      []
+    else
+      collect_domain_flips(old, new, [gene_id], opts)
+    end
+  end
+
+  defp mutation_gene_id(%Substitution{gene_id: id}), do: id
+  defp mutation_gene_id(%Indel{gene_id: id}), do: id
+  defp mutation_gene_id(%Inversion{gene_id: id}), do: id
+  defp mutation_gene_id(%Duplication{gene_id: id}), do: id
+  defp mutation_gene_id(_), do: nil
+
+  defp collect_domain_flips(%Genome{} = old, %Genome{} = new, gene_ids, opts) do
+    tick = Keyword.get(opts, :tick, 0)
+    lineage_id = Keyword.get(opts, :lineage_id)
+
+    old_by_id = Map.new(old.chromosome, fn g -> {g.id, g} end)
+    new_by_id = Map.new(new.chromosome, fn g -> {g.id, g} end)
+
+    Enum.flat_map(gene_ids, fn gid ->
+      with %Gene{domains: old_doms} <- Map.get(old_by_id, gid),
+           %Gene{domains: new_doms} <- Map.get(new_by_id, gid) do
+        flips_for_gene(gid, old_doms, new_doms, tick, lineage_id)
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  defp flips_for_gene(gene_id, old_doms, new_doms, tick, lineage_id) do
+    # Compare domain-by-domain at the same index; the shorter list
+    # truncates the diff (an indel that drops a domain doesn't fire
+    # a "phantom flip" — that's covered separately by the future
+    # `:domain_loss` audit event).
+    pairs = Enum.zip(old_doms, new_doms)
+
+    pairs
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {{%Domain{type: from_t}, %Domain{type: to_t}}, idx} ->
+      if from_t == to_t do
+        []
+      else
+        [
+          %{
+            type: :domain_flip,
+            tick: tick,
+            lineage_id: lineage_id,
+            gene_id: gene_id,
+            domain_index: idx,
+            from_type: from_t,
+            to_type: to_t
+          }
+        ]
+      end
+    end)
   end
 end

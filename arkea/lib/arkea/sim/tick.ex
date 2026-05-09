@@ -1736,20 +1736,29 @@ defmodule Arkea.Sim.Tick do
     if lineage.genome == nil do
       {[lineage | acc_lineages], acc_rng, acc_children, acc_events}
     else
-      {lineage_out, acc_rng2, maybe_child, maybe_event} =
+      {lineage_out, acc_rng2, maybe_child, new_events} =
         maybe_spawn_child(lineage, state, acc_rng, tick)
 
       children = if maybe_child, do: [maybe_child | acc_children], else: acc_children
-      events = if maybe_event, do: [maybe_event | acc_events], else: acc_events
+      # Phase 26 / 1.13+1.14: `attempt_spawn` may now return more
+      # than one event per spawn (e.g. an `:error_catastrophe_death`
+      # *plus* a chimera-birth from the same translocation
+      # attempt that produced the lethal offspring). The
+      # accumulator gets every event in the list, prepended in
+      # reverse to preserve the canonical insertion order at
+      # the end of `derive_events/2`.
+      events = Enum.reduce(new_events, acc_events, fn ev, acc -> [ev | acc] end)
       {[lineage_out | acc_lineages], acc_rng2, children, events}
     end
   end
 
   # For one lineage: compute SOS-aware mutation probability, roll the
   # dice, and if successful generate and apply a mutation → child lineage.
-  # Returns {parent_lineage_possibly_updated, new_rng, child_or_nil,
-  # event_or_nil}. The `event_or_nil` slot carries an
-  # `:error_catastrophe_death` audit map when the offspring is non-viable.
+  # Returns `{parent, new_rng, child_or_nil, events_list}`. The events
+  # list (Phase 26 / 1.13+1.14) carries:
+  #   - `:error_catastrophe_death` when the offspring is non-viable
+  #   - `:domain_flip` once per domain whose category changed
+  #   - `:gene_chimera_birth` for every successful translocation
   defp maybe_spawn_child(parent, state, rng, tick) do
     phenotype = Phenotype.from_genome(parent.genome)
     abundance = Lineage.total_abundance(parent)
@@ -1762,7 +1771,7 @@ defmodule Arkea.Sim.Tick do
     if roll < prob do
       attempt_spawn(parent, phenotype, state, rng1, tick)
     else
-      {parent, rng1, nil, nil}
+      {parent, rng1, nil, []}
     end
   end
 
@@ -1775,63 +1784,76 @@ defmodule Arkea.Sim.Tick do
   defp attempt_spawn(parent, phenotype, state, rng, tick) do
     case Mutator.generate(parent.genome, rng) do
       {:skip, rng1} ->
-        {parent, rng1, nil, nil}
+        {parent, rng1, nil, []}
 
       {:ok, mutation, rng1} ->
         case Applicator.apply(parent.genome, mutation) do
           {:error, _} ->
-            {parent, rng1, nil, nil}
+            {parent, rng1, nil, []}
 
           {:ok, child_genome} ->
-            mu_per_cell =
-              0.01 *
-                (1.0 - phenotype.repair_efficiency) *
-                if(Mutator.sos_active?(parent.dna_damage),
-                  do: Mutator.sos_mutation_amplifier(),
-                  else: 1.0
-                )
-
-            genome_size = max(child_genome.gene_count, 1)
-            p_lethal = Mutator.error_catastrophe_lethality(mu_per_cell, genome_size)
-
-            # Skip the RNG consumption when p_lethal is exactly zero
-            # (no catastrophe possible) so that the deterministic
-            # simulation traces of low-mutator scenarios — including
-            # the canary `cronache_test.exs` — keep their RNG path
-            # stable. Only the high-µ × large-genome corner pays the
-            # extra roll.
-            {lethal?, rng2} =
-              if p_lethal == 0.0 do
-                {false, rng1}
-              else
-                {roll, rng_next} = :rand.uniform_s(rng1)
-                {roll < p_lethal, rng_next}
-              end
-
-            primary_phase = primary_phase_name(parent, state)
-
-            if lethal? do
-              # Error-catastrophe: child is non-vital, parent still
-              # invests the replication cost (5 cell-equivalents).
-              updated_parent = decrement_abundance(parent, primary_phase, 5)
-
-              # lineage_id is the parent that lost an offspring (not a deceased lineage).
-              event = %{
-                type: :error_catastrophe_death,
-                tick: tick,
-                lineage_id: parent.id,
-                mu: mu_per_cell,
-                genome_size: genome_size
-              }
-
-              {updated_parent, rng2, nil, event}
-            else
-              child_abundances = %{primary_phase => 5}
-              child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
-              updated_parent = decrement_abundance(parent, primary_phase, 5)
-              {updated_parent, rng2, child, nil}
-            end
+            apply_spawn_outcome(parent, phenotype, state, mutation, child_genome, rng1, tick)
         end
+    end
+  end
+
+  defp apply_spawn_outcome(parent, phenotype, state, mutation, child_genome, rng, tick) do
+    mu_per_cell =
+      0.01 *
+        (1.0 - phenotype.repair_efficiency) *
+        if(Mutator.sos_active?(parent.dna_damage),
+          do: Mutator.sos_mutation_amplifier(),
+          else: 1.0
+        )
+
+    genome_size = max(child_genome.gene_count, 1)
+    p_lethal = Mutator.error_catastrophe_lethality(mu_per_cell, genome_size)
+
+    # Skip the RNG consumption when p_lethal is exactly zero (no
+    # catastrophe possible) so that the deterministic simulation
+    # traces of low-mutator scenarios — including the canary
+    # `cronache_test.exs` — keep their RNG path stable. Only the
+    # high-µ × large-genome corner pays the extra roll.
+    {lethal?, rng_next} =
+      if p_lethal == 0.0 do
+        {false, rng}
+      else
+        {roll, rng_next} = :rand.uniform_s(rng)
+        {roll < p_lethal, rng_next}
+      end
+
+    primary_phase = primary_phase_name(parent, state)
+
+    if lethal? do
+      # Error-catastrophe: child is non-vital, parent still invests
+      # the replication cost (5 cell-equivalents).
+      updated_parent = decrement_abundance(parent, primary_phase, 5)
+
+      catastrophe_event = %{
+        type: :error_catastrophe_death,
+        tick: tick,
+        lineage_id: parent.id,
+        mu: mu_per_cell,
+        genome_size: genome_size
+      }
+
+      {updated_parent, rng_next, nil, [catastrophe_event]}
+    else
+      child_abundances = %{primary_phase => 5}
+      child = Lineage.new_child(parent, child_genome, child_abundances, tick + 1)
+      updated_parent = decrement_abundance(parent, primary_phase, 5)
+
+      # Phase 26 / 1.13+1.14 — surface :domain_flip / :gene_chimera_birth
+      # for the mutation that just produced this child. Stamped with
+      # the *child* lineage id since these are events about the
+      # child's genome.
+      mutation_events =
+        Applicator.detect_mutation_events(parent.genome, child_genome, mutation,
+          tick: tick,
+          lineage_id: child.id
+        )
+
+      {updated_parent, rng_next, child, mutation_events}
     end
   end
 
