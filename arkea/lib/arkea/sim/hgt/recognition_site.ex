@@ -84,6 +84,13 @@ defmodule Arkea.Sim.HGT.RecognitionSite do
     field :palindrome?, boolean()
     field :type, rm_type()
     field :role, :restriction | :methylation
+    # Phase 31 / L1.7 full closure — per-position methylation
+    # tracking. For methylase sites, the set of codon indices
+    # (`0..length_in_codons - 1`) at which the methyltransferase
+    # has placed a methyl mark. Restriction sites carry an empty
+    # set (they don't methylate; the field is co-typed for
+    # uniform protection-coverage checks).
+    field :methylated_positions, MapSet.t(non_neg_integer()), default: MapSet.new()
   end
 
   @palindrome_tolerance 0
@@ -103,15 +110,83 @@ defmodule Arkea.Sim.HGT.RecognitionSite do
       when is_binary(signature) and is_list(pattern) and role in [:restriction, :methylation] do
     palindrome? = palindrome?(pattern)
     type = classify_type(pattern, palindrome?)
+    n = length(pattern)
+
+    # Phase 31 / L1.7 — methylase sites mark every codon position
+    # by default (full coverage = full protection). A future
+    # refinement can scale `methylated_positions` to the methylase
+    # `kcat` (low-quality methylase methylates only some positions
+    # → leaves a subset unprotected → restriction can still
+    # cleave). Restriction sites carry an empty set.
+    methylated_positions =
+      case role do
+        :methylation -> MapSet.new(0..(n - 1)//1)
+        :restriction -> MapSet.new()
+      end
 
     %__MODULE__{
       signature: signature,
       pattern: pattern,
-      length_in_codons: length(pattern),
+      length_in_codons: n,
       palindrome?: palindrome?,
       type: type,
-      role: role
+      role: role,
+      methylated_positions: methylated_positions
     }
+  end
+
+  @doc """
+  Override the default per-position methylation coverage. Returns
+  a new `RecognitionSite` with the supplied set; the input must
+  be a subset of `0..length_in_codons - 1`. Out-of-range positions
+  are silently dropped.
+  """
+  @spec with_methylated_positions(t(), Enumerable.t()) :: t()
+  def with_methylated_positions(%__MODULE__{length_in_codons: n} = site, positions) do
+    set =
+      positions
+      |> Enum.to_list()
+      |> Enum.filter(fn p -> is_integer(p) and p >= 0 and p < n end)
+      |> MapSet.new()
+
+    %{site | methylated_positions: set}
+  end
+
+  @doc """
+  True when `methylase_sites` collectively cover the entire
+  pattern of `restriction_site` — i.e. every position of the
+  restriction recognition site has a methyl mark from some
+  matching methylase. Phase 31 / L1.7 sequence-level protection
+  semantics.
+
+  Matching uses the legacy `signature` for fast signature equality
+  (the runtime calibration knob) AND additionally requires the
+  methylase's `pattern` to equal the restriction's `pattern`
+  (eliminates the false-positive case where two unrelated sites
+  share a 4-codon prefix). When two sites with the same signature
+  AND same pattern are paired, the union of their
+  `methylated_positions` must contain `0..length-1` for the
+  restriction site to count as protected.
+  """
+  @spec protected_by?(t(), [t()]) :: boolean()
+  def protected_by?(%__MODULE__{role: :restriction} = restriction, methylase_sites)
+      when is_list(methylase_sites) do
+    full_range = MapSet.new(0..(restriction.length_in_codons - 1)//1)
+
+    covering =
+      methylase_sites
+      |> Enum.filter(&pattern_matches?(restriction, &1))
+      |> Enum.reduce(MapSet.new(), fn site, acc ->
+        MapSet.union(acc, site.methylated_positions)
+      end)
+
+    MapSet.subset?(full_range, covering)
+  end
+
+  def protected_by?(_, _), do: false
+
+  defp pattern_matches?(%__MODULE__{} = a, %__MODULE__{} = b) do
+    a.signature == b.signature and a.pattern == b.pattern
   end
 
   @doc """

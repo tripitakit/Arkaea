@@ -55,6 +55,7 @@ defmodule Arkea.Sim.HGT.Defense do
   on when an HGT-acquired methylase emerges by mutation.
   """
 
+  alias Arkea.Sim.HGT.RecognitionSite
   alias Arkea.Sim.HGT.Virion
 
   # Phase 20 calibration — per-site cleavage probability raised to
@@ -112,7 +113,9 @@ defmodule Arkea.Sim.HGT.Defense do
   Reads `restriction_profile` from the recipient phenotype and merges the
   donor lineage's `methylation_profile` with the virion's own
   `methylation_profile` (host-modification carried over from the burst
-  cell).
+  cell). This is the legacy *signature-only* path; for sequence-level
+  matching with per-position methylation coverage see
+  `restriction_check_virion_sequence/3`.
   """
   @spec restriction_check_virion(
           recipient_restriction_profile :: [binary()],
@@ -123,9 +126,87 @@ defmodule Arkea.Sim.HGT.Defense do
     restriction_check(restriction_sites, virion.methylation_profile, rng)
   end
 
+  @doc """
+  Sequence-level R-M check for a virion infection (Phase 31 / L1.7
+  full closure).
+
+  Same role as `restriction_check_virion/3` but consumes
+  `RecognitionSite.t()` lists end-to-end:
+
+    * `recipient_restriction_sites` — the recipient's
+      `Phenotype.rm_profiles_detailed/1` `restriction_sites`.
+    * `virion.methylation_sites` — the methylase profile carried
+      over from the burst donor (populated in
+      `Phage.lytic_burst/5`).
+
+  Sites with empty `methylation_sites` (pre-Phase-31 virions or
+  donors that were delta-encoded at burst time) are treated as
+  having no sequence-level immunity at all and *every* recipient
+  restriction site is vulnerable — the runtime falls back
+  cleanly to the legacy `restriction_check_virion/3` semantics.
+  """
+  @spec restriction_check_virion_sequence(
+          [RecognitionSite.t()],
+          Virion.t(),
+          :rand.state()
+        ) :: outcome()
+  def restriction_check_virion_sequence(restriction_sites, %Virion{} = virion, rng) do
+    restriction_check_sequence(restriction_sites, virion.methylation_sites, rng)
+  end
+
   @doc "The per-site cleavage probability (exposed for tests)."
   @spec cleave_probability() :: float()
   def cleave_probability, do: @cleave_p
+
+  @doc """
+  Sequence-level R-M check (Phase 31 / L1.7 full closure).
+
+  `restriction_sites` and `donor_methylation_sites` are
+  `[RecognitionSite.t()]` lists. Each restriction site is
+  considered *protected* iff some methylase site in
+  `donor_methylation_sites` carries the **same signature AND
+  pattern** AND collectively the methylated positions cover the
+  whole recognition pattern (per-position coverage check, see
+  `RecognitionSite.protected_by?/2`).
+
+  Sites that fail per-position coverage are *vulnerable* — the
+  donor's methylation is partial and the recipient's restriction
+  enzyme can still cleave at the unmethylated positions. This
+  closes the L1.7 honesty marker by introducing
+  *sequence-level matching* alongside the legacy 4-codon
+  signature gate.
+
+  Backward-compatible: when callers pass empty methylase lists or
+  identical-signature methylases with full-coverage
+  `methylated_positions` (the default for sites built via
+  `RecognitionSite.new/3`), the behaviour matches the legacy
+  string-based `restriction_check/3` exactly. Partial coverage
+  is unlocked only by callers that explicitly call
+  `RecognitionSite.with_methylated_positions/2`.
+
+  Returns `outcome()` (same shape as `restriction_check/3`); the
+  digested-list element of `:digested` is the *signature* of the
+  vulnerable site (so consumers don't need to handle two event
+  shapes).
+  """
+  @spec restriction_check_sequence([RecognitionSite.t()], [RecognitionSite.t()], :rand.state()) ::
+          outcome()
+  def restriction_check_sequence(restriction_sites, donor_methylation_sites, rng)
+      when is_list(restriction_sites) and is_list(donor_methylation_sites) do
+    vulnerable =
+      restriction_sites
+      |> Enum.uniq_by(& &1.signature)
+      |> Enum.reject(fn rs -> RecognitionSite.protected_by?(rs, donor_methylation_sites) end)
+      |> Enum.map(& &1.signature)
+
+    case vulnerable do
+      [] ->
+        {:passed, rng}
+
+      sites ->
+        roll_per_site(sites, rng)
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Private helpers

@@ -25,6 +25,13 @@ defmodule Arkea.Sim.HGT.Virion do
     the donor cell where the lytic burst happened. Used by
     `HGT.Defense.restriction_check/3` to bypass restriction enzymes that
     share the same recognition site (Arber-Dussoix host modification).
+  - `methylation_sites` — Phase 31 / L1.7 full closure: `RecognitionSite`
+    rich profile carried over from the donor cell, with per-position
+    methylation tracking. Consumed by
+    `HGT.Defense.restriction_check_sequence/3` for sequence-level
+    matching. Empty list when the virion was constructed pre-Phase-31
+    (legacy compat); the runtime falls back to the
+    `methylation_profile` / signature path when this is empty.
   - `origin_lineage_id` — id of the lineage whose lytic burst produced this
     virion. Audit-log handle (Block 13).
   - `created_at_tick` — tick of birth.
@@ -46,6 +53,7 @@ defmodule Arkea.Sim.HGT.Virion do
   use TypedStruct
 
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.HGT.RecognitionSite
 
   typedstruct enforce: true do
     field :id, binary()
@@ -53,6 +61,7 @@ defmodule Arkea.Sim.HGT.Virion do
     field :abundance, non_neg_integer()
     field :surface_signature, binary() | nil
     field :methylation_profile, [binary()], default: []
+    field :methylation_sites, [RecognitionSite.t()], default: []
     field :origin_lineage_id, binary() | nil
     field :created_at_tick, non_neg_integer()
     field :decay_age, non_neg_integer(), default: 0
@@ -84,6 +93,7 @@ defmodule Arkea.Sim.HGT.Virion do
       abundance: abundance,
       surface_signature: Keyword.get(opts, :surface_signature),
       methylation_profile: Keyword.get(opts, :methylation_profile, []),
+      methylation_sites: Keyword.get(opts, :methylation_sites, []),
       origin_lineage_id: Keyword.get(opts, :origin_lineage_id),
       created_at_tick: created_at_tick,
       decay_age: Keyword.get(opts, :decay_age, 0),

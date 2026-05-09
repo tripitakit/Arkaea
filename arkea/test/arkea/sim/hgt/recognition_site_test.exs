@@ -65,4 +65,74 @@ defmodule Arkea.Sim.HGT.RecognitionSiteTest do
       assert site.role == :methylation
     end
   end
+
+  describe "Phase 31 / L1.7 full closure — methylated_positions + protected_by?" do
+    test "methylase site is fully methylated by default (covers every codon position)" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      methylase = RecognitionSite.new("3,17,9,0", pattern, :methylation)
+
+      assert MapSet.equal?(
+               methylase.methylated_positions,
+               MapSet.new(0..(length(pattern) - 1)//1)
+             )
+    end
+
+    test "restriction site has empty methylated_positions" do
+      restriction = RecognitionSite.new("3,17,9,0", [3, 17, 9, 0, 5, 11], :restriction)
+      assert MapSet.size(restriction.methylated_positions) == 0
+    end
+
+    test "with_methylated_positions/2 narrows the methylation coverage" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      methylase = RecognitionSite.new("3,17,9,0", pattern, :methylation)
+
+      partial = RecognitionSite.with_methylated_positions(methylase, [0, 2, 4])
+      assert MapSet.equal?(partial.methylated_positions, MapSet.new([0, 2, 4]))
+
+      # Out-of-range positions are silently dropped.
+      out_of_range =
+        RecognitionSite.with_methylated_positions(methylase, [-1, 0, 99, length(pattern)])
+
+      assert MapSet.equal?(out_of_range.methylated_positions, MapSet.new([0]))
+    end
+
+    test "protected_by?/2 — full-coverage methylase protects matching restriction site" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      restriction = RecognitionSite.new("3,17,9,0", pattern, :restriction)
+      methylase = RecognitionSite.new("3,17,9,0", pattern, :methylation)
+
+      assert RecognitionSite.protected_by?(restriction, [methylase])
+    end
+
+    test "protected_by?/2 — partial-coverage methylase does NOT protect (one position uncovered)" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      restriction = RecognitionSite.new("3,17,9,0", pattern, :restriction)
+
+      methylase =
+        RecognitionSite.new("3,17,9,0", pattern, :methylation)
+        |> RecognitionSite.with_methylated_positions([0, 1, 2, 3, 4])
+
+      # Position 5 is uncovered.
+      refute RecognitionSite.protected_by?(restriction, [methylase])
+    end
+
+    test "protected_by?/2 — methylase with same signature but DIFFERENT pattern does not protect" do
+      restriction = RecognitionSite.new("3,17,9,0", [3, 17, 9, 0, 5, 11], :restriction)
+      # Same 4-codon signature `"3,17,9,0"` but different downstream codons.
+      methylase = RecognitionSite.new("3,17,9,0", [3, 17, 9, 0, 7, 13], :methylation)
+
+      refute RecognitionSite.protected_by?(restriction, [methylase])
+    end
+
+    test "protected_by?/2 — multiple partial methylases collectively cover the pattern" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      restriction = RecognitionSite.new("3,17,9,0", pattern, :restriction)
+
+      base = RecognitionSite.new("3,17,9,0", pattern, :methylation)
+      first_half = RecognitionSite.with_methylated_positions(base, [0, 1, 2])
+      second_half = RecognitionSite.with_methylated_positions(base, [3, 4, 5])
+
+      assert RecognitionSite.protected_by?(restriction, [first_half, second_half])
+    end
+  end
 end

@@ -31,12 +31,18 @@ defmodule Arkea.Sim.HGT.DnaFragment do
   use TypedStruct
 
   alias Arkea.Genome.Gene
+  alias Arkea.Sim.HGT.RecognitionSite
 
   typedstruct enforce: true do
     field :id, binary()
     field :genes, [Gene.t()]
     field :abundance, non_neg_integer()
     field :methylation_profile, [binary()], default: []
+    # Phase 31 / L1.7 full closure — sequence-level methylation
+    # carried over from the donor. Empty when the fragment was
+    # constructed pre-Phase-31; the runtime falls back to the
+    # signature-only `methylation_profile` in that case.
+    field :methylation_sites, [RecognitionSite.t()], default: []
     field :origin_lineage_id, binary() | nil
     field :created_at_tick, non_neg_integer()
     field :decay_age, non_neg_integer(), default: 0
@@ -66,6 +72,7 @@ defmodule Arkea.Sim.HGT.DnaFragment do
       genes: genes,
       abundance: abundance,
       methylation_profile: Keyword.get(opts, :methylation_profile, []),
+      methylation_sites: Keyword.get(opts, :methylation_sites, []),
       origin_lineage_id: Keyword.get(opts, :origin_lineage_id),
       created_at_tick: created_at_tick,
       decay_age: Keyword.get(opts, :decay_age, 0)

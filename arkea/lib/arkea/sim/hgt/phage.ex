@@ -152,6 +152,7 @@ defmodule Arkea.Sim.HGT.Phage do
       burst_size = burst_size_for(cassette, lost)
       surface_signature = surface_signature_for(cassette)
       methylation = methylation_profile_for(lineage)
+      methylation_sites = methylation_sites_for(lineage)
 
       virion =
         Virion.new(
@@ -160,6 +161,7 @@ defmodule Arkea.Sim.HGT.Phage do
           abundance: burst_size,
           surface_signature: surface_signature,
           methylation_profile: methylation,
+          methylation_sites: methylation_sites,
           origin_lineage_id: lineage.id,
           created_at_tick: tick,
           payload_kind: :phage
@@ -181,6 +183,7 @@ defmodule Arkea.Sim.HGT.Phage do
           burst_size,
           surface_signature,
           methylation,
+          methylation_sites,
           tick,
           rng1
         )
@@ -203,6 +206,7 @@ defmodule Arkea.Sim.HGT.Phage do
          burst_size,
          surface_signature,
          methylation,
+         methylation_sites,
          tick,
          rng
        ) do
@@ -226,6 +230,7 @@ defmodule Arkea.Sim.HGT.Phage do
             abundance: transducing_size,
             surface_signature: surface_signature,
             methylation_profile: methylation,
+            methylation_sites: methylation_sites,
             origin_lineage_id: lineage.id,
             created_at_tick: tick,
             payload_kind: :generalized_transduction
@@ -373,6 +378,18 @@ defmodule Arkea.Sim.HGT.Phage do
     methyl
   end
 
+  # Phase 31 / L1.7 — return the rich `RecognitionSite` methylase
+  # profile (with per-position methylation tracking) so virions
+  # / DNA fragments carry sequence-level immunity. The recipient's
+  # R-M can then check protection per-position rather than only
+  # per-signature.
+  defp methylation_sites_for(%Lineage{genome: nil}), do: []
+
+  defp methylation_sites_for(%Lineage{} = lineage) do
+    %{methylation_sites: sites} = Phenotype.rm_profiles_detailed(lineage.genome)
+    sites
+  end
+
   defp drop_cassette(%Lineage{genome: %Genome{} = g} = lineage, index) do
     new_prophages = List.delete_at(g.prophages, index)
     %{lineage | genome: Genome.set_prophages(g, new_prophages)}
@@ -387,6 +404,7 @@ defmodule Arkea.Sim.HGT.Phage do
 
   defp deposit_dna_fragment(%Phase{} = phase, %Lineage{} = lineage, lost, tick) do
     methylation = methylation_profile_for(lineage)
+    methylation_sites = methylation_sites_for(lineage)
 
     fragment =
       DnaFragment.new(
@@ -394,6 +412,7 @@ defmodule Arkea.Sim.HGT.Phage do
         genes: lineage.genome.chromosome,
         abundance: lost,
         methylation_profile: methylation,
+        methylation_sites: methylation_sites,
         origin_lineage_id: lineage.id,
         created_at_tick: tick
       )
@@ -470,9 +489,28 @@ defmodule Arkea.Sim.HGT.Phage do
   end
 
   defp run_rm_and_outcome(phage_id, virion, recipient, tick, {ls, ph, children, events, rng}) do
-    recipient_phenotype = Phenotype.from_genome(recipient.genome)
+    # Phase 31 / L1.7 full closure — prefer sequence-level matching
+    # when both sides carry rich `RecognitionSite` data (per-position
+    # methylation + full pattern). Fall back to the legacy 4-codon
+    # signature path when either side is empty (pre-Phase-31
+    # virions / delta-encoded recipients), preserving Phase-12
+    # calibration for unmigrated call sites.
+    recipient_sites = Phenotype.rm_profiles_detailed(recipient.genome).restriction_sites
 
-    case Defense.restriction_check_virion(recipient_phenotype.restriction_profile, virion, rng) do
+    rm_outcome =
+      if recipient_sites != [] and virion.methylation_sites != [] do
+        Defense.restriction_check_virion_sequence(recipient_sites, virion, rng)
+      else
+        recipient_phenotype = Phenotype.from_genome(recipient.genome)
+
+        Defense.restriction_check_virion(
+          recipient_phenotype.restriction_profile,
+          virion,
+          rng
+        )
+      end
+
+    case rm_outcome do
       {:digested, _sites, rng1} ->
         # The R-M system cleaves the incoming DNA; the virion is consumed
         # but no transfer happens. We still consume one virion particle to
