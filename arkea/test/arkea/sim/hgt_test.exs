@@ -48,7 +48,7 @@ defmodule Arkea.Sim.HGTTest do
   # type_tag [0,0,1] params first 3 = 30, rem(30,6)=0 → :hydrolysis
   defp hydrolytic_catalytic_domain, do: Domain.new([0, 0, 1], @param_codons)
 
-  defp pili_gene_with_orit(orit_count \\ 1) do
+  defp pili_gene_with_orit(orit_count) do
     Gene.from_domains([tm_domain(), tm_domain(), tm_domain()])
     |> with_intergenic(%{transfer: List.duplicate("orit_site", orit_count)})
   end
