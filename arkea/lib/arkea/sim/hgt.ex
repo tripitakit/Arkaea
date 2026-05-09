@@ -70,29 +70,170 @@ defmodule Arkea.Sim.HGT do
   def name, do: :conjugation
 
   @doc """
-  True if the plasmid is conjugative.
+  True if the plasmid is *self-conjugative* — it carries the full
+  conjugation triad on its own genes (Phase 28 / 28.1 — closes
+  L1.5).
 
-  Accepts either a `Genome.plasmid()` map or a raw gene list (legacy).
-  A plasmid is conjugative when it contains at least one gene with at
-  least one `:transmembrane_anchor` domain (pilus-like proxy, 01-DESIGN.md
-  Block 5).
+  The triad (01-DESIGN.md Block 5, biology per Smillie et al. 2010):
+
+    * **`pili_like`** — sex pilus apparatus. Proxied by
+      `:transmembrane_anchor` domain count on plasmid genes. Builds
+      the mating channel through which the relaxed strand crosses
+      into the recipient.
+    * **`relaxase_like`** — DNA-processing endonuclease that nicks
+      one strand at *oriT* and chaperones it through the channel.
+      Proxied by a plasmid gene that co-encodes `:dna_binding`
+      (sequence-specific recognition of *oriT*) plus
+      `:catalytic_site` with `reaction_class :hydrolysis` (the
+      strand-cleaving activity).
+    * **`oriT_like`** — origin of transfer DNA element where
+      relaxase nicks. Already exposed via the
+      `Genome.plasmid().oriT_present` boolean derived from the
+      `orit_site` intergenic block (Phase 16).
+
+  Plasmids with all three are self-conjugative. Plasmids with
+  relaxase + oriT but lacking pili are *mobilizable* — they can
+  conjugate only when a *helper plasmid* in the same donor cell
+  supplies the pilus (see `mobilizable?/1` and `helper_plasmid/2`).
+  This matches the canonical bacterial taxonomy of conjugative
+  plasmids (e.g. R388 = self-conjugative; ColE1-type = mobilizable
+  by an IncF/IncP helper).
+
+  Accepts either a `Genome.plasmid()` map or a raw gene list (legacy
+  callers without inc/oriT metadata fall back to a "no oriT known"
+  assumption, never self-conjugative).
   """
-  @spec conjugative?(Genome.plasmid() | [Gene.t()]) :: boolean()
-  def conjugative?(plasmid), do: conjugation_strength(plasmid) > 0
+  @spec self_conjugative?(Genome.plasmid() | [Gene.t()]) :: boolean()
+  def self_conjugative?(plasmid) when is_map(plasmid) do
+    pili_strength(plasmid) > 0 and
+      relaxase_strength(plasmid) > 0 and
+      Map.get(plasmid, :oriT_present, false)
+  end
+
+  def self_conjugative?(genes) when is_list(genes) do
+    pili_strength(genes) > 0 and
+      relaxase_strength(genes) > 0 and
+      raw_genes_have_orit?(genes)
+  end
 
   @doc """
-  Conjugation strength: total count of `:transmembrane_anchor` domains
-  in the plasmid. Zero for non-conjugative plasmids. Accepts either a
-  `Genome.plasmid()` map or a raw gene list (legacy).
-  """
-  @spec conjugation_strength(Genome.plasmid() | [Gene.t()]) :: non_neg_integer()
-  def conjugation_strength(%{genes: genes}) when is_list(genes), do: conjugation_strength(genes)
+  True if the plasmid is *mobilizable* — it carries `relaxase_like` +
+  `oriT_like` but **lacks** `pili_like`. Mobilizable plasmids cannot
+  initiate conjugation on their own; they require a co-resident
+  helper plasmid (see `helper_plasmid/2`) to supply the pilus
+  apparatus.
 
-  def conjugation_strength(plasmid_genes) when is_list(plasmid_genes) do
+  A plasmid that is `self_conjugative?/1` is *not* `mobilizable?/1` —
+  the two predicates are mutually exclusive.
+  """
+  @spec mobilizable?(Genome.plasmid() | [Gene.t()]) :: boolean()
+  def mobilizable?(plasmid) when is_map(plasmid) do
+    pili_strength(plasmid) == 0 and
+      relaxase_strength(plasmid) > 0 and
+      Map.get(plasmid, :oriT_present, false)
+  end
+
+  def mobilizable?(genes) when is_list(genes) do
+    pili_strength(genes) == 0 and
+      relaxase_strength(genes) > 0 and
+      raw_genes_have_orit?(genes)
+  end
+
+  @doc """
+  Backward-compatible alias for `self_conjugative?/1`. Pre-Phase-28
+  callers asked "is this plasmid conjugative?" with the implicit
+  meaning "*can it conjugate on its own*" — which now maps cleanly
+  to the self-conjugative predicate. Mobilizable plasmids are
+  surfaced separately via `mobilizable?/1`.
+  """
+  @spec conjugative?(Genome.plasmid() | [Gene.t()]) :: boolean()
+  def conjugative?(plasmid), do: self_conjugative?(plasmid)
+
+  @doc """
+  Pilus strength of a plasmid: total count of `:transmembrane_anchor`
+  domains across the plasmid's genes. Zero ⇒ no pilus apparatus
+  encoded; the plasmid cannot self-conjugate but may still be
+  mobilizable.
+
+  Accepts either a `Genome.plasmid()` map or a raw gene list.
+  """
+  @spec pili_strength(Genome.plasmid() | [Gene.t()]) :: non_neg_integer()
+  def pili_strength(%{genes: genes}) when is_list(genes), do: pili_strength(genes)
+
+  def pili_strength(plasmid_genes) when is_list(plasmid_genes) do
     Enum.sum_by(plasmid_genes, fn gene ->
       Enum.count(gene.domains, fn domain -> domain.type == :transmembrane_anchor end)
     end)
   end
+
+  @doc """
+  Relaxase strength of a plasmid: count of plasmid genes that
+  *co-encode* the relaxase signature — at least one `:dna_binding`
+  domain (sequence-specific *oriT* recognition) AND at least one
+  `:catalytic_site` with `reaction_class: :hydrolysis` (the nicking
+  activity).
+
+  Pure structural detection — the same gene must carry both
+  signatures to count as a relaxase. Two adjacent genes encoding
+  the activities separately do *not* count, matching the in vivo
+  picture where relaxase is a single multifunctional protein
+  (e.g. TrwC in R388, MobA in RP4).
+  """
+  @spec relaxase_strength(Genome.plasmid() | [Gene.t()]) :: non_neg_integer()
+  def relaxase_strength(%{genes: genes}) when is_list(genes), do: relaxase_strength(genes)
+
+  def relaxase_strength(plasmid_genes) when is_list(plasmid_genes) do
+    Enum.count(plasmid_genes, &relaxase_gene?/1)
+  end
+
+  defp relaxase_gene?(%Gene{domains: domains}) do
+    has_dna_binding = Enum.any?(domains, fn d -> d.type == :dna_binding end)
+
+    has_hydrolytic =
+      Enum.any?(domains, fn d ->
+        d.type == :catalytic_site and Map.get(d.params, :reaction_class) == :hydrolysis
+      end)
+
+    has_dna_binding and has_hydrolytic
+  end
+
+  @doc """
+  Conjugation strength legacy accessor — returns the *pilus* strength
+  for backward compatibility with pre-Phase-28 callers. The triad-
+  aware `pili_strength/1`, `relaxase_strength/1`, and
+  `Map.get(plasmid, :oriT_present, false)` accessors are the
+  preferred APIs.
+  """
+  @spec conjugation_strength(Genome.plasmid() | [Gene.t()]) :: non_neg_integer()
+  def conjugation_strength(plasmid), do: pili_strength(plasmid)
+
+  defp raw_genes_have_orit?(genes) when is_list(genes) do
+    Enum.any?(genes, fn gene ->
+      blocks = Map.get(gene, :intergenic_blocks, %{})
+      transfer = Map.get(blocks, :transfer, Map.get(blocks, "transfer", []))
+      "orit_site" in List.wrap(transfer)
+    end)
+  end
+
+  @doc """
+  Find a helper plasmid in a *donor* genome that can supply the
+  pilus apparatus to a *mobilizable* plasmid. The helper must
+  itself be self-conjugative (so it provides a working pilus and
+  has its own relaxase / oriT — though those don't aid the mob
+  plasmid). Returns `nil` when no such helper exists.
+
+  Phase 28 / 28.1 — Smillie et al. 2010 model: in vivo, an IncF
+  helper plasmid in the same donor cell can mobilise a co-resident
+  ColE1-type relaxosome by lending its T4SS apparatus.
+  """
+  @spec helper_plasmid(Genome.t(), Genome.plasmid()) :: Genome.plasmid() | nil
+  def helper_plasmid(%Genome{plasmids: plasmids}, %{} = mob_plasmid) do
+    Enum.find(plasmids, fn p ->
+      p != mob_plasmid and self_conjugative?(p)
+    end)
+  end
+
+  def helper_plasmid(_, _), do: nil
 
   @doc """
   Run one HGT conjugation step for all lineages in a single phase.
@@ -146,10 +287,11 @@ defmodule Arkea.Sim.HGT do
     lineage_map = Map.new(lineages, fn l -> {l.id, l} end)
 
     {lineage_map_out, children, events, rng_out} =
-      Enum.reduce(donors, {lineage_map, [], [], rng}, fn {donor, plasmid}, acc ->
+      Enum.reduce(donors, {lineage_map, [], [], rng}, fn {donor, plasmid, transfer_mode}, acc ->
         do_donor_transfers(
           donor,
           plasmid,
+          transfer_mode,
           eligible_recipients,
           phase_name,
           n_total,
@@ -219,15 +361,31 @@ defmodule Arkea.Sim.HGT do
   # ---------------------------------------------------------------------------
   # Private — conjugation helpers
 
-  # Find all (lineage, plasmid) donor pairs: lineage has genome, has
-  # conjugative plasmids, and has abundance > 0 in this phase.
+  # Find all (lineage, plasmid, transfer_mode) donor triples: lineage
+  # has genome and abundance > 0 in this phase, AND the plasmid is
+  # either self-conjugative (supplies its own triad) or mobilizable
+  # with a self-conjugative helper plasmid co-resident in the same
+  # donor (Phase 28 / 28.1 — Smillie et al. 2010 helper-mobilisation).
   defp find_donors(lineages, phase_name) do
     for lineage <- lineages,
         lineage.genome != nil,
         Lineage.abundance_in(lineage, phase_name) > 0,
         plasmid <- lineage.genome.plasmids,
-        conjugative?(plasmid),
-        do: {lineage, plasmid}
+        transfer_mode = transfer_mode_for(plasmid, lineage.genome),
+        not is_nil(transfer_mode),
+        do: {lineage, plasmid, transfer_mode}
+  end
+
+  # Pick the transfer mode for a plasmid in a given donor genome.
+  # Returns `:self_conjugative` when the plasmid carries the full
+  # triad on its own, `:mobilized` when a helper plasmid in the
+  # donor supplies the pilus, or `nil` when no transfer is possible.
+  defp transfer_mode_for(plasmid, %Genome{} = genome) do
+    cond do
+      self_conjugative?(plasmid) -> :self_conjugative
+      mobilizable?(plasmid) and helper_plasmid(genome, plasmid) != nil -> :mobilized
+      true -> nil
+    end
   end
 
   # Find all lineages eligible to receive a plasmid: genome != nil and
@@ -245,14 +403,22 @@ defmodule Arkea.Sim.HGT do
 
   # Transfer context groups the static per-phase parameters shared across all
   # (donor, recipient) pair evaluations within a single `step/4` call.
-  defp transfer_ctx(donor, plasmid, phase_name, n_total, tick) do
-    %{donor: donor, plasmid: plasmid, phase_name: phase_name, n_total: n_total, tick: tick}
+  defp transfer_ctx(donor, plasmid, transfer_mode, phase_name, n_total, tick) do
+    %{
+      donor: donor,
+      plasmid: plasmid,
+      transfer_mode: transfer_mode,
+      phase_name: phase_name,
+      n_total: n_total,
+      tick: tick
+    }
   end
 
   # Process all transfer attempts from one donor across all recipients.
   defp do_donor_transfers(
          donor,
          plasmid,
+         transfer_mode,
          recipients,
          phase_name,
          n_total,
@@ -260,7 +426,7 @@ defmodule Arkea.Sim.HGT do
          acc,
          max_children
        ) do
-    ctx = transfer_ctx(donor, plasmid, phase_name, n_total, tick)
+    ctx = transfer_ctx(donor, plasmid, transfer_mode, phase_name, n_total, tick)
 
     Enum.reduce(recipients, acc, fn recipient, {lmap, children, events, rng} ->
       if length(children) >= max_children do
@@ -295,6 +461,7 @@ defmodule Arkea.Sim.HGT do
         p =
           conjugation_probability(
             ctx.plasmid,
+            ctx.transfer_mode,
             ctx.donor,
             current_recipient,
             ctx.phase_name,
@@ -302,26 +469,28 @@ defmodule Arkea.Sim.HGT do
           )
 
         if roll < p do
-          execute_transfer(
-            ctx.donor,
-            current_recipient,
-            ctx.plasmid,
-            ctx.phase_name,
-            ctx.tick,
-            lmap,
-            children,
-            events,
-            rng1
-          )
+          execute_transfer(ctx, current_recipient, lmap, children, events, rng1)
         else
           {lmap, children, events, rng1}
         end
     end
   end
 
-  # Compute the conjugation probability for a (donor, recipient) pair.
-  defp conjugation_probability(plasmid, donor, recipient, phase_name, n_total) do
-    strength = conjugation_strength(plasmid)
+  # Compute the conjugation probability for a (donor, recipient,
+  # transfer_mode) triple. Phase 28 / 28.1 — the *triad* gates
+  # whether a plasmid can conjugate at all (handled in
+  # `find_donors`/`transfer_mode_for`); once gated, the throughput
+  # factor remains the *pilus count* (preserving the pre-Phase-28
+  # calibration so existing Phase 5/6/7 transfer-rate tests keep
+  # firing). Mobilizable transfers borrow the helper plasmid's
+  # pilus strength scaled by `@mobilisation_efficiency` (helper-
+  # mediated transfer is biologically less efficient than self-
+  # conjugation — the relaxosome must assemble at the mob
+  # plasmid's oriT and dock with the helper's T4SS, an extra
+  # protein-protein interaction that introduces failure modes,
+  # Smillie et al. 2010).
+  defp conjugation_probability(plasmid, transfer_mode, donor, recipient, phase_name, n_total) do
+    strength = effective_strength(plasmid, transfer_mode, donor.genome)
 
     transfer_bias =
       Intergenic.transfer_probability_multiplier(donor.genome, recipient.genome, plasmid)
@@ -333,6 +502,23 @@ defmodule Arkea.Sim.HGT do
     raw |> max(0.0) |> min(@p_conj_max)
   end
 
+  @mobilisation_efficiency 0.5
+
+  defp effective_strength(plasmid, :self_conjugative, _donor_genome) do
+    pili_strength(plasmid)
+  end
+
+  defp effective_strength(plasmid, :mobilized, donor_genome) do
+    case helper_plasmid(donor_genome, plasmid) do
+      nil ->
+        0
+
+      %{} = helper ->
+        helper_pili = pili_strength(helper)
+        round(helper_pili * @mobilisation_efficiency)
+    end
+  end
+
   # True when the recipient already carries a plasmid identical to the
   # donor plasmid by Phase-16 incompatibility (`inc_group`). Same group
   # ⇒ would displace, so we suppress the transfer to avoid creating a
@@ -342,8 +528,18 @@ defmodule Arkea.Sim.HGT do
   end
 
   # Execute a confirmed plasmid transfer: create a child lineage for the
-  # recipient and decrement the recipient's abundance by 5.
-  defp execute_transfer(donor, recipient, plasmid, phase_name, tick, lmap, children, events, rng) do
+  # recipient and decrement the recipient's abundance by 5. The
+  # transfer-context bundle keeps the arity bounded.
+  defp execute_transfer(ctx, recipient, lmap, children, events, rng) do
+    %{
+      donor: donor,
+      plasmid: plasmid,
+      transfer_mode: transfer_mode,
+      phase_name: phase_name,
+      tick: tick
+    } =
+      ctx
+
     child_genome = Genome.add_plasmid(recipient.genome, plasmid)
 
     # child tick must be strictly greater than parent (recipient) created_at_tick
@@ -360,17 +556,29 @@ defmodule Arkea.Sim.HGT do
     lmap1 = Map.put(lmap, recipient.id, updated_recipient)
     lmap2 = Map.put(lmap1, donor.id, Map.get(lmap1, donor.id, donor))
 
-    event = build_hgt_transfer_event(donor, recipient, plasmid, tick)
+    event = build_hgt_transfer_event(donor, recipient, plasmid, transfer_mode, tick)
 
     {lmap2, [child | children], [event | events], rng}
   end
 
   # Sub-task 1.4 — channel-direct audit event constructors.
+  # Phase 28 / 28.1 — payload now includes `transfer_mode`
+  # (`:self_conjugative` | `:mobilized`) so the audit log
+  # distinguishes triad-complete transfers from helper-mediated ones
+  # (the gene-tree-vs-species-tree view of Phase 26 / 3.8 can use
+  # this to refine HGT incongruence detection).
 
-  defp build_hgt_transfer_event(%Lineage{} = donor, %Lineage{} = recipient, plasmid, tick) do
+  defp build_hgt_transfer_event(
+         %Lineage{} = donor,
+         %Lineage{} = recipient,
+         plasmid,
+         transfer_mode,
+         tick
+       ) do
     %{
       type: :hgt_transfer,
       channel: :conjugation,
+      transfer_mode: transfer_mode,
       donor_lineage_id: donor.id,
       recipient_lineage_id: recipient.id,
       plasmid_inc_group: plasmid_inc_group(plasmid),
