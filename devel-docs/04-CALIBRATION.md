@@ -203,16 +203,21 @@ Stato delle 14 categorie di evento audit identificate nelle review utente. `✅`
 
 ### L3. Interventi player limitati
 
-Solo 4 interventi disponibili in `Intervention.apply/2`, tutti a livello di fase:
+✅ **Closed Phase 27 (Advanced player interventions)** — `Intervention.apply/2` ora espone 9 comandi (4 pre-Fase-27 + 5 nuovi), tutti pure transforms su `BiotopeState` con eventi audit tipizzati. La catalog xenobiotica copre 4 target_classes (PBP, ribosome, gyrase, membrane) con 4 antibiotici.
 
-- `:nutrient_pulse` con mix fisso `{glucose, nh3, po4}` (non scelta del metabolita)
-- `:plasmid_inoculation` con plasmide modello hardcoded a 1 gene (non personalizzabile)
-- `:xenobiotic_pulse` con solo `:beta_lactam` esposto in UI (il framework `target_class` è generativo)
-- `:mixing_event` (omogeneizzazione fasi)
+**Pre-esistenti**:
+- `:nutrient_pulse` con mix fisso `{glucose, nh3, po4}` (mix fisso resta come scelta deliberata di v1: pulse "buffet" generico).
+- `:plasmid_inoculation` con plasmide modello a 1 gene (resta v1 — il `:lineage_inoculation` di 27.5 sostituisce questo workflow per genomi custom).
+- `:xenobiotic_pulse` (Phase 27 / 27.1): catalog estesa a `:beta_lactam` + `:aminoglycoside` (`:ribosome_like`, cidal) + `:fluoroquinolone` (`:dna_polymerase_like`, mutagen — Cirz et al. 2005) + `:polymyxin` (`:membrane`, cidal — Velkov 2010). Il dose e il `:xenobiotic_id` sono parametri del command.
+- `:mixing_event` (omogeneizzazione fasi).
 
-**Mancano**: mutagenesi guidata, knockout / knockdown, heterologous expression, pulse mutageno UV/MMS-like, shift environment (pH/T/osmolarità), inoculazione di un lignaggio osservato altrove, dosaggio temporale schedulato, xenobiotici aminoglycoside/fluorochinolone/polimixina.
+**Phase 27 nuovi**:
+- ✅ `:mutagen_pulse` (27.2) — UV / MMS-like, dose come fraction di `Lineage.dna_damage_max/0`. Hit ogni lignaggio resident nella fase, clamp al cap. Emette `:dna_damage_pulse` per-lignaggio + umbrella `:intervention`.
+- ✅ `:environmental_shift` (27.3) — aggiorna `temperature` / `ph` / `osmolarity` / `dilution_rate` di una fase, validato contro `Phase.validate/1`. Out-of-range respinto con `{:error, :temperature_out_of_range}` etc.
+- ✅ `:gene_knockout` (27.4) — zerifica i codoni di un gene cromosomico target preservando il gene count (grammar invariant: codon count == multiplo di 23). I domini ricostruiti parsano a `:substrate_binding` all-zero (≡ gene non-funzionale: kcat=0, affinity=0). Phenotype cache invalidata.
+- ✅ `:lineage_inoculation` (27.5) — introduce un genoma user-supplied come nuovo founder lineage al tick corrente. Workflow "save & retry" — ricarica un lignaggio osservato altrove. Genome validato; abundance > 0; opzionale `:original_seed_id` per tagging Community Mode.
 
-**Chiusura**: Fase 27 (Interventi avanzati).
+**Resta deferred**: `:scheduled_dosing` (orchestration layer, non `Intervention` core — è un thin wrapper di `apply/2` su Oban / cron job). Heterologous expression as a *single* surgical command resta open: il workflow corrente è `:lineage_inoculation` con un genoma custom — funzionalmente equivalente, ma manca un comando esplicito "inietta questo singolo gene in un lignaggio esistente".
 
 ### L4. Strumenti di analisi mancanti
 

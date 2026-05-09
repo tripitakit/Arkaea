@@ -203,16 +203,21 @@ Status of the 14 audit-event categories identified in the user reviews. `✅` = 
 
 ### L3. Limited player interventions
 
-Only 4 interventions are available in `Intervention.apply/2`, all at the phase level:
+✅ **Closed Phase 27 (Advanced player interventions)** — `Intervention.apply/2` now exposes 9 commands (4 pre-Phase-27 + 5 new), all pure transforms on `BiotopeState` with typed audit events. The xenobiotic catalog covers 4 target classes (PBP, ribosome, gyrase, membrane) with 4 antibiotics.
 
-- `:nutrient_pulse` with fixed mix `{glucose, nh3, po4}` (no metabolite choice)
-- `:plasmid_inoculation` with a hardcoded 1-gene model plasmid (not customisable)
-- `:xenobiotic_pulse` with only `:beta_lactam` exposed in the UI (the `target_class` framework is generative)
-- `:mixing_event` (phase homogenisation)
+**Pre-existing**:
+- `:nutrient_pulse` with fixed mix `{glucose, nh3, po4}` (fixed mix retained as a deliberate v1 choice: generic "buffet" pulse).
+- `:plasmid_inoculation` with a hardcoded 1-gene model plasmid (still v1 — the `:lineage_inoculation` of 27.5 supersedes this for custom genomes).
+- `:xenobiotic_pulse` (Phase 27 / 27.1): catalog extended with `:beta_lactam` + `:aminoglycoside` (`:ribosome_like`, cidal) + `:fluoroquinolone` (`:dna_polymerase_like`, mutagen — Cirz et al. 2005, antibiotic-induced mutagenesis) + `:polymyxin` (`:membrane`, cidal — Velkov 2010). `dose` and `xenobiotic_id` are command parameters.
+- `:mixing_event` (phase homogenisation).
 
-**Missing**: guided mutagenesis, knockout / knockdown, heterologous expression, UV/MMS-like mutagenic pulse, environment shift (pH/T/osmolarity), inoculation of a lineage observed elsewhere, scheduled temporal dosing, aminoglycoside/fluoroquinolone/polymyxin xenobiotics.
+**Phase 27 new**:
+- ✅ `:mutagen_pulse` *(27.2)* — UV / MMS-like, dose as a fraction of `Lineage.dna_damage_max/0`. Hits every lineage resident in the phase, clamped at cap. Emits per-lineage `:dna_damage_pulse` + umbrella `:intervention`.
+- ✅ `:environmental_shift` *(27.3)* — updates `temperature` / `ph` / `osmolarity` / `dilution_rate` of a phase, validated against `Phase.validate/1`. Out-of-range values rejected with `{:error, :temperature_out_of_range}` etc.
+- ✅ `:gene_knockout` *(27.4)* — zeros the codons of a target chromosome gene, preserving codon count (grammar invariant: multiple of 23). The rebuilt domains parse to `:substrate_binding` with all-zero params (non-functional gene: kcat=0, affinity=0). Phenotype cache invalidated.
+- ✅ `:lineage_inoculation` *(27.5)* — introduces a user-supplied genome as a new founder lineage at the current tick. "Save & retry" workflow. Genome validated; abundance > 0; optional `:original_seed_id` for Community Mode tagging.
 
-**Closure**: Phase 27 (Advanced interventions).
+**Still deferred**: `:scheduled_dosing` (orchestration layer, not `Intervention` core — would be a thin wrapper of `apply/2` over Oban / cron). Heterologous expression as a *single* surgical command remains open: the current workflow uses `:lineage_inoculation` with a custom genome — functionally equivalent, but a dedicated "inject this single gene into an existing lineage" command is missing.
 
 ### L4. Missing analysis tools
 
