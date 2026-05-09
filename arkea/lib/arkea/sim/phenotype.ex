@@ -311,6 +311,107 @@ defmodule Arkea.Sim.Phenotype do
   end
 
   @doc """
+  Operon-aware σ-factor input (Phase 25.5 / 7.2b).
+
+  Returns a single scalar in `0.0..1.0` representing the per-cell
+  transcriptional output that drives the σ-factor scalar in
+  `Tick.compute_growth_deltas_v5/5`. The operon-aware semantics
+  (vs. the legacy `phenotype.dna_binding_affinity`) is:
+
+    * Each **operon** is a single transcriptional unit. Its
+      contribution is the mean of `:dna_binding` `binding_affinity`
+      values of *the leader gene* (the leader carries the
+      promoter that drives all member genes; downstream members'
+      `:dna_binding` domains are regulatory complexity, not
+      additional transcription events).
+    * Each **solo gene** (`operon_id == nil`) is its own
+      transcriptional unit. Its contribution is the mean of its
+      own `:dna_binding` `binding_affinity` values.
+    * The cell-level σ-input is the **mean across transcriptional
+      units** (operons + solo genes). Genes with no `:dna_binding`
+      domain contribute `0.0` to the mean (a transcriptional
+      unit with no σ-binding affinity transcribes near baseline).
+
+  When the genome has *no operons* (all `operon_id == nil`) AND
+  every chromosome gene has at most one `:dna_binding` domain,
+  this function returns the same value as
+  `phenotype.dna_binding_affinity` — preserving Phase-5/6/7
+  calibration for legacy seeds.
+
+  When the genome carries explicit operons, the value diverges
+  from the legacy mean: a 5-`:dna_binding`-domain operon
+  contributes once (one transcription event) instead of five
+  times (five averaged domains), correctly capturing the
+  "operon = single transcriptional unit" biology.
+
+  Pure.
+  """
+  @spec operon_aware_sigma_input(Genome.t(), t()) :: float()
+  def operon_aware_sigma_input(%Genome{chromosome: chromosome}, %__MODULE__{
+        dna_binding_affinity: legacy
+      }) do
+    cond do
+      chromosome == [] ->
+        legacy
+
+      not has_operons?(chromosome) ->
+        # No explicit operons → legacy genome-wide mean preserves
+        # Phase-5/6/7 calibration. Operon collapse only applies when
+        # the genome carries explicit `operon_id` tags (Phase 25+ seeds).
+        legacy
+
+      true ->
+        unit_means =
+          chromosome
+          |> group_into_transcriptional_units()
+          |> Enum.map(&unit_mean_dna_binding/1)
+
+        case unit_means do
+          [] -> legacy
+          _ -> Enum.sum(unit_means) / length(unit_means)
+        end
+    end
+  end
+
+  defp has_operons?(chromosome) do
+    Enum.any?(chromosome, fn %Gene{operon_id: id} -> not is_nil(id) end)
+  end
+
+  defp group_into_transcriptional_units(genes) do
+    {operon_groups, solo} =
+      Enum.reduce(genes, {%{}, []}, fn %Gene{} = gene, {ops, solos} ->
+        case gene.operon_id do
+          nil ->
+            {ops, [gene | solos]}
+
+          op_id ->
+            {Map.update(ops, op_id, [gene], fn existing -> existing ++ [gene] end), solos}
+        end
+      end)
+
+    operon_units =
+      operon_groups
+      |> Map.values()
+      |> Enum.map(fn member_genes -> {:operon, hd(member_genes)} end)
+
+    solo_units = Enum.map(Enum.reverse(solo), fn gene -> {:solo, gene} end)
+
+    operon_units ++ solo_units
+  end
+
+  defp unit_mean_dna_binding({_kind, %Gene{domains: domains}}) do
+    affinities =
+      domains
+      |> Enum.filter(fn %Domain{type: t} -> t == :dna_binding end)
+      |> Enum.map(fn d -> Map.get(d.params, :binding_affinity, 0.0) end)
+
+    case affinities do
+      [] -> 0.0
+      values -> Enum.sum(values) / length(values)
+    end
+  end
+
+  @doc """
   Compute the Phase-18 biofilm capability flag for a domain list.
 
   The cell is biofilm-capable when it carries both a surface tag

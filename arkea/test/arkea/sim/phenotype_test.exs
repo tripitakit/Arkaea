@@ -594,4 +594,102 @@ defmodule Arkea.Sim.PhenotypeTest do
       assert_in_delta summary.net_activation, delta, 1.0e-9
     end
   end
+
+  describe "operon_aware_sigma_input/2 (Phase 25.5 / 7.2b)" do
+    defp single_dna_binding_gene(weight) do
+      Gene.from_domains([Domain.new([0, 0, 5], List.duplicate(weight, 20))])
+    end
+
+    defp two_dna_binding_gene(w1, w2) do
+      Gene.from_domains([
+        Domain.new([0, 0, 5], List.duplicate(w1, 20)),
+        Domain.new([0, 0, 5], List.duplicate(w2, 20))
+      ])
+    end
+
+    test "no operons + one :dna_binding per gene → matches legacy phenotype.dna_binding_affinity" do
+      genome =
+        Genome.new([
+          single_dna_binding_gene(10),
+          single_dna_binding_gene(15)
+        ])
+
+      phenotype = Phenotype.from_genome(genome)
+      sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+
+      # Each gene has one :dna_binding domain → unit mean == that domain's affinity.
+      # Across two solo units, the mean equals the legacy aggregate.
+      assert_in_delta sigma_input, phenotype.dna_binding_affinity, 1.0e-9
+    end
+
+    test "five :dna_binding domains in ONE operon contribute as ONE transcriptional unit" do
+      op_id = Arkea.UUID.v4()
+
+      operon_genes =
+        for w <- [5, 8, 11, 14, 17] do
+          %{single_dna_binding_gene(w) | operon_id: op_id}
+        end
+
+      genome = Genome.new(operon_genes)
+      phenotype = Phenotype.from_genome(genome)
+      sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+
+      # Operon contribution = leader gene's mean dna_binding (only the leader's
+      # promoter drives transcription; downstream members are regulatory
+      # complexity, not extra transcription events).
+      [leader | _] = operon_genes
+      [leader_dom] = leader.domains
+      expected = leader_dom.params.binding_affinity
+
+      assert_in_delta sigma_input, expected, 1.0e-9
+      # And it must DIFFER from the legacy mean (which averages all 5 domains).
+      refute_in_delta sigma_input, phenotype.dna_binding_affinity, 1.0e-3
+    end
+
+    test "mixed operon + solo: σ-input is the mean across {operon leader, solo gene}" do
+      op_id = Arkea.UUID.v4()
+
+      genes = [
+        %{single_dna_binding_gene(8) | operon_id: op_id},
+        %{single_dna_binding_gene(16) | operon_id: op_id},
+        single_dna_binding_gene(12)
+      ]
+
+      genome = Genome.new(genes)
+      phenotype = Phenotype.from_genome(genome)
+      sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+
+      [op_leader, _op_member, solo] = genes
+      [leader_dom] = op_leader.domains
+      [solo_dom] = solo.domains
+
+      expected =
+        (leader_dom.params.binding_affinity + solo_dom.params.binding_affinity) / 2
+
+      assert_in_delta sigma_input, expected, 1.0e-9
+    end
+
+    test "no operons → falls back to legacy phenotype.dna_binding_affinity (calibration safety)" do
+      # Two-:dna_binding solo gene: legacy path averages across
+      # *domains* (matching pre-25.5 behaviour); operon-aware path
+      # only kicks in when explicit `operon_id` tags exist.
+      genome = Genome.new([two_dna_binding_gene(10, 18)])
+      phenotype = Phenotype.from_genome(genome)
+      sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+
+      assert_in_delta sigma_input, phenotype.dna_binding_affinity, 1.0e-9
+    end
+
+    test "no operons + gene with no :dna_binding → legacy fall-through" do
+      catalytic = Gene.from_domains([Domain.new([0, 0, 1], List.duplicate(10, 20))])
+      bind_gene = single_dna_binding_gene(15)
+
+      genome = Genome.new([catalytic, bind_gene])
+      phenotype = Phenotype.from_genome(genome)
+      sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+
+      # Legacy mean across all `:dna_binding` domains (= bind_dom alone).
+      assert_in_delta sigma_input, phenotype.dna_binding_affinity, 1.0e-9
+    end
+  end
 end

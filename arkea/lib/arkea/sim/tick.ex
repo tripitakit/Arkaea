@@ -1277,17 +1277,18 @@ defmodule Arkea.Sim.Tick do
   end
 
   # Phase 21 (Top 5 #3 / L2.8) — emit `:sos_active` when a lineage's
-  # `dna_damage` crosses `Mutator.sos_active_threshold/0` from below in
-  # this tick. The cross is observed by comparing `old.dna_damage` (off,
-  # < threshold) to `new.dna_damage` (on, >= threshold) for the same
-  # lineage id. The trigger source is best-effort: `:replication_load`
-  # when growth in this tick was positive, `:ros` otherwise (anaerobes
-  # drowning in O₂ accumulate damage with zero growth — see
-  # `step_dna_damage` ROS branch).
+  # `dna_damage` crosses its SOS threshold from below in this tick. Each
+  # lineage's threshold is computed by `Mutator.sos_threshold/1` from
+  # its `:ligand_sensor` domains carrying `signal_key == "dna_damage"`
+  # (Phase 25.5 / 7.6). Lineages without an SOS sensor inherit the
+  # legacy default threshold. The trigger source is best-effort:
+  # `:replication_load` when growth in this tick was positive, `:ros`
+  # otherwise (anaerobes drowning in O₂ accumulate damage with zero
+  # growth — see `step_dna_damage` ROS branch).
   defp detect_sos_transitions(old_by_id, new_by_id, tick) do
-    threshold = Mutator.sos_active_threshold()
-
     Enum.flat_map(new_by_id, fn {id, new_lineage} ->
+      threshold = Mutator.sos_threshold(new_lineage)
+
       case Map.get(old_by_id, id) do
         %Lineage{dna_damage: prev}
         when prev < threshold and new_lineage.dna_damage >= threshold ->
@@ -1563,7 +1564,13 @@ defmodule Arkea.Sim.Tick do
        ) do
     expression_mods = Intergenic.expression_modifiers(genome, atp_yield, phenotype.energy_cost)
     qs_boost = Signaling.qs_sigma_boost(phenotype, signal_pool) * expression_mods.qs_multiplier
-    sigma = 0.5 + phenotype.dna_binding_affinity + expression_mods.sigma_bonus + qs_boost
+    # Phase 25.5 / 7.2b — operon-aware σ. Falls back to the legacy
+    # genome-wide `dna_binding_affinity` mean when the genome carries
+    # no operons (preserving Phase 5/6/7 calibration for legacy seeds);
+    # diverges only when explicit operons collapse multi-gene
+    # transcriptional units to single contributions.
+    sigma_input = Phenotype.operon_aware_sigma_input(genome, phenotype)
+    sigma = 0.5 + sigma_input + expression_mods.sigma_bonus + qs_boost
 
     net =
       (atp_yield - phenotype.energy_cost * 5.0 + expression_mods.energy_relief) * sigma
@@ -1798,10 +1805,12 @@ defmodule Arkea.Sim.Tick do
   end
 
   defp apply_spawn_outcome(parent, phenotype, state, mutation, child_genome, rng, tick) do
+    sos_threshold = Mutator.sos_threshold(parent)
+
     mu_per_cell =
       0.01 *
         (1.0 - phenotype.repair_efficiency) *
-        if(Mutator.sos_active?(parent.dna_damage),
+        if(Mutator.sos_active?(parent.dna_damage, sos_threshold),
           do: Mutator.sos_mutation_amplifier(),
           else: 1.0
         )
