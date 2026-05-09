@@ -145,22 +145,35 @@ defmodule Arkea.Sim.Phase31SmokeTest do
   end
 
   describe "L1.7 — Phenotype.rm_profiles_detailed populates per-position methylation" do
-    test "methylase site has full coverage by default (matches pattern length)" do
+    test "methylase site coverage scales with the catalytic site's kcat (Phase 32 / 32a)" do
       # type_tag [0,0,5] = :dna_binding; type_tag [0,0,1] = :catalytic_site;
       # first_3 of catalytic param = [3,0,0] → :isomerization → methylase.
-      methylase_gene =
+      # Higher kcat → more positions methylated.
+      methylase_gene_high_kcat =
         Gene.from_domains([
           Domain.new([0, 0, 5], List.duplicate(10, 20)),
-          Domain.new([0, 0, 1], [3, 0, 0] ++ List.duplicate(10, 17))
+          Domain.new([0, 0, 1], [3, 0, 0] ++ List.duplicate(19, 17))
         ])
 
-      genome = Genome.new([methylase_gene])
-      %{methylation_sites: [methylase | _]} = Phenotype.rm_profiles_detailed(genome)
+      methylase_gene_low_kcat =
+        Gene.from_domains([
+          Domain.new([0, 0, 5], List.duplicate(10, 20)),
+          Domain.new([0, 0, 1], [3, 0, 0] ++ List.duplicate(2, 17))
+        ])
 
-      assert MapSet.equal?(
-               methylase.methylated_positions,
-               MapSet.new(0..(methylase.length_in_codons - 1)//1)
-             )
+      high_genome = Genome.new([methylase_gene_high_kcat])
+      low_genome = Genome.new([methylase_gene_low_kcat])
+
+      %{methylation_sites: [m_high | _]} = Phenotype.rm_profiles_detailed(high_genome)
+      %{methylation_sites: [m_low | _]} = Phenotype.rm_profiles_detailed(low_genome)
+
+      # High-kcat methylase covers ≥ 90 % of positions; low-kcat ≤ 30 %.
+      n = m_high.length_in_codons
+      assert MapSet.size(m_high.methylated_positions) >= round(n * 0.9)
+      assert MapSet.size(m_low.methylated_positions) <= round(n * 0.3)
+      # And the high-kcat coverage strictly dominates the low-kcat one.
+      assert MapSet.size(m_high.methylated_positions) >
+               MapSet.size(m_low.methylated_positions)
     end
   end
 

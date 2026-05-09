@@ -830,11 +830,12 @@ defmodule Arkea.Sim.Phenotype do
         not is_nil(d.params[:signal_key])
     end)
     |> Enum.map(fn d ->
-      HGT.RecognitionSite.new(
-        d.params.signal_key,
-        d.parameter_codons,
-        role
-      )
+      site = HGT.RecognitionSite.new(d.params.signal_key, d.parameter_codons, role)
+
+      case role do
+        :methylation -> HGT.RecognitionSite.scale_methylation_to_kcat(site, d.params[:kcat])
+        :restriction -> site
+      end
     end)
   end
 

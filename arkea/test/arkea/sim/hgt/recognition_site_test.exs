@@ -66,6 +66,91 @@ defmodule Arkea.Sim.HGT.RecognitionSiteTest do
     end
   end
 
+  describe "Phase 32 / L1.7 refinement — complement palindromes" do
+    test "complement palindrome (c → 19 - c) is detected as a palindrome" do
+      # 19 - 3 = 16; pattern reverse-complement = [3, 16] when reversed.
+      # Build: [3, 16] → reverse [16, 3] → complement [3, 16] → equals
+      # original → complement palindrome.
+      pattern = [3, 16]
+      assert RecognitionSite.palindrome?(pattern)
+      assert RecognitionSite.palindrome_kind(pattern) == :complement
+    end
+
+    test "exact palindrome takes priority over complement classification" do
+      pattern = [5, 9, 9, 5]
+      assert RecognitionSite.palindrome_kind(pattern) == :exact
+    end
+
+    test "Type II classification picks up complement palindromes (textbook EcoRI shape)" do
+      # 6-codon complement palindrome: [3, 17, 9, 10, 2, 16]
+      # reverse: [16, 2, 10, 9, 17, 3]
+      # complement: [3, 17, 9, 10, 2, 16] — equals original ⇒ complement palindrome.
+      pattern = [3, 17, 9, 10, 2, 16]
+      assert RecognitionSite.palindrome_kind(pattern) == :complement
+      site = RecognitionSite.new("3,17,9,10", pattern, :restriction)
+      assert site.type == :type_ii
+    end
+
+    test "neither exact nor complement palindrome → :none" do
+      pattern = [3, 17, 9, 0, 5, 11]
+      assert RecognitionSite.palindrome_kind(pattern) == :none
+      refute RecognitionSite.palindrome?(pattern)
+    end
+  end
+
+  describe "Phase 32 / L1.7 refinement — kcat-modulated methylation" do
+    test "high kcat (≈ 10) → full coverage" do
+      pattern = List.duplicate(10, 20)
+      base = RecognitionSite.new("10,10,10,10", pattern, :methylation)
+      scaled = RecognitionSite.scale_methylation_to_kcat(base, 10.0)
+
+      assert MapSet.size(scaled.methylated_positions) == length(pattern)
+    end
+
+    test "low kcat (≈ 2) → ~20 % coverage" do
+      pattern = List.duplicate(10, 20)
+      base = RecognitionSite.new("10,10,10,10", pattern, :methylation)
+      scaled = RecognitionSite.scale_methylation_to_kcat(base, 2.0)
+
+      assert MapSet.size(scaled.methylated_positions) == 4
+      # Coverage runs from the 5' end (positions 0..n-1).
+      assert MapSet.equal?(scaled.methylated_positions, MapSet.new([0, 1, 2, 3]))
+    end
+
+    test "kcat = 0 → zero coverage (no methylation marks)" do
+      pattern = List.duplicate(10, 20)
+      base = RecognitionSite.new("10,10,10,10", pattern, :methylation)
+      scaled = RecognitionSite.scale_methylation_to_kcat(base, 0.0)
+
+      assert MapSet.size(scaled.methylated_positions) == 0
+    end
+
+    test "kcat above 10 (or nil) saturates at full coverage" do
+      pattern = List.duplicate(10, 20)
+      base = RecognitionSite.new("10,10,10,10", pattern, :methylation)
+
+      assert MapSet.size(
+               RecognitionSite.scale_methylation_to_kcat(base, 25.0).methylated_positions
+             ) ==
+               length(pattern)
+
+      assert MapSet.size(
+               RecognitionSite.scale_methylation_to_kcat(base, nil).methylated_positions
+             ) ==
+               length(pattern)
+    end
+
+    test "restriction sites are unaffected by kcat scaling" do
+      pattern = List.duplicate(10, 20)
+      base = RecognitionSite.new("10,10,10,10", pattern, :restriction)
+      scaled = RecognitionSite.scale_methylation_to_kcat(base, 5.0)
+
+      # Restriction sites carry no methylation marks regardless of kcat.
+      assert MapSet.size(scaled.methylated_positions) == 0
+      assert scaled.role == :restriction
+    end
+  end
+
   describe "Phase 31 / L1.7 full closure — methylated_positions + protected_by?" do
     test "methylase site is fully methylated by default (covers every codon position)" do
       pattern = [3, 17, 9, 0, 5, 11]

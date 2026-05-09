@@ -95,6 +95,16 @@ defmodule Arkea.Sim.HGT.RecognitionSite do
 
   @palindrome_tolerance 0
   @gap_density_threshold 0.5
+  # Phase-1 codon alphabet is `0..19`. The `complement involution`
+  # `c → @codon_max - c` plays the role of the canonical Watson-Crick
+  # base-pair complement (A↔T, G↔C) at the codon level: a "complement
+  # palindrome" matches its own reverse-complement, the way EcoRI's
+  # recognition site `5'-GAATTC-3'` is the same DNA viewed from
+  # either strand. Phase 31 detected only *exact* palindromes
+  # (sequence equals its reversal in plain coordinates); Phase 32
+  # adds complement palindromes so we no longer miscategorise
+  # textbook-shaped Type II sites.
+  @codon_max 19
 
   @doc """
   Build a `RecognitionSite.t()` from a `:catalytic_site` domain's
@@ -153,6 +163,51 @@ defmodule Arkea.Sim.HGT.RecognitionSite do
   end
 
   @doc """
+  Phase 32 / L1.7 refinement — kcat-modulated partial methylation.
+
+  The methylase's `:catalytic_site.kcat` (range `0..10` in Arkea's
+  Phase-1 model) determines the *fraction* of the recognition site
+  the enzyme actually marks per encounter:
+
+      coverage_fraction = clamp(kcat / 10.0, 0.0, 1.0)
+      n_methylated      = round(coverage_fraction × length)
+      methylated        = first n_methylated positions (5' end)
+
+  A perfectly-tuned methylase (kcat = 10) marks every position →
+  full protection (matches the pre-Phase-32 default behaviour).
+  A degraded methylase (low kcat) marks only the leading positions
+  of the pattern → partial protection → restriction enzymes can
+  still cleave at the trailing unmethylated positions, exactly the
+  selection-visible failure mode that L1.7 said was missing.
+
+  Why "first N positions" instead of a randomised subset: in vivo,
+  methyltransferases scan the recognition site sequentially from a
+  defined entry point (the M.HhaI processive scan, Klimasauskas
+  1994). Phase-1 doesn't model strand directionality, so we use a
+  deterministic 5'→3' fill — the modelling intent is "low kcat
+  leaves *some* positions uncovered" rather than "the specific set
+  of uncovered positions matters".
+
+  Restriction sites pass through unchanged (their `kcat` field is
+  irrelevant to per-position protection).
+  """
+  @spec scale_methylation_to_kcat(t(), number() | nil) :: t()
+  def scale_methylation_to_kcat(%__MODULE__{role: :restriction} = site, _kcat), do: site
+
+  def scale_methylation_to_kcat(%__MODULE__{role: :methylation, length_in_codons: n} = site, kcat) do
+    fraction = methylation_coverage_fraction(kcat)
+    n_methylated = round(fraction * n) |> max(0) |> min(n)
+    positions = if n_methylated == 0, do: [], else: Enum.to_list(0..(n_methylated - 1)//1)
+    with_methylated_positions(site, positions)
+  end
+
+  defp methylation_coverage_fraction(kcat) when is_number(kcat) do
+    (kcat / 10.0) |> max(0.0) |> min(1.0)
+  end
+
+  defp methylation_coverage_fraction(_), do: 1.0
+
+  @doc """
   True when `methylase_sites` collectively cover the entire
   pattern of `restriction_site` — i.e. every position of the
   restriction recognition site has a methyl mark from some
@@ -190,17 +245,54 @@ defmodule Arkea.Sim.HGT.RecognitionSite do
   end
 
   @doc """
-  True when the codon pattern equals its own reverse, within
-  `@palindrome_tolerance` mismatches. Phase-1 codons live in
-  `0..19` — there is no "complementary base" mapping, so we use
-  exact reversal as the canonical palindrome test (a Phase-30+
-  refinement could introduce an explicit codon-complement
-  involution `c -> 19 - c` if needed).
+  True when the codon pattern is *any* kind of palindrome — exact
+  (same as its plain reversal) **or** complement (same as its
+  reverse-complement under `c → @codon_max - c`). Phase 32 / L1.7
+  refinement: Type II R-M sites in vivo are reverse-complement
+  palindromes (EcoRI: `5'-GAATTC-3' / 3'-CTTAAG-5'`), not plain
+  palindromes — Phase 1 codons need the matching involution to
+  classify them correctly.
   """
   @spec palindrome?([integer()]) :: boolean()
   def palindrome?(pattern) when is_list(pattern) do
+    palindrome_kind(pattern) != :none
+  end
+
+  @doc """
+  Classify the palindrome shape:
+
+    * `:exact` — pattern equals its plain reversal.
+    * `:complement` — pattern equals its reverse-complement
+      `c → @codon_max - c`.
+    * `:none` — neither.
+
+  An *exact* palindrome is also trivially a complement palindrome
+  only when every position is `@codon_max / 2 = 9.5` — i.e. never
+  for integer codons; the two predicates are therefore disjoint
+  for any non-empty pattern. Empty / single-codon patterns are
+  classified `:exact` (the trivial palindrome).
+  """
+  @spec palindrome_kind([integer()]) :: :exact | :complement | :none
+  def palindrome_kind(pattern) when is_list(pattern) do
+    cond do
+      exact_palindrome?(pattern) -> :exact
+      complement_palindrome?(pattern) -> :complement
+      true -> :none
+    end
+  end
+
+  defp exact_palindrome?(pattern) do
     reversed = Enum.reverse(pattern)
     mismatches = pattern |> Enum.zip(reversed) |> Enum.count(fn {a, b} -> a != b end)
+    div(mismatches, 2) <= @palindrome_tolerance
+  end
+
+  defp complement_palindrome?(pattern) do
+    reverse_complement = pattern |> Enum.reverse() |> Enum.map(&(@codon_max - &1))
+
+    mismatches =
+      pattern |> Enum.zip(reverse_complement) |> Enum.count(fn {a, b} -> a != b end)
+
     div(mismatches, 2) <= @palindrome_tolerance
   end
 
