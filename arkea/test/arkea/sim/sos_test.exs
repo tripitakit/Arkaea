@@ -6,6 +6,10 @@ defmodule Arkea.Sim.SosTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
+  alias Arkea.Ecology.Lineage
+  alias Arkea.Genome
+  alias Arkea.Genome.Domain
+  alias Arkea.Genome.Gene
   alias Arkea.Sim.Mutator
 
   describe "Mutator.sos_active?/1" do
@@ -113,6 +117,84 @@ defmodule Arkea.Sim.SosTest do
         assert result >= 0.0
         assert result <= 1.0
       end
+    end
+  end
+
+  describe "Mutator.sos_threshold/1 (Phase 25.5 / 7.6)" do
+    # type_tag [0,0,7] → rem(7,11) = 7 → :ligand_sensor.
+    defp ligand_sensor_gene(weights, signal_key) when length(weights) == 20 do
+      base = Domain.new([0, 0, 7], weights)
+      sensor = %{base | params: Map.put(base.params, :signal_key, signal_key)}
+      Gene.from_domains([sensor])
+    end
+
+    defp catalytic_gene do
+      Gene.from_domains([Domain.new([0, 0, 1], List.duplicate(10, 20))])
+    end
+
+    defp founder(genome), do: Lineage.new_founder(genome, %{phase_1: 100}, 0)
+
+    test "lineage with no :ligand_sensor → legacy default threshold" do
+      lineage = founder(Genome.new([catalytic_gene()]))
+      assert Mutator.sos_threshold(lineage) == Mutator.sos_active_threshold()
+    end
+
+    test "ligand_sensor without dna_damage signal_key → legacy default" do
+      gene = ligand_sensor_gene(List.duplicate(10, 20), "qs_signal_xyz")
+      lineage = founder(Genome.new([gene]))
+      assert Mutator.sos_threshold(lineage) == Mutator.sos_active_threshold()
+    end
+
+    test "single SOS sensor → threshold scaled by Lineage.dna_damage_max/0" do
+      # A ligand_sensor with parameter codons all = 5 → raw_sum bounded
+      # → threshold normalised to a known fraction; the absolute value
+      # is `threshold × dna_damage_max`, so we assert the multiplicative
+      # relation rather than a hard-coded number.
+      gene = ligand_sensor_gene(List.duplicate(5, 20), "dna_damage")
+      [sensor_dom] = hd(gene.domains) |> List.wrap()
+      lineage = founder(Genome.new([gene]))
+
+      sensor_threshold_param = sensor_dom.params.threshold
+      expected = sensor_threshold_param * Lineage.dna_damage_max()
+
+      assert_in_delta Mutator.sos_threshold(lineage), expected, 1.0e-9
+    end
+
+    test "multiple SOS sensors → minimum threshold wins (most-sensitive sensor)" do
+      low_sensor = ligand_sensor_gene(List.duplicate(2, 20), "dna_damage")
+      high_sensor = ligand_sensor_gene(List.duplicate(18, 20), "dna_damage")
+
+      lineage = founder(Genome.new([low_sensor, high_sensor]))
+
+      [low_dom] = hd(low_sensor.domains) |> List.wrap()
+      [high_dom] = hd(high_sensor.domains) |> List.wrap()
+
+      expected =
+        min(low_dom.params.threshold, high_dom.params.threshold) * Lineage.dna_damage_max()
+
+      assert_in_delta Mutator.sos_threshold(lineage), expected, 1.0e-9
+    end
+
+    test "lineage with genome: nil → legacy default" do
+      lineage = founder(Genome.new([catalytic_gene()]))
+      delta_only = %{lineage | genome: nil}
+      assert Mutator.sos_threshold(delta_only) == Mutator.sos_active_threshold()
+    end
+  end
+
+  describe "Mutator.sos_active?/2 (Phase 25.5 / 7.6)" do
+    test "respects the supplied threshold instead of the legacy default" do
+      # Strict threshold (10× legacy default) — only severe damage activates.
+      strict = Mutator.sos_active_threshold() * 10.0
+      refute Mutator.sos_active?(0.5, strict)
+      assert Mutator.sos_active?(strict + 0.01, strict)
+    end
+
+    test "1-arity form is equivalent to 2-arity with legacy default" do
+      damage = 0.30
+
+      assert Mutator.sos_active?(damage) ==
+               Mutator.sos_active?(damage, Mutator.sos_active_threshold())
     end
   end
 end

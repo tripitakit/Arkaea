@@ -427,8 +427,12 @@ defmodule Arkea.Sim.HGT do
     # prophage repressor (RecA-mediated cleavage in vivo), so a cell
     # with both metabolic stress and DNA damage induces faster than
     # either alone.
+    # Phase 25.5 / 7.6 — lineage-specific SOS threshold from
+    # `:ligand_sensor` domains carrying `signal_key == "dna_damage"`.
+    sos_threshold = Mutator.sos_threshold(lineage)
+
     sos_mult =
-      if Mutator.sos_active?(lineage.dna_damage),
+      if Mutator.sos_active?(lineage.dna_damage, sos_threshold),
         do: Mutator.sos_induction_amplifier(),
         else: 1.0
 

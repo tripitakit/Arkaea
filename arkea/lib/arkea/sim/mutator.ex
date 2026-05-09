@@ -42,7 +42,9 @@ defmodule Arkea.Sim.Mutator do
   store (in `BiotopeState.rng_seed`).
   """
 
+  alias Arkea.Ecology.Lineage
   alias Arkea.Genome
+  alias Arkea.Genome.Domain
   alias Arkea.Genome.Mutation.Duplication
   alias Arkea.Genome.Mutation.Indel
   alias Arkea.Genome.Mutation.Inversion
@@ -176,14 +178,90 @@ defmodule Arkea.Sim.Mutator do
   end
 
   @doc """
-  True when the SOS response is active for the given dna_damage value.
+  True when the SOS response is active for the given dna_damage value
+  using the legacy default threshold (`@sos_active_threshold`).
+
+  Prefer `sos_active?/2` with a lineage-specific threshold derived from
+  `sos_threshold/1` — the 1-arity form is kept for backward compatibility
+  in pure call sites that don't have a lineage handle.
   """
   @spec sos_active?(float()) :: boolean()
   def sos_active?(dna_damage) when is_float(dna_damage),
-    do: dna_damage >= @sos_active_threshold
+    do: sos_active?(dna_damage, @sos_active_threshold)
 
-  @doc "SOS-active threshold (exposed for tests / docs)."
+  @doc """
+  True when `dna_damage` has crossed the supplied `threshold`. Phase 25.5
+  / 7.6 — `threshold` is typically computed by `sos_threshold/1` from the
+  lineage's `:ligand_sensor` domains (LexA-like SOS sensors).
+  """
+  @spec sos_active?(float(), float()) :: boolean()
+  def sos_active?(dna_damage, threshold) when is_float(dna_damage) and is_float(threshold),
+    do: dna_damage >= threshold
+
+  @doc "Legacy default SOS-active threshold (exposed for tests / docs)."
   def sos_active_threshold, do: @sos_active_threshold
+
+  @doc """
+  Compute the SOS-active threshold for a lineage from its genome's
+  `:ligand_sensor` domains (Phase 25.5 / 7.6).
+
+  Biology: in vivo, SOS induction is gated by LexA — a homodimeric
+  repressor that binds the SOS-box of every SOS-regulated promoter and
+  is autocleaved when activated RecA filaments accumulate on ssDNA
+  (Walker 1984, Patel et al. 2010). The threshold of induction is
+  encoded by LexA's binding affinity for its own promoter and by its
+  cooperativity. In Arkea this maps to a `:ligand_sensor` domain with
+  the convention `signal_key == "dna_damage"`: the sensor's
+  `:threshold` parameter (normalised `0..1`) is interpreted as a
+  *fraction of `Lineage.dna_damage_max/0`*, so the absolute threshold
+  is `sensor.threshold × dna_damage_max`.
+
+  When the genome carries multiple SOS-sensing `:ligand_sensor`
+  domains the *minimum* threshold wins — the most-sensitive sensor
+  dominates (the LexA homodimer at the lowest-affinity SOS-box still
+  fires the response when its threshold is reached, classical OR-gate
+  behaviour at the regulatory network level).
+
+  When the genome carries *no* SOS-sensing `:ligand_sensor`, returns
+  the legacy default `@sos_active_threshold` (`#{@sos_active_threshold}`),
+  preserving Phase-5/6/7/17 calibration for legacy seeds without an
+  explicit SOS sensor.
+
+  Pure: derived deterministically from the lineage's genome.
+  """
+  @spec sos_threshold(Lineage.t() | Genome.t() | nil) :: float()
+  def sos_threshold(nil), do: @sos_active_threshold
+  def sos_threshold(%Lineage{genome: nil}), do: @sos_active_threshold
+  def sos_threshold(%Lineage{genome: %Genome{} = genome}), do: sos_threshold(genome)
+
+  def sos_threshold(%Genome{} = genome) do
+    sensor_thresholds =
+      genome
+      |> Genome.all_domains()
+      |> Enum.flat_map(&sos_sensor_threshold/1)
+
+    case sensor_thresholds do
+      [] ->
+        @sos_active_threshold
+
+      values ->
+        absolute =
+          values
+          |> Enum.min()
+          |> Kernel.*(Lineage.dna_damage_max())
+
+        absolute
+    end
+  end
+
+  defp sos_sensor_threshold(%Domain{type: :ligand_sensor, params: params}) do
+    case Map.get(params, :signal_key) do
+      "dna_damage" -> [Map.get(params, :threshold, 1.0)]
+      _ -> []
+    end
+  end
+
+  defp sos_sensor_threshold(_), do: []
 
   @doc "Per-tick decay applied to `dna_damage` independent of new accumulation."
   def dna_damage_decay, do: @dna_damage_decay
