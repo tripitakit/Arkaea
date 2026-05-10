@@ -9,8 +9,10 @@ defmodule ArkeaWeb.SeedLabLive do
   alias Arkea.Genome.Domain
   alias Arkea.Genome.Gene
   alias Arkea.Views.ArkeonSchematic, as: SchematicLayout
+  alias Arkea.Views.CodonViewer
   alias Arkea.Views.GenomeCanvas, as: CanvasLayout
   alias ArkeaWeb.Components.ArkeonSchematic
+  alias ArkeaWeb.Components.CodonTrack
   alias ArkeaWeb.Components.GenomeCanvas
   alias ArkeaWeb.Components.Metric
   alias ArkeaWeb.Components.Shell
@@ -1565,6 +1567,15 @@ defmodule ArkeaWeb.SeedLabLive do
           <div class="arkea-seed-domain-card__copy">{domain_summary(domain)}</div>
         </div>
       </div>
+
+      <%!--
+        Phase 34 — codon-track inspector. Surfaces the per-codon role
+        annotations of the gene below the domain cards so the player
+        can see *which* codons drive the domain types vs the
+        continuous parameters, plus any promoter / regulatory blocks
+        when populated.
+      --%>
+      <CodonTrack.codon_track view={CodonViewer.build(@gene.raw_gene)} />
     </div>
     """
   end

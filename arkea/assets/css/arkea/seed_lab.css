@@ -573,3 +573,138 @@
   border-left: 3px solid color-mix(in oklch, var(--arkea-accent-teal) 50%, transparent);
   padding-left: calc(var(--arkea-space-3) - 3px);
 }
+
+/* ---------------------------------------------------------------------------
+ * Phase 34 — codon-track inspector (consumer for Arkea.Views.CodonViewer).
+ *
+ * Linear strip of cells, one cell per codon, colour-coded by structural role.
+ * `:parameter_codon` cells receive their parent domain's canvas colour
+ * (inline) so the strip reads as continuous with the SVG ring above it.
+ */
+.arkea-codon-track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+  margin-top: var(--arkea-space-3);
+}
+
+.arkea-codon-track__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--arkea-text-xs);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-codon-track__gene-id {
+  font-family: var(--arkea-font-mono);
+  color: var(--arkea-fg);
+}
+
+.arkea-codon-track__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: stretch;
+}
+
+.arkea-codon-track__strip--secondary {
+  margin-top: 2px;
+}
+
+.arkea-codon-track__cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 22px;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-family: var(--arkea-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--arkea-fg);
+  background: var(--arkea-surface-3);
+  cursor: default;
+  transition: outline-color 120ms ease, transform 120ms ease;
+  outline: 1px solid transparent;
+}
+
+.arkea-codon-track__cell:hover {
+  outline-color: var(--arkea-accent-cyan);
+  transform: translateY(-1px);
+  z-index: 1;
+}
+
+.arkea-codon-track__cell-value {
+  pointer-events: none;
+}
+
+.arkea-codon-track--compact .arkea-codon-track__cell {
+  min-width: 8px;
+  height: 14px;
+  padding: 0;
+}
+
+/* Role-specific tones. Type-tag uses a gold/amber tint that reads as the
+   "category-defining" position; the value text is masked out in compact
+   mode. The :parameter_codon class is a fallback used when the inline
+   `style=""` doesn't carry a domain-derived colour. */
+.arkea-codon-track__cell--type_tag {
+  background: oklch(70% 0.13 80);
+  color: oklch(20% 0.02 80);
+  font-weight: 700;
+}
+
+.arkea-codon-track__cell--parameter_codon {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+}
+
+.arkea-codon-track__cell--promoter_codon {
+  background: oklch(60% 0.16 295);
+  color: oklch(95% 0.02 295);
+}
+
+.arkea-codon-track__cell--regulatory_codon {
+  background: oklch(60% 0.14 195);
+  color: oklch(95% 0.02 195);
+}
+
+/* Sub-strip (promoter / regulatory) layout: small label + secondary track. */
+.arkea-codon-track__sub-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.arkea-codon-track__sub-label {
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Legend chips */
+.arkea-codon-track__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-3);
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+  margin-top: var(--arkea-space-1);
+}
+
+.arkea-codon-track__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-codon-track__legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
