@@ -737,3 +737,206 @@ a.arkea-notebook__entry-tick {
 a.arkea-notebook__entry-tick:hover {
   background: rgba(103, 232, 249, 0.25);
 }
+
+/* ---------------------------------------------------------------------------
+ * Phase 34 — codon-level inspector inside the lineage drawer.
+ *
+ * Chromosome gene chips + codon track + (optional) gene diff panel.
+ * Uses the same role colours defined in seed_lab.css so the visual
+ * language stays consistent across surfaces.
+ */
+
+.arkea-drawer__gene-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: var(--arkea-space-2);
+}
+
+.arkea-drawer__gene-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--arkea-surface-3);
+  background: transparent;
+  color: var(--arkea-fg-muted);
+  font-family: var(--arkea-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.arkea-drawer__gene-chip:hover {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+}
+
+.arkea-drawer__gene-chip--active {
+  background: color-mix(in oklch, var(--arkea-accent-cyan) 30%, var(--arkea-surface-2));
+  border-color: var(--arkea-accent-cyan);
+  color: var(--arkea-fg);
+}
+
+.arkea-drawer__codon-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+  margin-top: var(--arkea-space-2);
+}
+
+.arkea-drawer__codon-diff {
+  margin-top: var(--arkea-space-3);
+}
+
+/* ---------------------------------------------------------------------------
+ * Phase 34 — gene diff panel (consumer for Arkea.Views.GeneDiff).
+ *
+ * Two parallel codon strips (pinned + selected) with substitutions
+ * outlined; a per-domain table summary below.
+ */
+.arkea-gene-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-gene-diff__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-2);
+  align-items: center;
+  font-size: 11px;
+}
+
+.arkea-gene-diff__total-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-gene-diff__total-chip--tag {
+  background: oklch(70% 0.13 80);
+  color: oklch(20% 0.02 80);
+}
+
+.arkea-gene-diff__counts {
+  color: var(--arkea-fg-muted);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+.arkea-gene-diff__row {
+  display: flex;
+  align-items: center;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-gene-diff__row-label {
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  min-width: 56px;
+}
+
+.arkea-gene-diff__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  flex: 1;
+}
+
+.arkea-gene-diff__cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 12px;
+  height: 16px;
+  padding: 0 1px;
+  border-radius: 2px;
+  font-family: var(--arkea-font-mono);
+  font-size: 9px;
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg-muted);
+  outline: 1px solid transparent;
+  cursor: default;
+}
+
+.arkea-gene-diff__cell--match {
+  opacity: 0.55;
+}
+
+.arkea-gene-diff__cell--substitution {
+  outline-color: var(--arkea-accent-cyan);
+  background: color-mix(in oklch, var(--arkea-accent-cyan) 18%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+  font-weight: 600;
+}
+
+/* Type-tag substitution = the position whose mutation can flip
+   the domain category. Stronger amber outline so it stands out
+   from parameter-only drift. */
+.arkea-gene-diff__cell--sub-tag {
+  outline-color: oklch(78% 0.16 80);
+  outline-width: 2px;
+  background: color-mix(in oklch, oklch(78% 0.16 80) 28%, var(--arkea-surface-2));
+}
+
+.arkea-gene-diff__cell--unaligned {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--arkea-surface-3),
+      var(--arkea-surface-3) 3px,
+      var(--arkea-surface-2) 3px,
+      var(--arkea-surface-2) 6px
+    );
+  color: var(--arkea-fg-muted);
+  opacity: 0.65;
+}
+
+.arkea-gene-diff__cell--placeholder {
+  background: transparent;
+  visibility: hidden;
+}
+
+.arkea-gene-diff__domains {
+  margin-top: var(--arkea-space-2);
+}
+
+.arkea-gene-diff__domains-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-gene-diff__domains-table th,
+.arkea-gene-diff__domains-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--arkea-surface-3);
+}
+
+.arkea-gene-diff__domains-table th {
+  color: var(--arkea-fg-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.arkea-gene-diff__domain-row--flipped {
+  background: color-mix(in oklch, oklch(78% 0.16 80) 14%, transparent);
+}
+
+.arkea-gene-diff__domain-row--flipped td:nth-child(2),
+.arkea-gene-diff__domain-row--flipped td:nth-child(3) {
+  font-weight: 700;
+  color: oklch(75% 0.16 80);
+}

@@ -25,7 +25,11 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
   alias Arkea.Views.BiotopeScene, as: SceneLayout
+  alias Arkea.Views.CodonViewer
+  alias Arkea.Views.GeneDiff
   alias ArkeaWeb.Components.Chart
+  alias ArkeaWeb.Components.CodonTrack
+  alias ArkeaWeb.Components.GeneDiffPanel
   alias ArkeaWeb.Components.Panel
   alias ArkeaWeb.Components.Phylogeny
   alias ArkeaWeb.Components.Shell
@@ -53,6 +57,7 @@ defmodule ArkeaWeb.SimLive do
        bottom_tab: :events,
        selected_lineage_id: nil,
        compare_lineage_id: nil,
+       drawer_gene_id: nil,
        trends_samples: [],
        trends_audit: [],
        trends_trait_samples: [],
@@ -304,11 +309,13 @@ defmodule ArkeaWeb.SimLive do
         true -> nil
       end
 
-    {:noreply, assign(socket, selected_lineage_id: selected)}
+    # Phase 34 — clear codon-level selection on lineage switch so we
+    # don't render a stale gene id from the previous lineage.
+    {:noreply, assign(socket, selected_lineage_id: selected, drawer_gene_id: nil)}
   end
 
   def handle_event("close_drawer", _params, socket) do
-    {:noreply, assign(socket, selected_lineage_id: nil)}
+    {:noreply, assign(socket, selected_lineage_id: nil, drawer_gene_id: nil)}
   end
 
   # Phase 22 / 2.3a — pin the currently-selected lineage as the
@@ -329,6 +336,18 @@ defmodule ArkeaWeb.SimLive do
 
   def handle_event("clear_compare", _params, socket) do
     {:noreply, assign(socket, compare_lineage_id: nil)}
+  end
+
+  # Phase 34 / 34a — codon-level inspection inside the lineage drawer.
+  # `drawer_gene_id` selects which gene of the focused lineage to render
+  # the codon track for. Toggling the same gene clears the selection.
+  def handle_event("select_drawer_gene", %{"id" => id}, socket) do
+    next = if socket.assigns.drawer_gene_id == id, do: nil, else: id
+    {:noreply, assign(socket, drawer_gene_id: next)}
+  end
+
+  def handle_event("clear_drawer_gene", _params, socket) do
+    {:noreply, assign(socket, drawer_gene_id: nil)}
   end
 
   # Phase 24 / 6.1 — lab notebook annotations.
@@ -580,6 +599,7 @@ defmodule ArkeaWeb.SimLive do
                 biotope_id={@biotope_id}
                 sim_state={@sim_state}
                 compare_lineage_id={@compare_lineage_id}
+                drawer_gene_id={@drawer_gene_id}
               />
             </aside>
 
@@ -796,6 +816,7 @@ defmodule ArkeaWeb.SimLive do
   attr :biotope_id, :string, required: true
   attr :sim_state, :any, default: nil
   attr :compare_lineage_id, :string, default: nil
+  attr :drawer_gene_id, :string, default: nil
 
   defp lineage_drawer(assigns) do
     phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
@@ -810,6 +831,33 @@ defmodule ArkeaWeb.SimLive do
         true -> Arkea.Views.GenomeDiff.build(compare_lineage.genome, assigns.lineage.genome)
       end
 
+    # Phase 34 — chromosome gene browser inside the drawer.
+    chromosome_genes = drawer_chromosome_genes(assigns.lineage)
+    selected_gene = pick_drawer_gene(chromosome_genes, assigns.drawer_gene_id)
+    codon_view = if selected_gene, do: CodonViewer.build(selected_gene), else: nil
+
+    # Codon-level diff: when a compare lineage is pinned AND the
+    # selected gene exists at the same chromosome position in the
+    # compare lineage, surface a `GeneDiff` panel below the codon
+    # track. Positional matching is sufficient for the v1 view —
+    # the same heuristic used by `AncestralReconstruction.gene_trace/3`.
+    compare_gene =
+      if selected_gene && compare_lineage && compare_lineage.id != assigns.lineage.id do
+        index =
+          Enum.find_index(chromosome_genes, fn g -> g.id == selected_gene.id end) || -1
+
+        compare_chromosome = drawer_chromosome_genes(compare_lineage)
+
+        if index >= 0 and index < length(compare_chromosome) do
+          Enum.at(compare_chromosome, index)
+        end
+      end
+
+    gene_diff =
+      if selected_gene && compare_gene && compare_gene.id != selected_gene.id,
+        do: GeneDiff.build(compare_gene, selected_gene),
+        else: nil
+
     assigns =
       assign(assigns,
         phenotype: phenotype,
@@ -818,7 +866,12 @@ defmodule ArkeaWeb.SimLive do
         color: lineage_color(assigns.lineage.id, phenotype),
         compare_lineage: compare_lineage,
         diff: diff,
-        is_compare_pinned?: assigns.compare_lineage_id == assigns.lineage.id
+        is_compare_pinned?: assigns.compare_lineage_id == assigns.lineage.id,
+        chromosome_genes: chromosome_genes,
+        selected_gene: selected_gene,
+        codon_view: codon_view,
+        compare_gene: compare_gene,
+        gene_diff: gene_diff
       )
 
     ~H"""
@@ -867,6 +920,43 @@ defmodule ArkeaWeb.SimLive do
             <.genome_diff_summary diff={@diff} />
           </div>
         <% end %>
+
+        <%!--
+          Phase 34 / 34a + 34b — chromosome gene browser.
+          Click a chip to render the codon-track for that gene; if a
+          compare lineage is pinned, the matching gene at the same
+          chromosome position is diff'd codon-by-codon below.
+        --%>
+        <div :if={@chromosome_genes != []} class="arkea-drawer__section">
+          <div class="arkea-drawer__section-title">Chromosome genes</div>
+          <div class="arkea-drawer__gene-chips">
+            <button
+              :for={gene <- @chromosome_genes}
+              type="button"
+              class={[
+                "arkea-drawer__gene-chip",
+                @selected_gene && @selected_gene.id == gene.id &&
+                  "arkea-drawer__gene-chip--active"
+              ]}
+              phx-click="select_drawer_gene"
+              phx-value-id={gene.id}
+              title={"Inspect codon-level annotations for #{short_id(gene.id)}"}
+            >
+              {short_id(gene.id)}
+            </button>
+          </div>
+
+          <div :if={@codon_view} class="arkea-drawer__codon-area">
+            <CodonTrack.codon_track view={@codon_view} compact />
+
+            <div :if={@gene_diff} class="arkea-drawer__codon-diff">
+              <div class="arkea-drawer__section-title">
+                Gene diff vs <code>{short_id(@compare_lineage.id)}</code>
+              </div>
+              <GeneDiffPanel.gene_diff_panel diff={@gene_diff} />
+            </div>
+          </div>
+        </div>
       </:body>
       <:footer>
         <.arkea_button variant="ghost" size="sm" phx-click="close_drawer">
@@ -2302,6 +2392,17 @@ defmodule ArkeaWeb.SimLive do
   defp find_compare_lineage(state, id) do
     Enum.find(state.lineages, &(&1.id == id))
   end
+
+  # Phase 34 / 34a — chromosome gene picker for the lineage drawer.
+  # Delta-encoded lineages (`genome: nil`) yield an empty list so the
+  # codon browser is silently hidden.
+  defp drawer_chromosome_genes(%Lineage{genome: nil}), do: []
+  defp drawer_chromosome_genes(%Lineage{genome: %{chromosome: genes}}), do: genes
+  defp drawer_chromosome_genes(_), do: []
+
+  defp pick_drawer_gene([], _id), do: nil
+  defp pick_drawer_gene([gene | _] = _genes, nil), do: gene
+  defp pick_drawer_gene(genes, id), do: Enum.find(genes, &(&1.id == id)) || hd(genes)
 
   attr :diff, :map, required: true
 
