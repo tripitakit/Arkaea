@@ -1075,14 +1075,21 @@ defmodule Arkea.Game.SeedLab do
         "conjugative_plasmid" ->
           plasmid_gene =
             Gene.from_domains([
-              Domain.new([0, 0, 2], List.duplicate(9, 20)),
-              Domain.new([0, 0, 9], [0 | List.duplicate(8, 19)])
+              # :transmembrane_anchor — pin last 3 (n_passes formula).
+              Domain.new([0, 0, 2], varied_codons(9, 17, 101) ++ [9, 9, 9]),
+              # :surface_tag — pin first codon (tag_class).
+              Domain.new([0, 0, 9], [0 | varied_codons(8, 19, 102)])
             ])
 
           Genome.add_plasmid(genome, [plasmid_gene])
 
         "latent_prophage" ->
-          prophage_gene = Gene.from_domains([Domain.new([0, 0, 8], List.duplicate(6, 20))])
+          # :structural_fold — pin last 3 (multimerization_n).
+          prophage_gene =
+            Gene.from_domains([
+              Domain.new([0, 0, 8], varied_codons(6, 17, 103) ++ [6, 6, 6])
+            ])
+
           Genome.integrate_prophage(genome, [prophage_gene])
 
         _ ->
@@ -1161,19 +1168,36 @@ defmodule Arkea.Game.SeedLab do
     Domain.new(type_tag, parameter_codons)
   end
 
+  # Default codon strips for each domain type — diversified
+  # around a per-type target. Categorical positions are pinned
+  # so the type's "high-impact" param (target metabolite,
+  # reaction class, n_passes, etc.) stays at its default value;
+  # the rest vary deterministically to give the codon-track UI
+  # a heterogeneous strip instead of 20 identical letters.
   defp default_codons_for(type) do
     case type do
-      :substrate_binding -> [0 | List.duplicate(4, 19)]
-      :catalytic_site -> List.duplicate(9, 20)
-      :transmembrane_anchor -> List.duplicate(7, 20)
-      :channel_pore -> List.duplicate(6, 20)
-      :energy_coupling -> List.duplicate(5, 20)
-      :dna_binding -> List.duplicate(10, 20)
-      :regulator_output -> List.duplicate(8, 20)
-      :ligand_sensor -> List.duplicate(11, 20)
-      :structural_fold -> List.duplicate(12, 20)
-      :surface_tag -> List.duplicate(13, 20)
-      :repair_fidelity -> List.duplicate(9, 20)
+      # first codon → target_metabolite_id (rem mod 13)
+      :substrate_binding -> [0 | varied_codons(4, 19, 200)]
+      # first 4 codons → reaction_class + signal_key
+      :catalytic_site -> [9, 9, 9, 9] ++ varied_codons(9, 16, 201)
+      # last 3 → n_passes
+      :transmembrane_anchor -> varied_codons(7, 17, 202) ++ [7, 7, 7]
+      # selectivity / gating from halves' norms — no positional pin
+      :channel_pore -> varied_codons(6, 20, 203)
+      # atp_cost + pmf_coupling from norms — no pin
+      :energy_coupling -> varied_codons(5, 20, 204)
+      # promoter_specificity + binding_affinity from halves — no pin
+      :dna_binding -> varied_codons(10, 20, 205)
+      # first codon → mode (activator/repressor by parity)
+      :regulator_output -> [8 | varied_codons(8, 19, 206)]
+      # first codon → sensed_metabolite_id (rem mod 13)
+      :ligand_sensor -> [11 | varied_codons(11, 19, 207)]
+      # last 3 → multimerization_n
+      :structural_fold -> varied_codons(12, 17, 208) ++ [12, 12, 12]
+      # first codon → tag_class (rem mod 3)
+      :surface_tag -> [13 | varied_codons(13, 19, 209)]
+      # first codon → repair_class (rem mod 3)
+      :repair_fidelity -> [9 | varied_codons(9, 19, 210)]
     end
   end
 
@@ -1186,40 +1210,75 @@ defmodule Arkea.Game.SeedLab do
 
   defp stringify_string_keys(_), do: %{}
 
-  defp substrate_domain("thrifty"), do: Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
-  defp substrate_domain("balanced"), do: Domain.new([0, 0, 0], [0 | List.duplicate(5, 19)])
-  defp substrate_domain("bloom"), do: Domain.new([0, 0, 0], [0 | List.duplicate(9, 19)])
+  # `:substrate_binding` — first codon pinned to 0 → glucose
+  # (target_metabolite_id = rem(first, 13)); positions 1..19 vary.
+  defp substrate_domain("thrifty"),
+    do: Domain.new([0, 0, 0], [0 | varied_codons(2, 19, 301)])
 
-  defp catalytic_domain("thrifty"), do: Domain.new([0, 0, 1], List.duplicate(7, 20))
-  defp catalytic_domain("balanced"), do: Domain.new([0, 0, 1], List.duplicate(10, 20))
-  defp catalytic_domain("bloom"), do: Domain.new([0, 0, 1], List.duplicate(13, 20))
+  defp substrate_domain("balanced"),
+    do: Domain.new([0, 0, 0], [0 | varied_codons(5, 19, 302)])
 
-  defp energy_domain("thrifty", "porous"), do: Domain.new([0, 1, 3], List.duplicate(4, 20))
-  defp energy_domain("thrifty", _), do: Domain.new([0, 1, 3], List.duplicate(5, 20))
-  defp energy_domain("balanced", "porous"), do: Domain.new([0, 1, 3], List.duplicate(5, 20))
-  defp energy_domain("balanced", _), do: Domain.new([0, 1, 3], List.duplicate(6, 20))
-  defp energy_domain("bloom", "porous"), do: Domain.new([0, 1, 3], List.duplicate(7, 20))
-  defp energy_domain("bloom", _), do: Domain.new([0, 1, 3], List.duplicate(8, 20))
+  defp substrate_domain("bloom"),
+    do: Domain.new([0, 0, 0], [0 | varied_codons(9, 19, 303)])
 
-  defp repair_domain("steady"), do: Domain.new([0, 1, 9], List.duplicate(11, 20))
-  defp repair_domain("responsive"), do: Domain.new([0, 1, 9], List.duplicate(8, 20))
-  defp repair_domain("mutator"), do: Domain.new([0, 1, 9], List.duplicate(2, 20))
+  # `:catalytic_site` — first 4 codons feed reaction_class +
+  # signal_key, so they're pinned; positions 4..19 vary.
+  defp catalytic_domain("thrifty"),
+    do: Domain.new([0, 0, 1], [7, 7, 7, 7] ++ varied_codons(7, 16, 311))
 
+  defp catalytic_domain("balanced"),
+    do: Domain.new([0, 0, 1], [10, 10, 10, 10] ++ varied_codons(10, 16, 312))
+
+  defp catalytic_domain("bloom"),
+    do: Domain.new([0, 0, 1], [13, 13, 13, 13] ++ varied_codons(13, 16, 313))
+
+  # `:energy_coupling` — params from halves' norms, no positional pin.
+  defp energy_domain("thrifty", "porous"),
+    do: Domain.new([0, 1, 3], varied_codons(4, 20, 321))
+
+  defp energy_domain("thrifty", _),
+    do: Domain.new([0, 1, 3], varied_codons(5, 20, 322))
+
+  defp energy_domain("balanced", "porous"),
+    do: Domain.new([0, 1, 3], varied_codons(5, 20, 323))
+
+  defp energy_domain("balanced", _),
+    do: Domain.new([0, 1, 3], varied_codons(6, 20, 324))
+
+  defp energy_domain("bloom", "porous"),
+    do: Domain.new([0, 1, 3], varied_codons(7, 20, 325))
+
+  defp energy_domain("bloom", _),
+    do: Domain.new([0, 1, 3], varied_codons(8, 20, 326))
+
+  # `:repair_fidelity` — first codon pinned (repair_class).
+  defp repair_domain("steady"),
+    do: Domain.new([0, 1, 9], [11 | varied_codons(11, 19, 331)])
+
+  defp repair_domain("responsive"),
+    do: Domain.new([0, 1, 9], [8 | varied_codons(8, 19, 332)])
+
+  defp repair_domain("mutator"),
+    do: Domain.new([0, 1, 9], [2 | varied_codons(2, 19, 333)])
+
+  # `:transmembrane_anchor` — last 3 codons pinned (n_passes).
   defp membrane_domains("porous") do
-    [Domain.new([0, 0, 2], List.duplicate(4, 20))]
+    [Domain.new([0, 0, 2], varied_codons(4, 17, 341) ++ [4, 4, 4])]
   end
 
   defp membrane_domains("fortified") do
     [
-      Domain.new([0, 0, 2], List.duplicate(8, 20)),
-      Domain.new([0, 0, 8], List.duplicate(11, 20))
+      # transmembrane_anchor — pin last 3
+      Domain.new([0, 0, 2], varied_codons(8, 17, 351) ++ [8, 8, 8]),
+      # structural_fold — pin last 3 (multimer_n)
+      Domain.new([0, 0, 8], varied_codons(11, 17, 352) ++ [11, 11, 11])
     ]
   end
 
   defp membrane_domains("salinity_tuned") do
     [
-      Domain.new([0, 0, 2], List.duplicate(10, 20)),
-      Domain.new([0, 0, 2], List.duplicate(7, 20))
+      Domain.new([0, 0, 2], varied_codons(10, 17, 361) ++ [10, 10, 10]),
+      Domain.new([0, 0, 2], varied_codons(7, 17, 362) ++ [7, 7, 7])
     ]
   end
 
@@ -1227,13 +1286,15 @@ defmodule Arkea.Game.SeedLab do
 
   defp regulation_domains("responsive") do
     [
-      Domain.new([0, 0, 5], List.duplicate(12, 20)),
-      Domain.new([0, 3, 4], List.duplicate(10, 20))
+      # dna_binding — params from halves' norms, no pin
+      Domain.new([0, 0, 5], varied_codons(12, 20, 371)),
+      # ligand_sensor — pin first codon (sensed_metabolite_id)
+      Domain.new([0, 3, 4], [10 | varied_codons(10, 19, 372)])
     ]
   end
 
   defp regulation_domains("mutator") do
-    [Domain.new([0, 0, 5], List.duplicate(7, 20))]
+    [Domain.new([0, 0, 5], varied_codons(7, 20, 381))]
   end
 
   defp genome_manifest(%Genome{} = genome) do
@@ -1671,5 +1732,29 @@ defmodule Arkea.Game.SeedLab do
 
   defp mean_dilution(phases) do
     Enum.sum(Enum.map(phases, & &1.dilution_rate)) / max(length(phases), 1)
+  end
+
+  # Deterministic codon diversification — mirrors
+  # `Arkea.Sim.Bootstrap.varied_codons/3` (removed in Phase 38)
+  # but lives here so the SeedLab-built genomes display a
+  # heterogeneous codon strip in the gene-inspector UI instead
+  # of 20 identical letters. The variance is small (±3 around
+  # `target`, clamped to 0..19) so phenotype magnitudes stay in
+  # the same band as the unsubstituted seed.
+  #
+  # Categorical decisions (target_metabolite_id, reaction_class,
+  # n_passes, multimer_n, repair_class, …) depend on specific
+  # positions and are pinned by the caller — see the per-domain
+  # builders above.
+  @spec varied_codons(0..19, pos_integer(), non_neg_integer()) :: [0..19]
+  defp varied_codons(target, n, seed)
+       when is_integer(target) and target in 0..19 and is_integer(n) and n > 0 do
+    Enum.map_reduce(1..n, seed, fn _i, state ->
+      next = rem(state * 1_103_515_245 + 12_345, 2_147_483_648)
+      delta = rem(div(next, 65_536), 7) - 3
+      codon = max(0, min(19, target + delta))
+      {codon, next}
+    end)
+    |> elem(0)
   end
 end
