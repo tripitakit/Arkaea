@@ -32,6 +32,7 @@ defmodule ArkeaWeb.Components.CodonTrack do
 
   use Phoenix.Component
 
+  alias Arkea.Genome.Codon
   alias Arkea.Views.GenomeCanvas, as: CanvasLayout
 
   attr :view, :map, required: true
@@ -59,10 +60,13 @@ defmodule ArkeaWeb.Components.CodonTrack do
           style={cell_style(entry)}
           data-index={entry.index}
           data-role={entry.role}
+          data-codon-value={entry.codon}
           data-domain-index={entry.domain_index}
         >
           <title>{cell_tooltip(entry)}</title>
-          <span :if={!@compact} class="arkea-codon-track__cell-value">{entry.codon}</span>
+          <span :if={!@compact} class="arkea-codon-track__cell-value">
+            {Codon.to_letter(entry.codon)}
+          </span>
         </span>
       </div>
 
@@ -74,9 +78,14 @@ defmodule ArkeaWeb.Components.CodonTrack do
               :for={entry <- @view.promoter_codons}
               class="arkea-codon-track__cell arkea-codon-track__cell--promoter_codon"
               data-index={entry.index}
+              data-codon-value={entry.codon}
             >
-              <title>promoter codon {entry.index}: value {entry.codon}</title>
-              <span :if={!@compact} class="arkea-codon-track__cell-value">{entry.codon}</span>
+              <title>
+                promoter codon {entry.index}: {Codon.to_letter(entry.codon)} (value {entry.codon})
+              </title>
+              <span :if={!@compact} class="arkea-codon-track__cell-value">
+                {Codon.to_letter(entry.codon)}
+              </span>
             </span>
           </div>
         </div>
@@ -90,9 +99,14 @@ defmodule ArkeaWeb.Components.CodonTrack do
               :for={entry <- @view.regulatory_codons}
               class="arkea-codon-track__cell arkea-codon-track__cell--regulatory_codon"
               data-index={entry.index}
+              data-codon-value={entry.codon}
             >
-              <title>regulatory codon {entry.index}: value {entry.codon}</title>
-              <span :if={!@compact} class="arkea-codon-track__cell-value">{entry.codon}</span>
+              <title>
+                regulatory codon {entry.index}: {Codon.to_letter(entry.codon)} (value {entry.codon})
+              </title>
+              <span :if={!@compact} class="arkea-codon-track__cell-value">
+                {Codon.to_letter(entry.codon)}
+              </span>
             </span>
           </div>
         </div>
@@ -148,7 +162,7 @@ defmodule ArkeaWeb.Components.CodonTrack do
         true -> " · domain #{dom_idx} (#{dom_type}) pos #{in_dom}"
       end
 
-    "codon ##{i}: value #{c} · #{role}#{domain_part}"
+    "codon ##{i}: #{Codon.to_letter(c)} (value #{c}) · #{role}#{domain_part}"
   end
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)

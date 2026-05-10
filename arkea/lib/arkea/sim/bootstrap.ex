@@ -208,31 +208,43 @@ defmodule Arkea.Sim.Bootstrap do
 
   defp build_wild_seed_genome do
     # Glucose uptake: target_metabolite_id = rem(first_codon, 13).
-    # first_codon = 0 → glucose (id 0).
-    substrate = Domain.new([0, 0, 0], [0 | List.duplicate(2, 19)])
+    # first_codon pinned at 0 → glucose (id 0); the remaining 19
+    # codons vary around the original `2` so the seed displays a
+    # heterogeneous codon strip while keeping km / specificity in
+    # the same band.
+    substrate = Domain.new([0, 0, 0], [0 | varied_codons(2, 19, 11)])
 
-    # Catalytic_site hydrolysis (rem(sum_first_3, 6) = 0 with first_3 [0,0,0]).
-    # Param = 10 yields kcat ≈ 5. Co-located with substrate_binding +
-    # dna_binding so the phenotype derivation produces a clean σ contribution.
-    catalytic = Domain.new([0, 0, 1], List.duplicate(10, 20))
+    # Catalytic_site hydrolysis: first 4 codons feed
+    # `reaction_class` (sum_first_3 mod 6) AND `signal_key`
+    # (first 4 joined as a string) — pin them so the QS / reaction
+    # class don't drift; vary positions 4..19.
+    catalytic = Domain.new([0, 0, 1], [10, 10, 10, 10] ++ varied_codons(10, 16, 12))
 
-    # dna_binding (sum 5 mod 11 = 5 → :dna_binding).
-    dna_binding = Domain.new([0, 0, 5], List.duplicate(10, 20))
+    # dna_binding — no categorical pin needed (params depend on
+    # halves' norms, not on a specific position). Full diversification.
+    dna_binding = Domain.new([0, 0, 5], varied_codons(10, 20, 13))
 
-    # repair_fidelity (sum 10 mod 11 = 10 → :repair_fidelity).
-    # Param 2 → low efficiency ≈ 0.1 → high mutation rate.
-    repair = Domain.new([0, 1, 9], List.duplicate(2, 20))
+    # repair_fidelity: `repair_class = rem(first_codon, 3)`, so
+    # pin position 0 to keep the same class; vary the rest around
+    # `2` (low → high mutation rate as before).
+    repair = Domain.new([0, 1, 9], [2 | varied_codons(2, 19, 14)])
 
-    # energy_coupling (sum 4 mod 11 = 4). Param 5 → moderate atp_cost ≈ 0.5.
-    energy = Domain.new([0, 1, 3], List.duplicate(5, 20))
+    # energy_coupling — atp_cost / pmf_coupling depend on norms,
+    # no positional pin needed.
+    energy = Domain.new([0, 1, 3], varied_codons(5, 20, 15))
 
     metabolic_gene = Gene.from_domains([substrate, catalytic, dna_binding, repair, energy])
 
     # Ribosome-like proxy gene (Phase 29 translation_efficiency hook).
-    ribo_fold = Domain.new([0, 0, 8], List.duplicate(10, 17) ++ [3, 3, 5])
+    # `:structural_fold`'s `multimerization_n` depends on
+    # `sum(last_3) mod 8 + 1`, so pin the trailing [3,3,5] tail
+    # (multimer_n = (3+3+5) mod 8 + 1 = 4 → tetramer); vary the
+    # leading 17 stability-driving codons.
+    ribo_fold = Domain.new([0, 0, 8], varied_codons(10, 17, 16) ++ [3, 3, 5])
 
-    ribo_catalytic =
-      Domain.new([0, 0, 1], [4, 0, 0] ++ List.duplicate(10, 17))
+    # `:catalytic_site` ribozyme proxy: pin first 4 (reaction_class
+    # + signal_key); vary the trailing 16 codons.
+    ribo_catalytic = Domain.new([0, 0, 1], [4, 0, 0, 10] ++ varied_codons(10, 16, 17))
 
     ribosome_gene = Gene.from_domains([ribo_fold, ribo_catalytic])
 
@@ -318,34 +330,38 @@ defmodule Arkea.Sim.Bootstrap do
         :co2 -> 3
       end
 
-    # substrate_binding: first_codon = target_id → metabolite atom mapping.
-    substrate = Domain.new([0, 0, 0], [target_id | List.duplicate(8, 19)])
+    # Per-seed offset so each chain seed (A/B/C) gets a distinct
+    # codon variation pattern instead of three carbon copies.
+    offset = target_id * 7 + 23
 
-    # catalytic_site: moderate kcat. Same hydrolysis class for all
-    # three seeds; reaction-class differentiation isn't needed
-    # for the mass-action chain to run.
-    catalytic = Domain.new([0, 0, 1], List.duplicate(10, 20))
+    # substrate_binding: pin position 0 to `target_id` (controls
+    # which metabolite the seed eats); diversify the rest around 8.
+    substrate = Domain.new([0, 0, 0], [target_id | varied_codons(8, 19, offset)])
 
-    # dna_binding for σ contribution.
-    dna_binding = Domain.new([0, 0, 5], List.duplicate(10, 20))
+    # catalytic_site: same hydrolysis class across the chain — pin
+    # first 4 (reaction_class + signal_key); diversify positions 4..19.
+    catalytic = Domain.new([0, 0, 1], [10, 10, 10, 10] ++ varied_codons(10, 16, offset + 1))
 
-    # repair_fidelity HIGHER than the wild seeds — community seeds
+    dna_binding = Domain.new([0, 0, 5], varied_codons(10, 20, offset + 2))
+
+    # repair_fidelity HIGHER than wild seeds — community seeds
     # need to persist long enough for the chain to establish
-    # before mutational drift breaks them. param 12 → efficiency
-    # ≈ 0.6 → moderate mutation rate.
-    repair = Domain.new([0, 1, 9], List.duplicate(12, 20))
+    # before mutational drift breaks them. Pin position 0 (=12 →
+    # repair_class fixed); vary the rest around 12 (efficiency
+    # ≈ 0.6 → moderate mutation rate).
+    repair = Domain.new([0, 1, 9], [12 | varied_codons(12, 19, offset + 3)])
 
-    # energy_coupling — keep cost low so all three seeds can
-    # sustain growth on their preferred substrate.
-    energy = Domain.new([0, 1, 3], List.duplicate(5, 20))
+    energy = Domain.new([0, 1, 3], varied_codons(5, 20, offset + 4))
 
     metabolic_gene = Gene.from_domains([substrate, catalytic, dna_binding, repair, energy])
 
-    # Ribosome-like proxy (Phase 29 translation_efficiency hook).
-    ribo_fold = Domain.new([0, 0, 8], List.duplicate(10, 17) ++ [3, 3, 5])
+    # Ribosome-like proxy (Phase 29 translation_efficiency hook):
+    # pin the [3,3,5] tail of structural_fold and the [4,0,0,10]
+    # head of catalytic to keep multimer_n + reaction_class stable.
+    ribo_fold = Domain.new([0, 0, 8], varied_codons(10, 17, offset + 5) ++ [3, 3, 5])
 
     ribo_catalytic =
-      Domain.new([0, 0, 1], [4, 0, 0] ++ List.duplicate(10, 17))
+      Domain.new([0, 0, 1], [4, 0, 0, 10] ++ varied_codons(10, 16, offset + 6))
 
     ribosome_gene = Gene.from_domains([ribo_fold, ribo_catalytic])
 
@@ -358,5 +374,32 @@ defmodule Arkea.Sim.Bootstrap do
 
   defp mean_dilution(phases) do
     Enum.sum(Enum.map(phases, & &1.dilution_rate)) / max(length(phases), 1)
+  end
+
+  # Deterministic codon diversification.
+  #
+  # Returns `n` codon values clustered around `target` with a
+  # ±3 spread, generated by a small reproducible LCG seeded by
+  # `seed`. The result is a list of valid `0..19` codons that
+  # *displays* as a diverse strip but stays close enough to the
+  # original uniform target that the derived weighted_sum (and
+  # therefore all phenotype magnitudes) remain in the same band
+  # as the unsubstituted seed.
+  #
+  # This is purely a *display* improvement: the simulation
+  # mechanics (mutation rate, kcat, σ) are unchanged within
+  # rounding noise. Categorical decisions (target_metabolite_id,
+  # reaction_class, multimer_n, repair_class) depend on specific
+  # positions and are pinned by the caller — see `build_*_genome`.
+  @spec varied_codons(0..19, pos_integer(), non_neg_integer()) :: [0..19]
+  defp varied_codons(target, n, seed)
+       when is_integer(target) and target in 0..19 and is_integer(n) and n > 0 do
+    Enum.map_reduce(1..n, seed, fn _i, state ->
+      next = rem(state * 1_103_515_245 + 12_345, 2_147_483_648)
+      delta = rem(div(next, 65_536), 7) - 3
+      codon = max(0, min(19, target + delta))
+      {codon, next}
+    end)
+    |> elem(0)
   end
 end

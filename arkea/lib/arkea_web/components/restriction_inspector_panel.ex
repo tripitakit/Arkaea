@@ -32,6 +32,8 @@ defmodule ArkeaWeb.Components.RestrictionInspectorPanel do
 
   use Phoenix.Component
 
+  alias Arkea.Genome.Codon
+
   attr :view, :map, required: true
   attr :class, :string, default: nil
 
@@ -108,9 +110,10 @@ defmodule ArkeaWeb.Components.RestrictionInspectorPanel do
                 :for={{codon, idx} <- Enum.with_index(site.pattern)}
                 class={pattern_cell_class(site, idx)}
                 style={"--cell-fill: #{Float.round(codon / 19.0, 3)};"}
+                data-codon-value={codon}
               >
                 <title>{cell_tooltip(site, idx, codon)}</title>
-                <span class="arkea-rm-inspector__pattern-value">{codon}</span>
+                <span class="arkea-rm-inspector__pattern-value">{Codon.to_letter(codon)}</span>
               </span>
             </div>
           </div>

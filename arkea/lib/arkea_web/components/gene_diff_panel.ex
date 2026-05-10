@@ -27,6 +27,8 @@ defmodule ArkeaWeb.Components.GeneDiffPanel do
 
   use Phoenix.Component
 
+  alias Arkea.Genome.Codon
+
   attr :diff, :map, required: true
   attr :class, :string, default: nil
 
@@ -56,10 +58,11 @@ defmodule ArkeaWeb.Components.GeneDiffPanel do
             class={diff_cell_class(pos, :a)}
             data-index={pos.index}
             data-change={pos.change}
+            data-codon-value={pos.codon_a}
           >
             <title>{cell_tooltip(pos, :a)}</title>
             <span :if={not is_nil(pos.codon_a)} class="arkea-gene-diff__cell-value">
-              {pos.codon_a}
+              {Codon.to_letter(pos.codon_a)}
             </span>
           </span>
         </div>
@@ -73,10 +76,11 @@ defmodule ArkeaWeb.Components.GeneDiffPanel do
             class={diff_cell_class(pos, :b)}
             data-index={pos.index}
             data-change={pos.change}
+            data-codon-value={pos.codon_b}
           >
             <title>{cell_tooltip(pos, :b)}</title>
             <span :if={not is_nil(pos.codon_b)} class="arkea-gene-diff__cell-value">
-              {pos.codon_b}
+              {Codon.to_letter(pos.codon_b)}
             </span>
           </span>
         </div>
@@ -144,13 +148,14 @@ defmodule ArkeaWeb.Components.GeneDiffPanel do
     do: ["arkea-gene-diff__cell", "arkea-gene-diff__cell--placeholder"]
 
   defp cell_tooltip(%{index: i, change: :match, role: role, codon_a: a, codon_b: b}, _side),
-    do: "##{i} match (#{role}): #{a} = #{b}"
+    do: "##{i} match (#{role}): #{Codon.to_letter(a)} = #{Codon.to_letter(b)}"
 
   defp cell_tooltip(
          %{index: i, change: :substitution, role: role, codon_a: a, codon_b: b},
          _side
        ),
-       do: "##{i} substitution (#{role}): #{a} → #{b}"
+       do:
+         "##{i} substitution (#{role}): #{Codon.to_letter(a)} → #{Codon.to_letter(b)} (#{a}→#{b})"
 
   defp cell_tooltip(%{index: i, change: :unaligned, role: role, codon_a: a, codon_b: b}, _side),
     do: "##{i} unaligned (#{role}): a=#{inspect(a)} b=#{inspect(b)}"
