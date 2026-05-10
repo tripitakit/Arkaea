@@ -1,6 +1,9 @@
 # External tooling unrelated to Arkea
 .codex
 .codex-skills/
+# Personal Claude Code settings (not the project's tracked .claude/agents/).
+.claude/settings.json
+.claude/settings.local.json
 
 # Erlang crash dumps anywhere in the repo
 erl_crash.dump

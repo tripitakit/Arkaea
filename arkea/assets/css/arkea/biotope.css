@@ -940,3 +940,276 @@ a.arkea-notebook__entry-tick:hover {
   font-weight: 700;
   color: oklch(75% 0.16 80);
 }
+
+/* ---------------------------------------------------------------------------
+ * Phase 35 / priority 3 — mutation hotspot heatmap track.
+ *
+ * Sits below the codon track in the drawer; one cell per codon, intensity
+ * proportional to the recorded mutation event count at that position.
+ */
+.arkea-hotspot-track {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--arkea-space-2);
+}
+
+.arkea-hotspot-track__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-hotspot-track__label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.arkea-hotspot-track__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+.arkea-hotspot-track__cell {
+  width: 12px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--arkea-surface-3);
+  outline: 1px solid transparent;
+  cursor: default;
+  transition: outline-color 100ms ease;
+}
+
+.arkea-hotspot-track__cell:hover {
+  outline-color: var(--arkea-accent-cyan);
+}
+
+/* Cold cells (count = 0) — flat, low contrast. */
+.arkea-hotspot-track__cell--cold {
+  opacity: 0.4;
+}
+
+/* Hot cells — mix the surface tone with a warm gradient driven by
+   the per-cell `--hot-intensity` CSS variable (0..1). */
+.arkea-hotspot-track__cell--hot {
+  background:
+    color-mix(
+      in oklch,
+      oklch(78% 0.18 30) calc(var(--hot-intensity, 0) * 100%),
+      var(--arkea-surface-3)
+    );
+  outline-color: color-mix(in oklch, oklch(78% 0.18 30) 40%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Phase 35 / priority 4 — R-M restriction inspector panel.
+ *
+ * Lineage's R-M arsenal: per-site cards with role tag, type, palindrome
+ * flag, full codon pattern, and self-protection check.
+ */
+.arkea-rm-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-rm-inspector__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-1);
+  align-items: center;
+}
+
+.arkea-rm-inspector__total-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-family: var(--arkea-font-mono);
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg);
+}
+
+.arkea-rm-inspector__total-chip--restriction {
+  background: color-mix(in oklch, var(--arkea-accent-cyan) 25%, var(--arkea-surface-2));
+}
+
+.arkea-rm-inspector__total-chip--methylation {
+  background: color-mix(in oklch, oklch(60% 0.16 295) 25%, var(--arkea-surface-2));
+}
+
+.arkea-rm-inspector__type-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg-muted);
+  border: 1px solid color-mix(in oklch, var(--arkea-fg-muted) 40%, transparent);
+}
+
+.arkea-rm-inspector__warning {
+  padding: var(--arkea-space-2);
+  border-radius: 4px;
+  background: color-mix(in oklch, oklch(70% 0.15 60) 18%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+  font-size: 11px;
+  border-left: 3px solid oklch(70% 0.15 60);
+}
+
+.arkea-rm-inspector__sites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-rm-inspector__site-card {
+  padding: var(--arkea-space-2);
+  border-radius: 4px;
+  background: var(--arkea-surface-2);
+  border-left: 3px solid var(--arkea-surface-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-rm-inspector__site-card--restriction {
+  border-left-color: var(--arkea-accent-cyan);
+}
+
+.arkea-rm-inspector__site-card--methylation {
+  border-left-color: oklch(60% 0.16 295);
+}
+
+.arkea-rm-inspector__site-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.arkea-rm-inspector__role-tag {
+  font-family: var(--arkea-font-mono);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.arkea-rm-inspector__role-tag--restriction {
+  background: color-mix(in oklch, var(--arkea-accent-cyan) 30%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+}
+
+.arkea-rm-inspector__role-tag--methylation {
+  background: color-mix(in oklch, oklch(60% 0.16 295) 30%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+}
+
+.arkea-rm-inspector__type-tag {
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-rm-inspector__palindrome-tag {
+  font-size: 10px;
+  color: oklch(78% 0.16 80);
+  font-style: italic;
+}
+
+.arkea-rm-inspector__protect-tag {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.arkea-rm-inspector__protect-tag--ok {
+  background: color-mix(in oklch, oklch(70% 0.15 145) 25%, transparent);
+  color: oklch(82% 0.15 145);
+}
+
+.arkea-rm-inspector__protect-tag--warn {
+  background: color-mix(in oklch, oklch(70% 0.15 60) 25%, transparent);
+  color: oklch(82% 0.15 60);
+}
+
+.arkea-rm-inspector__site-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-rm-inspector__signature {
+  font-family: var(--arkea-font-mono);
+  color: var(--arkea-fg);
+  font-size: 11px;
+}
+
+.arkea-rm-inspector__site-meta-sep {
+  opacity: 0.5;
+}
+
+.arkea-rm-inspector__pattern {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+.arkea-rm-inspector__pattern-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 18px;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-family: var(--arkea-font-mono);
+  font-size: 9px;
+  color: var(--arkea-fg);
+  background:
+    color-mix(
+      in oklch,
+      var(--arkea-surface-3) calc((1 - var(--cell-fill, 0)) * 100%),
+      var(--arkea-fg-muted) calc(var(--cell-fill, 0) * 100%)
+    );
+  outline: 1px solid transparent;
+}
+
+.arkea-rm-inspector__pattern-cell--restriction {
+  background:
+    color-mix(
+      in oklch,
+      color-mix(in oklch, var(--arkea-accent-cyan) 50%, var(--arkea-surface-3)) calc(var(--cell-fill, 0) * 100%),
+      var(--arkea-surface-3) calc((1 - var(--cell-fill, 0)) * 100%)
+    );
+}
+
+.arkea-rm-inspector__pattern-cell--methylation {
+  background:
+    color-mix(
+      in oklch,
+      color-mix(in oklch, oklch(60% 0.16 295) 50%, var(--arkea-surface-3)) calc(var(--cell-fill, 0) * 100%),
+      var(--arkea-surface-3) calc((1 - var(--cell-fill, 0)) * 100%)
+    );
+}
+
+/* Methylated positions on a methylase site: stronger outline so the
+   player can read which positions actually carry the methyl mark. */
+.arkea-rm-inspector__pattern-cell--methylated {
+  outline-color: oklch(78% 0.16 80);
+  outline-width: 2px;
+}
+
+.arkea-rm-inspector__pattern-value {
+  pointer-events: none;
+}

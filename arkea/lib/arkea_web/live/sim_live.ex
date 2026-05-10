@@ -27,11 +27,15 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Views.BiotopeScene, as: SceneLayout
   alias Arkea.Views.CodonViewer
   alias Arkea.Views.GeneDiff
+  alias Arkea.Views.MutationHotspot
+  alias Arkea.Views.RestrictionInspector
   alias ArkeaWeb.Components.Chart
   alias ArkeaWeb.Components.CodonTrack
   alias ArkeaWeb.Components.GeneDiffPanel
+  alias ArkeaWeb.Components.MutationHotspotTrack
   alias ArkeaWeb.Components.Panel
   alias ArkeaWeb.Components.Phylogeny
+  alias ArkeaWeb.Components.RestrictionInspectorPanel
   alias ArkeaWeb.Components.Shell
 
   @max_event_log 20
@@ -600,6 +604,7 @@ defmodule ArkeaWeb.SimLive do
                 sim_state={@sim_state}
                 compare_lineage_id={@compare_lineage_id}
                 drawer_gene_id={@drawer_gene_id}
+                audit={@trends_audit}
               />
             </aside>
 
@@ -817,6 +822,7 @@ defmodule ArkeaWeb.SimLive do
   attr :sim_state, :any, default: nil
   attr :compare_lineage_id, :string, default: nil
   attr :drawer_gene_id, :string, default: nil
+  attr :audit, :list, default: []
 
   defp lineage_drawer(assigns) do
     phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
@@ -858,6 +864,17 @@ defmodule ArkeaWeb.SimLive do
         do: GeneDiff.build(compare_gene, selected_gene),
         else: nil
 
+    # Phase 35 / priority 3 — mutation hotspot heatmap for the
+    # selected gene. Uses the audit log from the parent LiveView
+    # (the same `:trends_audit` that drives the Trends tab); the
+    # builder filters down to events that touch this gene id.
+    hotspot_model =
+      if selected_gene, do: MutationHotspot.build(selected_gene, assigns.audit), else: nil
+
+    # Phase 35 / priority 4 — R-M arsenal for the lineage.
+    restriction_view =
+      if assigns.lineage.genome, do: RestrictionInspector.build(assigns.lineage), else: nil
+
     assigns =
       assign(assigns,
         phenotype: phenotype,
@@ -871,7 +888,9 @@ defmodule ArkeaWeb.SimLive do
         selected_gene: selected_gene,
         codon_view: codon_view,
         compare_gene: compare_gene,
-        gene_diff: gene_diff
+        gene_diff: gene_diff,
+        hotspot_model: hotspot_model,
+        restriction_view: restriction_view
       )
 
     ~H"""
@@ -949,6 +968,16 @@ defmodule ArkeaWeb.SimLive do
           <div :if={@codon_view} class="arkea-drawer__codon-area">
             <CodonTrack.codon_track view={@codon_view} compact />
 
+            <%!-- Phase 35 / priority 3 — mutation hotspot heatmap aligned
+              with the codon track above. Surfaces which positions in the
+              gene have actually fired `:domain_flip` /
+              `:gene_chimera_birth` audit events recorded for the
+              biotope. --%>
+            <MutationHotspotTrack.mutation_hotspot_track
+              :if={@hotspot_model}
+              model={@hotspot_model}
+            />
+
             <div :if={@gene_diff} class="arkea-drawer__codon-diff">
               <div class="arkea-drawer__section-title">
                 Gene diff vs <code>{short_id(@compare_lineage.id)}</code>
@@ -956,6 +985,21 @@ defmodule ArkeaWeb.SimLive do
               <GeneDiffPanel.gene_diff_panel diff={@gene_diff} />
             </div>
           </div>
+        </div>
+
+        <%!-- Phase 35 / priority 4 — R-M arsenal panel. Shows the
+          lineage's restriction-modification sites at sequence resolution
+          (full pattern, Type I/II/III, palindrome flag, methylation
+          coverage, self-protection check). --%>
+        <div
+          :if={
+            @restriction_view &&
+              @restriction_view.restriction_count + @restriction_view.methylation_count > 0
+          }
+          class="arkea-drawer__section"
+        >
+          <div class="arkea-drawer__section-title">R-M arsenal</div>
+          <RestrictionInspectorPanel.restriction_inspector_panel view={@restriction_view} />
         </div>
       </:body>
       <:footer>
