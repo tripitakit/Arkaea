@@ -1213,3 +1213,470 @@ a.arkea-notebook__entry-tick:hover {
 .arkea-rm-inspector__pattern-value {
   pointer-events: none;
 }
+
+/* ---------------------------------------------------------------------------
+ * Phase 36 / priority 5 — Domain landscape scatter (Genomics tab).
+ */
+.arkea-genomics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-4);
+  padding: var(--arkea-space-3);
+}
+
+.arkea-genomics__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-genomics__section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-genomics__section-title {
+  margin: 0;
+  font-size: var(--arkea-text-sm);
+  color: var(--arkea-fg);
+}
+
+.arkea-genomics__landscape-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-3);
+  font-size: 11px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-genomics__landscape-form label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.arkea-genomics__landscape-form select {
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--arkea-surface-3);
+  background: var(--arkea-surface-2);
+  color: var(--arkea-fg);
+  font-family: var(--arkea-font-mono);
+  font-size: 11px;
+}
+
+.arkea-landscape {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-landscape__header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-landscape__svg {
+  width: 100%;
+  max-width: 540px;
+  height: auto;
+  background: var(--arkea-surface-2);
+  border-radius: 4px;
+}
+
+.arkea-landscape__axis {
+  stroke: var(--arkea-fg-muted);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+.arkea-landscape__tick {
+  fill: var(--arkea-fg-muted);
+  font-size: 9px;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-landscape__axis-label {
+  fill: var(--arkea-fg);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.arkea-landscape__point {
+  cursor: default;
+  transition: stroke-width 100ms ease;
+  stroke: var(--arkea-surface-2);
+  stroke-width: 1;
+  opacity: 0.85;
+}
+
+.arkea-landscape__point:hover {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.arkea-landscape__point--chromosome {
+  fill: oklch(72% 0.13 200);
+}
+
+.arkea-landscape__point--plasmid {
+  fill: oklch(72% 0.16 80);
+}
+
+.arkea-landscape__point--prophage {
+  fill: oklch(65% 0.18 295);
+}
+
+.arkea-landscape__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-3);
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-landscape__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.arkea-landscape__legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.arkea-landscape__legend-swatch--chromosome {
+  background: oklch(72% 0.13 200);
+}
+
+.arkea-landscape__legend-swatch--plasmid {
+  background: oklch(72% 0.16 80);
+}
+
+.arkea-landscape__legend-swatch--prophage {
+  background: oklch(65% 0.18 295);
+}
+
+.arkea-landscape__legend-note {
+  margin-left: auto;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+ * Phase 36 / priority 7 — Gene-tree clusters with HGT incongruence overlay.
+ */
+.arkea-gene-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-gene-tree__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-gene-tree__chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--arkea-surface-3);
+  font-size: 11px;
+  font-family: var(--arkea-font-mono);
+  color: var(--arkea-fg);
+}
+
+.arkea-gene-tree__chip--warn {
+  background: color-mix(in oklch, oklch(70% 0.15 60) 25%, var(--arkea-surface-2));
+  color: oklch(82% 0.15 60);
+}
+
+.arkea-gene-tree__chip--muted {
+  background: transparent;
+  border: 1px solid var(--arkea-surface-3);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-gene-tree__clusters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-gene-tree__cluster-card {
+  padding: var(--arkea-space-2);
+  border-radius: 4px;
+  background: var(--arkea-surface-2);
+  border-left: 3px solid var(--arkea-surface-3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arkea-gene-tree__cluster-card--congruent {
+  border-left-color: oklch(70% 0.15 145);
+}
+
+.arkea-gene-tree__cluster-card--incongruent {
+  border-left-color: oklch(70% 0.15 60);
+}
+
+.arkea-gene-tree__cluster-card--singleton {
+  border-left-color: var(--arkea-fg-muted);
+}
+
+.arkea-gene-tree__cluster-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.arkea-gene-tree__cluster-id {
+  font-family: var(--arkea-font-mono);
+  color: var(--arkea-fg);
+  font-weight: 600;
+}
+
+.arkea-gene-tree__topology-chip {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-gene-tree__topology-chip--congruent {
+  background: color-mix(in oklch, oklch(70% 0.15 145) 25%, var(--arkea-surface-2));
+  color: oklch(82% 0.15 145);
+}
+
+.arkea-gene-tree__topology-chip--incongruent {
+  background: color-mix(in oklch, oklch(70% 0.15 60) 25%, var(--arkea-surface-2));
+  color: oklch(82% 0.15 60);
+}
+
+.arkea-gene-tree__topology-chip--singleton {
+  background: var(--arkea-surface-3);
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-gene-tree__member-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-gene-tree__cluster-meta,
+.arkea-gene-tree__incongruence,
+.arkea-gene-tree__unmatched-note {
+  font-size: 11px;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-gene-tree__incongruence {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: color-mix(in oklch, oklch(70% 0.15 60) 18%, var(--arkea-surface-2));
+  color: var(--arkea-fg);
+  border-left: 2px solid oklch(70% 0.15 60);
+  font-size: 11px;
+}
+
+.arkea-gene-tree__inline-id {
+  font-family: var(--arkea-font-mono);
+  font-size: 11px;
+  color: var(--arkea-fg);
+}
+
+.arkea-gene-tree__members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.arkea-gene-tree__member-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--arkea-surface-3);
+  font-family: var(--arkea-font-mono);
+  font-size: 11px;
+}
+
+.arkea-gene-tree__member-distance {
+  color: var(--arkea-fg-muted);
+  font-size: 10px;
+}
+
+.arkea-gene-tree__unmatched {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-2);
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * Phase 36 / priority 6 — Ancestral trace panel (drawer section).
+ */
+.arkea-ancestral {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-2);
+}
+
+.arkea-ancestral__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-ancestral__chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--arkea-surface-3);
+  font-size: 11px;
+  color: var(--arkea-fg);
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-ancestral__chip--muted {
+  background: transparent;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-ancestral__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-ancestral__table th,
+.arkea-ancestral__table td {
+  padding: 3px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--arkea-surface-3);
+}
+
+.arkea-ancestral__table th {
+  color: var(--arkea-fg-muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.arkea-ancestral__row--target {
+  background: color-mix(in oklch, var(--arkea-accent-cyan) 12%, transparent);
+  font-weight: 600;
+}
+
+.arkea-ancestral__row--delta-only {
+  opacity: 0.6;
+}
+
+.arkea-ancestral__inline-id {
+  color: var(--arkea-fg);
+}
+
+.arkea-ancestral__delta {
+  font-style: italic;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-ancestral__gene-trace {
+  margin-top: var(--arkea-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--arkea-space-1);
+}
+
+.arkea-ancestral__section-title {
+  font-size: 11px;
+  color: var(--arkea-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.arkea-ancestral__gene-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arkea-ancestral__gene-row {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--arkea-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-family: var(--arkea-font-mono);
+}
+
+.arkea-ancestral__gene-row--lost,
+.arkea-ancestral__gene-row--delta_only {
+  opacity: 0.55;
+}
+
+.arkea-ancestral__gene-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--arkea-fg-muted);
+}
+
+.arkea-ancestral__gene-row-type {
+  color: var(--arkea-fg);
+}
+
+.arkea-ancestral__gene-row-status {
+  margin-left: auto;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: oklch(70% 0.15 60);
+}
+
+.arkea-ancestral__gene-row-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+.arkea-ancestral__codon-cell {
+  width: 8px;
+  height: 12px;
+  border-radius: 1px;
+  background:
+    color-mix(
+      in oklch,
+      var(--arkea-accent-cyan) calc(var(--cell-fill, 0) * 100%),
+      var(--arkea-surface-3)
+    );
+}
+
+.arkea-ancestral__note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--arkea-fg-muted);
+  font-style: italic;
+}

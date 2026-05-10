@@ -24,14 +24,20 @@ defmodule ArkeaWeb.SimLive do
   alias Arkea.Sim.Biotope.Server, as: BiotopeServer
   alias Arkea.Sim.BiotopeState
   alias Arkea.Sim.Phenotype
+  alias Arkea.Views.AncestralReconstruction
   alias Arkea.Views.BiotopeScene, as: SceneLayout
   alias Arkea.Views.CodonViewer
+  alias Arkea.Views.DomainLandscape
   alias Arkea.Views.GeneDiff
+  alias Arkea.Views.GeneTree
   alias Arkea.Views.MutationHotspot
   alias Arkea.Views.RestrictionInspector
+  alias ArkeaWeb.Components.AncestralTracePanel
   alias ArkeaWeb.Components.Chart
   alias ArkeaWeb.Components.CodonTrack
+  alias ArkeaWeb.Components.DomainLandscapePanel
   alias ArkeaWeb.Components.GeneDiffPanel
+  alias ArkeaWeb.Components.GeneTreePanel
   alias ArkeaWeb.Components.MutationHotspotTrack
   alias ArkeaWeb.Components.Panel
   alias ArkeaWeb.Components.Phylogeny
@@ -74,7 +80,10 @@ defmodule ArkeaWeb.SimLive do
        notebook_form_error: nil,
        pinned_tick: nil,
        pinned_annotations: [],
-       page_title: "Arkea Biotope"
+       page_title: "Arkea Biotope",
+       landscape_domain: :catalytic_site,
+       landscape_x_key: :kcat,
+       landscape_y_key: :raw_sum
      )}
   end
 
@@ -279,6 +288,7 @@ defmodule ArkeaWeb.SimLive do
         "interventions" -> :interventions
         "trends" -> :trends
         "phylogeny" -> :phylogeny
+        "genomics" -> :genomics
         "notebook" -> :notebook
         _ -> :events
       end
@@ -352,6 +362,29 @@ defmodule ArkeaWeb.SimLive do
 
   def handle_event("clear_drawer_gene", _params, socket) do
     {:noreply, assign(socket, drawer_gene_id: nil)}
+  end
+
+  # Phase 36 — Genomics tab landscape selectors. When the user
+  # changes the domain dropdown, reset the X/Y axis selections
+  # to the new domain's defaults; otherwise preserve them.
+  def handle_event("genomics_select_landscape", params, socket) do
+    next_domain = atom_or_default(params["domain"], socket.assigns.landscape_domain)
+    domain_changed? = next_domain != socket.assigns.landscape_domain
+
+    {x_key, y_key} =
+      if domain_changed? do
+        {default_landscape_x(next_domain), default_landscape_y(next_domain)}
+      else
+        {atom_or_default(params["x_key"], socket.assigns.landscape_x_key),
+         atom_or_default(params["y_key"], socket.assigns.landscape_y_key)}
+      end
+
+    {:noreply,
+     assign(socket,
+       landscape_domain: next_domain,
+       landscape_x_key: x_key,
+       landscape_y_key: y_key
+     )}
   end
 
   # Phase 24 / 6.1 — lab notebook annotations.
@@ -644,6 +677,13 @@ defmodule ArkeaWeb.SimLive do
                     />
                   <% :phylogeny -> %>
                     <.phylogeny_panel model={@phylogeny_model} />
+                  <% :genomics -> %>
+                    <.genomics_panel
+                      sim_state={@sim_state}
+                      landscape_domain={@landscape_domain}
+                      landscape_x_key={@landscape_x_key}
+                      landscape_y_key={@landscape_y_key}
+                    />
                   <% :chemistry -> %>
                     <.chemistry_panel sim_state={@sim_state} />
                   <% :interventions -> %>
@@ -825,72 +865,26 @@ defmodule ArkeaWeb.SimLive do
   attr :audit, :list, default: []
 
   defp lineage_drawer(assigns) do
-    phenotype = Map.get(assigns.phenotype_cache, assigns.lineage.id)
-    cluster = phenotype_cluster(phenotype)
-    abundance = Lineage.total_abundance(assigns.lineage)
-    compare_lineage = find_compare_lineage(assigns.sim_state, assigns.compare_lineage_id)
-
-    diff =
-      cond do
-        is_nil(compare_lineage) -> nil
-        compare_lineage.id == assigns.lineage.id -> nil
-        true -> Arkea.Views.GenomeDiff.build(compare_lineage.genome, assigns.lineage.genome)
-      end
-
-    # Phase 34 — chromosome gene browser inside the drawer.
-    chromosome_genes = drawer_chromosome_genes(assigns.lineage)
-    selected_gene = pick_drawer_gene(chromosome_genes, assigns.drawer_gene_id)
-    codon_view = if selected_gene, do: CodonViewer.build(selected_gene), else: nil
-
-    # Codon-level diff: when a compare lineage is pinned AND the
-    # selected gene exists at the same chromosome position in the
-    # compare lineage, surface a `GeneDiff` panel below the codon
-    # track. Positional matching is sufficient for the v1 view —
-    # the same heuristic used by `AncestralReconstruction.gene_trace/3`.
-    compare_gene =
-      if selected_gene && compare_lineage && compare_lineage.id != assigns.lineage.id do
-        index =
-          Enum.find_index(chromosome_genes, fn g -> g.id == selected_gene.id end) || -1
-
-        compare_chromosome = drawer_chromosome_genes(compare_lineage)
-
-        if index >= 0 and index < length(compare_chromosome) do
-          Enum.at(compare_chromosome, index)
-        end
-      end
-
-    gene_diff =
-      if selected_gene && compare_gene && compare_gene.id != selected_gene.id,
-        do: GeneDiff.build(compare_gene, selected_gene),
-        else: nil
-
-    # Phase 35 / priority 3 — mutation hotspot heatmap for the
-    # selected gene. Uses the audit log from the parent LiveView
-    # (the same `:trends_audit` that drives the Trends tab); the
-    # builder filters down to events that touch this gene id.
-    hotspot_model =
-      if selected_gene, do: MutationHotspot.build(selected_gene, assigns.audit), else: nil
-
-    # Phase 35 / priority 4 — R-M arsenal for the lineage.
-    restriction_view =
-      if assigns.lineage.genome, do: RestrictionInspector.build(assigns.lineage), else: nil
+    derived = derive_drawer_assigns(assigns)
 
     assigns =
       assign(assigns,
-        phenotype: phenotype,
-        cluster: cluster,
-        abundance: abundance,
-        color: lineage_color(assigns.lineage.id, phenotype),
-        compare_lineage: compare_lineage,
-        diff: diff,
+        phenotype: derived.phenotype,
+        cluster: derived.cluster,
+        abundance: derived.abundance,
+        color: lineage_color(assigns.lineage.id, derived.phenotype),
+        compare_lineage: derived.compare_lineage,
+        diff: derived.diff,
         is_compare_pinned?: assigns.compare_lineage_id == assigns.lineage.id,
-        chromosome_genes: chromosome_genes,
-        selected_gene: selected_gene,
-        codon_view: codon_view,
-        compare_gene: compare_gene,
-        gene_diff: gene_diff,
-        hotspot_model: hotspot_model,
-        restriction_view: restriction_view
+        chromosome_genes: derived.chromosome_genes,
+        selected_gene: derived.selected_gene,
+        codon_view: derived.codon_view,
+        compare_gene: derived.compare_gene,
+        gene_diff: derived.gene_diff,
+        hotspot_model: derived.hotspot_model,
+        restriction_view: derived.restriction_view,
+        genome_trace_view: derived.genome_trace_view,
+        gene_trace_view: derived.gene_trace_view
       )
 
     ~H"""
@@ -1000,6 +994,17 @@ defmodule ArkeaWeb.SimLive do
         >
           <div class="arkea-drawer__section-title">R-M arsenal</div>
           <RestrictionInspectorPanel.restriction_inspector_panel view={@restriction_view} />
+        </div>
+
+        <%!-- Phase 36 / priority 6 — ancestor genome trace + (when a
+          gene is selected) per-position gene_trace along the
+          parent_id chain. --%>
+        <div :if={@genome_trace_view} class="arkea-drawer__section">
+          <div class="arkea-drawer__section-title">Ancestor trace</div>
+          <AncestralTracePanel.ancestral_trace_panel
+            genome_trace={@genome_trace_view}
+            gene_trace={@gene_trace_view}
+          />
         </div>
       </:body>
       <:footer>
@@ -2216,10 +2221,167 @@ defmodule ArkeaWeb.SimLive do
       {:lineages, "Lineages"},
       {:trends, "Trends"},
       {:phylogeny, "Phylogeny"},
+      {:genomics, "Genomics"},
       {:chemistry, "Chemistry"},
       {:interventions, "Interventions"},
       {:notebook, "Notebook"}
     ]
+  end
+
+  # Phase 36 — Genomics tab.
+  #
+  # Surfaces two population-level views:
+  #
+  #   1. **DomainLandscape** scatter — every domain instance of
+  #      a chosen `:domain_type` plotted by two `params` keys.
+  #      Default = `:catalytic_site` × kcat × Km.
+  #
+  #   2. **GeneTree** clustering — lineages grouped by the
+  #      similarity of their first chromosome gene; clusters
+  #      tagged `:singleton / :congruent / :incongruent`. The
+  #      `:incongruent` flag is the visible HGT signal.
+  attr :sim_state, :map, required: true
+  attr :landscape_domain, :atom, required: true
+  attr :landscape_x_key, :atom, required: true
+  attr :landscape_y_key, :atom, required: true
+
+  defp genomics_panel(assigns) do
+    landscape =
+      DomainLandscape.build(assigns.sim_state.lineages, assigns.landscape_domain)
+
+    gene_tree =
+      GeneTree.build(assigns.sim_state.lineages,
+        gene_extractor: &first_chromosome_gene/1
+      )
+
+    assigns = assign(assigns, landscape: landscape, gene_tree: gene_tree)
+
+    ~H"""
+    <div class="arkea-genomics">
+      <section class="arkea-genomics__section">
+        <header class="arkea-genomics__section-header">
+          <h3 class="arkea-genomics__section-title">Domain landscape</h3>
+          <form
+            phx-change="genomics_select_landscape"
+            class="arkea-genomics__landscape-form"
+          >
+            <label>
+              domain
+              <select name="domain">
+                <option
+                  :for={dt <- landscape_domain_options()}
+                  value={Atom.to_string(dt)}
+                  selected={dt == @landscape_domain}
+                >
+                  {dt}
+                </option>
+              </select>
+            </label>
+            <label>
+              X
+              <select name="x_key">
+                <option
+                  :for={k <- landscape_axis_options(@landscape_domain)}
+                  value={Atom.to_string(k)}
+                  selected={k == @landscape_x_key}
+                >
+                  {k}
+                </option>
+              </select>
+            </label>
+            <label>
+              Y
+              <select name="y_key">
+                <option
+                  :for={k <- landscape_axis_options(@landscape_domain)}
+                  value={Atom.to_string(k)}
+                  selected={k == @landscape_y_key}
+                >
+                  {k}
+                </option>
+              </select>
+            </label>
+          </form>
+        </header>
+
+        <DomainLandscapePanel.domain_landscape_panel
+          landscape={@landscape}
+          x_key={@landscape_x_key}
+          y_key={@landscape_y_key}
+        />
+      </section>
+
+      <section class="arkea-genomics__section">
+        <header class="arkea-genomics__section-header">
+          <h3 class="arkea-genomics__section-title">Gene tree (chromosome[0])</h3>
+        </header>
+        <GeneTreePanel.gene_tree_panel view={@gene_tree} />
+      </section>
+    </div>
+    """
+  end
+
+  defp first_chromosome_gene(%Lineage{genome: nil}), do: nil
+  defp first_chromosome_gene(%Lineage{genome: %{chromosome: [first | _]}}), do: first
+  defp first_chromosome_gene(_), do: nil
+
+  defp landscape_domain_options do
+    [
+      :catalytic_site,
+      :substrate_binding,
+      :dna_binding,
+      :ligand_sensor,
+      :transmembrane_anchor,
+      :channel_pore,
+      :energy_coupling,
+      :structural_fold,
+      :regulator_output,
+      :surface_tag,
+      :repair_fidelity
+    ]
+  end
+
+  # Numeric param keys per domain type (the only ones that make
+  # sense as scatter axes). When the user picks an axis key not
+  # populated for a given point, the panel filters it out via
+  # `is_number/1` — this list is just the dropdown options.
+  defp landscape_axis_options(:catalytic_site), do: [:kcat, :raw_sum]
+  defp landscape_axis_options(:substrate_binding), do: [:km, :specificity_breadth, :raw_sum]
+
+  defp landscape_axis_options(:dna_binding),
+    do: [:binding_affinity, :promoter_specificity, :raw_sum]
+
+  defp landscape_axis_options(:ligand_sensor), do: [:threshold, :raw_sum]
+  defp landscape_axis_options(:transmembrane_anchor), do: [:hydrophobicity, :n_passes, :raw_sum]
+  defp landscape_axis_options(:channel_pore), do: [:selectivity, :gating_threshold, :raw_sum]
+  defp landscape_axis_options(:energy_coupling), do: [:atp_cost, :pmf_coupling, :raw_sum]
+  defp landscape_axis_options(:structural_fold), do: [:stability, :multimerization_n, :raw_sum]
+  defp landscape_axis_options(:regulator_output), do: [:cooperativity, :raw_sum]
+  defp landscape_axis_options(:repair_fidelity), do: [:efficiency, :raw_sum]
+  defp landscape_axis_options(_), do: [:raw_sum]
+
+  defp atom_or_default(value, default) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> default
+  end
+
+  defp atom_or_default(_value, default), do: default
+
+  defp default_landscape_x(:catalytic_site), do: :kcat
+  defp default_landscape_x(:substrate_binding), do: :km
+  defp default_landscape_x(:dna_binding), do: :binding_affinity
+  defp default_landscape_x(other), do: hd(landscape_axis_options(other))
+
+  defp default_landscape_y(:catalytic_site), do: :raw_sum
+  defp default_landscape_y(:substrate_binding), do: :specificity_breadth
+  defp default_landscape_y(:dna_binding), do: :promoter_specificity
+
+  defp default_landscape_y(other) do
+    case landscape_axis_options(other) do
+      [_ | [second | _]] -> second
+      [only] -> only
+    end
   end
 
   # Lazily load the time-series + audit data the first time the user
@@ -2443,6 +2605,93 @@ defmodule ArkeaWeb.SimLive do
   defp drawer_chromosome_genes(%Lineage{genome: nil}), do: []
   defp drawer_chromosome_genes(%Lineage{genome: %{chromosome: genes}}), do: genes
   defp drawer_chromosome_genes(_), do: []
+
+  # Phase 34-36 — bundle the per-render derivation block so the
+  # drawer template stays simple. Returns a flat map ready to be
+  # merged into the template's assigns.
+  defp derive_drawer_assigns(assigns) do
+    lineage = assigns.lineage
+    phenotype = Map.get(assigns.phenotype_cache, lineage.id)
+    compare_lineage = find_compare_lineage(assigns.sim_state, assigns.compare_lineage_id)
+    chromosome_genes = drawer_chromosome_genes(lineage)
+    selected_gene = pick_drawer_gene(chromosome_genes, assigns.drawer_gene_id)
+    compare_gene = pick_compare_gene(compare_lineage, selected_gene, chromosome_genes, lineage.id)
+
+    population_lineages =
+      case assigns.sim_state do
+        %{lineages: lins} -> lins
+        _ -> []
+      end
+
+    %{
+      phenotype: phenotype,
+      cluster: phenotype_cluster(phenotype),
+      abundance: Lineage.total_abundance(lineage),
+      compare_lineage: compare_lineage,
+      diff: drawer_genome_diff(lineage, compare_lineage),
+      chromosome_genes: chromosome_genes,
+      selected_gene: selected_gene,
+      codon_view: if(selected_gene, do: CodonViewer.build(selected_gene)),
+      compare_gene: compare_gene,
+      gene_diff: drawer_gene_diff(selected_gene, compare_gene),
+      hotspot_model: drawer_hotspot_model(selected_gene, assigns.audit),
+      restriction_view: if(lineage.genome, do: RestrictionInspector.build(lineage)),
+      genome_trace_view: drawer_genome_trace(population_lineages, lineage.id),
+      gene_trace_view:
+        drawer_gene_trace(population_lineages, lineage.id, selected_gene, chromosome_genes)
+    }
+  end
+
+  defp drawer_genome_diff(_lineage, nil), do: nil
+
+  defp drawer_genome_diff(%Lineage{id: id}, %Lineage{id: id}), do: nil
+
+  defp drawer_genome_diff(lineage, compare_lineage),
+    do: Arkea.Views.GenomeDiff.build(compare_lineage.genome, lineage.genome)
+
+  defp pick_compare_gene(nil, _selected, _genes, _self_id), do: nil
+  defp pick_compare_gene(%Lineage{id: id}, _selected, _genes, id), do: nil
+  defp pick_compare_gene(_compare, nil, _genes, _self_id), do: nil
+
+  defp pick_compare_gene(%Lineage{} = compare_lineage, selected_gene, chromosome_genes, _self_id) do
+    index = Enum.find_index(chromosome_genes, fn g -> g.id == selected_gene.id end) || -1
+    compare_chromosome = drawer_chromosome_genes(compare_lineage)
+
+    if index >= 0 and index < length(compare_chromosome) do
+      Enum.at(compare_chromosome, index)
+    end
+  end
+
+  defp drawer_gene_diff(nil, _), do: nil
+  defp drawer_gene_diff(_, nil), do: nil
+  defp drawer_gene_diff(%{id: id}, %{id: id}), do: nil
+  defp drawer_gene_diff(selected, compare), do: GeneDiff.build(compare, selected)
+
+  defp drawer_hotspot_model(nil, _audit), do: nil
+  defp drawer_hotspot_model(gene, audit), do: MutationHotspot.build(gene, audit)
+
+  defp drawer_genome_trace(lineages, lineage_id) do
+    case AncestralReconstruction.genome_trace(lineages, lineage_id) do
+      %{ancestors: _} = v -> v
+      _ -> nil
+    end
+  end
+
+  defp drawer_gene_trace(_lineages, _lineage_id, nil, _genes), do: nil
+  defp drawer_gene_trace(_lineages, _lineage_id, _gene, []), do: nil
+
+  defp drawer_gene_trace(lineages, lineage_id, gene, chromosome_genes) do
+    case Enum.find_index(chromosome_genes, fn g -> g.id == gene.id end) do
+      nil ->
+        nil
+
+      index ->
+        case AncestralReconstruction.gene_trace(lineages, lineage_id, index) do
+          %{trace: _} = v -> v
+          _ -> nil
+        end
+    end
+  end
 
   defp pick_drawer_gene([], _id), do: nil
   defp pick_drawer_gene([gene | _] = _genes, nil), do: gene
