@@ -32,6 +32,8 @@ defmodule ArkeaWeb.Components.AncestralTracePanel do
 
   use Phoenix.Component
 
+  alias Arkea.Genome.Codon
+
   attr :genome_trace, :map, required: true
   attr :gene_trace, :map, default: nil
   attr :class, :string, default: nil
@@ -108,8 +110,9 @@ defmodule ArkeaWeb.Components.AncestralTracePanel do
                 :for={{codon, idx} <- Enum.with_index(entry.codons)}
                 class="arkea-ancestral__codon-cell"
                 style={"--cell-fill: #{Float.round(codon / 19.0, 3)};"}
+                data-codon-value={codon}
               >
-                <title>pos #{idx}: codon {codon}</title>
+                <title>pos #{idx}: {Codon.to_letter(codon)} (value {codon})</title>
               </span>
             </div>
           </div>

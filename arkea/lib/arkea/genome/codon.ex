@@ -38,6 +38,33 @@ defmodule Arkea.Genome.Codon do
     :val
   ]
 
+  # IUPAC single-letter amino-acid code (the standard biochemistry
+  # shorthand) — same canonical order as `@symbols`.  Surfaces as
+  # `to_letter/1` for UI consumers that want compact codon display
+  # (genome canvas, codon track, gene diff panel).
+  @letters [
+    "A",
+    "R",
+    "N",
+    "D",
+    "C",
+    "Q",
+    "E",
+    "G",
+    "H",
+    "I",
+    "L",
+    "K",
+    "M",
+    "F",
+    "P",
+    "S",
+    "T",
+    "W",
+    "Y",
+    "V"
+  ]
+
   @symbol_count 20
 
   # Log-normal weights with a fixed seed (Phase 1 design Q1).
@@ -122,6 +149,37 @@ defmodule Arkea.Genome.Codon do
       index -> index
     end
   end
+
+  @doc """
+  Convert a codon index to its IUPAC single-letter amino-acid code
+  (the standard biochemistry shorthand: A=ala, R=arg, …, V=val).
+
+  This is the canonical *display* form for UI surfaces — the
+  numeric `0..19` value remains the underlying storage; this
+  function just maps it to the human-readable letter.
+
+      iex> Arkea.Genome.Codon.to_letter(0)
+      "A"
+      iex> Arkea.Genome.Codon.to_letter(17)
+      "W"
+  """
+  @spec to_letter(t()) :: String.t()
+  def to_letter(index) when is_integer(index) and index in 0..19 do
+    Enum.at(@letters, index)
+  end
+
+  @doc "Convert a single-letter amino-acid code to its codon index. Raises if `letter` is not in the alphabet."
+  @spec from_letter(String.t()) :: t()
+  def from_letter(letter) when is_binary(letter) do
+    case Enum.find_index(@letters, &(&1 == letter)) do
+      nil -> raise ArgumentError, "#{inspect(letter)} is not a valid amino-acid letter"
+      index -> index
+    end
+  end
+
+  @doc "The full ordered list of 20 single-letter codes."
+  @spec letters() :: [String.t()]
+  def letters, do: @letters
 
   @doc "Weight of a single codon (log-normal, frozen by design)."
   @spec weight(t()) :: float()
